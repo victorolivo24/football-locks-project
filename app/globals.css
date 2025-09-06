@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #061b10; /* deep green */
+  --foreground: #f3f4f6; /* gray-100 */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #061b10;
+    --foreground: #f3f4f6;
   }
 }
 
@@ -19,8 +19,55 @@ body {
   background: var(--background);
 }
 
+/* Football theme helpers */
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .text-balance { text-wrap: balance; }
+
+  /* Subtle football field gradient with yard lines */
+  .football-field {
+    background-image:
+      linear-gradient(160deg, #0a3d1e 0%, #0f4f28 45%, #0b3e21 100%),
+      repeating-linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0.08) 0 1px,
+        transparent 1px 60px
+      );
+    background-blend-mode: overlay;
+  }
+
+  .glass-card {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl;
+  }
+
+  .glass-section {
+    @apply bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl;
+  }
+
+  .btn-gradient {
+    @apply inline-flex items-center justify-center font-bold rounded-xl border-2 shadow-2xl transition-transform duration-200;
+  }
+
+  .btn-yellow {
+    @apply btn-gradient text-black border-yellow-400/50;
+    background-image: linear-gradient(90deg, #f59e0b, #f59e0b, #fbbf24);
+  }
+
+  .btn-blue {
+    @apply btn-gradient text-white border-blue-500/30;
+    background-image: linear-gradient(90deg, #2563eb, #1d4ed8);
+  }
+
+  .btn-slate {
+    @apply btn-gradient text-white border-gray-600/50;
+    background-image: linear-gradient(90deg, #374151, #1f2937);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center font-semibold rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors;
+  }
+
+  /* Custom radio style (hidden input + visual) */
+  .pick-radio {
+    @apply w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200;
   }
 }

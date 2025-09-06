@@ -97,17 +97,20 @@ export default function ScoreboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen">
+      <nav className="relative glass-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link href="/" className="text-xl font-semibold text-gray-900">
-                NFL Pick'em
+            <div className="flex items-center space-x-3">
+              <Link href="/" className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
+                  <span className="text-black font-bold text-lg">🏈</span>
+                </div>
+                <span className="text-2xl font-bold text-white">NFL Pick'em</span>
               </Link>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">Welcome, {user.name}</span>
+              <span className="text-sm text-green-200 font-medium">Welcome, {user.name}</span>
             </div>
           </div>
         </div>
@@ -115,52 +118,54 @@ export default function ScoreboardPage() {
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Scoreboard</h1>
-            <p className="text-gray-600">Season {season}</p>
+          <div className="text-center mb-6">
+            <h1 className="text-4xl font-bold text-white">Scoreboard</h1>
+            <p className="text-green-200">Season {season}</p>
           </div>
 
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <div className="glass-card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider sticky left-0 bg-white/5 backdrop-blur-sm">
                       Rank
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-12 bg-gray-50">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider sticky left-16 bg-white/5 backdrop-blur-sm">
                       Player
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
                       Total
                     </th>
                     {Array.from({ length: maxWeek }, (_, i) => i + 1).map((week) => (
-                      <th key={week} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th key={week} className="px-6 py-3 text-center text-xs font-medium text-green-200 uppercase tracking-wider">
                         W{week}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-white/10">
                   {scores.map((userScore, index) => (
-                    <tr key={userScore.userId} className={index === 0 ? 'bg-yellow-50' : ''}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
-                        {index + 1}
+                    <tr key={userScore.userId} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white sticky left-0 bg-transparent">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-md ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-white/10 text-white'}`}>
+                          {index + 1}
+                        </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-12 bg-white">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-white sticky left-16 bg-transparent">
                         {userScore.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                         {userScore.totalScore}
                       </td>
                       {Array.from({ length: maxWeek }, (_, i) => i + 1).map((week) => {
                         const weekScore = getWeeklyScore(userScore, week);
                         return (
                           <td key={week} className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              weekScore > 0 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-gray-100 text-gray-800'
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                              weekScore > 0
+                                ? 'bg-green-600/20 text-green-200 border border-green-500/30'
+                                : 'bg-white/10 text-white/80 border border-white/10'
                             }`}>
                               {weekScore}
                             </span>
@@ -174,8 +179,8 @@ export default function ScoreboardPage() {
             </div>
           </div>
 
-          <div className="mt-6 text-sm text-gray-600">
-            <p><strong>Scoring:</strong> All picks correct = points equal to number of picks. Any wrong pick = 0 points.</p>
+          <div className="mt-6 text-sm text-green-200/90">
+            <p className="mb-1"><strong>Scoring:</strong> All picks correct = number of picks. Any wrong pick = 0.</p>
             <p><strong>Note:</strong> You must pick ALL games in a week to be eligible for points.</p>
           </div>
         </div>

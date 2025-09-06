@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Next.js 14 doesn't need experimental.appDir
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'a.espncdn.com',
+        pathname: '/i/teamlogos/nfl/**',
+      },
+    ],
+  },
 }
 
 module.exports = nextConfig

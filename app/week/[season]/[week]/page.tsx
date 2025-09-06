@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
 import { isPicksLocked } from '@/lib/nfl';
+import TeamLogo from '@/components/TeamLogo';
 
 interface Game {
   id: number;
@@ -157,111 +158,161 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen">
+      <nav className="relative glass-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link href="/" className="text-xl font-semibold text-gray-900">
-                NFL Pick'em
+            <div className="flex items-center space-x-3">
+              <Link href="/" className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
+                  <span className="text-black font-bold text-lg">🏈</span>
+                </div>
+                <span className="text-2xl font-bold text-white">NFL Pick'em</span>
               </Link>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">Welcome, {user.name}</span>
+              <span className="text-sm text-green-200 font-medium">Welcome, {user.name}</span>
             </div>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="relative max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">
+          {/* Hero Section */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
               Week {week} Picks
             </h1>
-            <p className="text-gray-600">Season {season}</p>
+            <p className="text-xl text-green-200 mb-6">Season {season}</p>
+            {isLocked && (
+              <div className="inline-flex items-center px-6 py-3 bg-red-600/20 border border-red-500/30 rounded-full text-red-200 font-semibold">
+                <span className="mr-2">🔒</span>
+                Picks are locked for this week
+              </div>
+            )}
           </div>
 
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
+            <div className="mb-6 bg-red-600/20 border border-red-500/30 text-red-200 px-6 py-4 rounded-xl backdrop-blur-sm">
+              <div className="flex items-center">
+                <span className="mr-2">⚠️</span>
+                {error}
+              </div>
             </div>
           )}
 
           {success && (
-            <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-              {success}
+            <div className="mb-6 bg-green-600/20 border border-green-500/30 text-green-200 px-6 py-4 rounded-xl backdrop-blur-sm">
+              <div className="flex items-center">
+                <span className="mr-2">✅</span>
+                {success}
+              </div>
             </div>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Games and Picks */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Games</h2>
-
+            <div className="glass-card">
+              <div className="px-6 py-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
+                    <span className="text-2xl">🏈</span>
+                  </div>
+                  <h2 className="text-2xl font-bold text-white">Games</h2>
+                </div>
+                
                 {games.length === 0 ? (
-                  <p className="text-gray-500">No games scheduled for this week.</p>
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">🏈</div>
+                    <p className="text-green-200 text-lg">No games scheduled for this week.</p>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     {games.map((game) => (
-                      <div key={game.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm text-gray-500">
+                      <div key={game.id} className="glass-section p-6 hover:bg-white/10 transition-all duration-200">
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="text-sm text-green-200 font-medium">
                             {formatGameTime(game.startTime)}
                           </span>
-                          <span className={`text-xs px-2 py-1 rounded ${game.status === 'final' ? 'bg-green-100 text-green-800' :
-                              game.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-gray-100 text-gray-800'
-                            }`}>
-                            {game.status}
+                          <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
+                            game.status === 'final' ? 'bg-green-600/20 text-green-200 border border-green-500/30' :
+                            game.status === 'in_progress' ? 'bg-yellow-600/20 text-yellow-200 border border-yellow-500/30' :
+                            'bg-blue-600/20 text-blue-200 border border-blue-500/30'
+                          }`}>
+                            {game.status.toUpperCase()}
                           </span>
                         </div>
-
-                        <div className="flex justify-between items-center">
-                          <div className="flex-1">
-                            <div className="text-sm font-medium">{game.awayTeam}</div>
-                            <div className="text-sm font-medium">{game.homeTeam}</div>
+                        
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-4">
+                            <TeamLogo team={game.awayTeam} size="md" />
+                            <span className="text-white font-semibold text-lg">@</span>
+                            <TeamLogo team={game.homeTeam} size="md" />
                           </div>
-
+                          
                           {!isLocked && game.status === 'scheduled' && (
-                            <div className="flex space-x-2">
-                              <label className="flex items-center">
+                            <div className="flex space-x-4">
+                              <label className="flex items-center cursor-pointer group">
                                 <input
                                   type="radio"
                                   name={`pick-${game.id}`}
                                   value={game.awayTeam}
                                   checked={getPickedTeam(game.id) === game.awayTeam}
                                   onChange={() => handlePickChange(game.id, game.awayTeam)}
-                                  className="mr-2"
+                                  className="sr-only"
                                 />
-                                <span className="text-sm">{game.awayTeam}</span>
+                                <div className={`pick-radio ${
+                                  getPickedTeam(game.id) === game.awayTeam 
+                                    ? 'bg-yellow-500 border-yellow-400' 
+                                    : 'border-white/30 group-hover:border-yellow-400 group-hover:bg-yellow-500/20'
+                                }`}>
+                                  {getPickedTeam(game.id) === game.awayTeam && (
+                                    <div className="w-3 h-3 bg-white rounded-full"></div>
+                                  )}
+                                </div>
+                                <span className="ml-2 text-white font-medium group-hover:text-yellow-200 transition-colors">
+                                  {game.awayTeam}
+                                </span>
                               </label>
-                              <label className="flex items-center">
+                              
+                              <label className="flex items-center cursor-pointer group">
                                 <input
                                   type="radio"
                                   name={`pick-${game.id}`}
                                   value={game.homeTeam}
                                   checked={getPickedTeam(game.id) === game.homeTeam}
                                   onChange={() => handlePickChange(game.id, game.homeTeam)}
-                                  className="mr-2"
+                                  className="sr-only"
                                 />
-                                <span className="text-sm">{game.homeTeam}</span>
+                                <div className={`pick-radio ${
+                                  getPickedTeam(game.id) === game.homeTeam 
+                                    ? 'bg-yellow-500 border-yellow-400' 
+                                    : 'border-white/30 group-hover:border-yellow-400 group-hover:bg-yellow-500/20'
+                                }`}>
+                                  {getPickedTeam(game.id) === game.homeTeam && (
+                                    <div className="w-3 h-3 bg-white rounded-full"></div>
+                                  )}
+                                </div>
+                                <span className="ml-2 text-white font-medium group-hover:text-yellow-200 transition-colors">
+                                  {game.homeTeam}
+                                </span>
                               </label>
                             </div>
                           )}
-
+                          
                           {isLocked && (
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-green-200 font-medium">
                               {getPickedTeam(game.id) || 'No pick'}
                             </div>
                           )}
                         </div>
-
+                        
                         {game.winnerTeam && (
-                          <div className="mt-2 text-sm">
-                            <span className="font-medium">Winner: </span>
-                            <span className="text-green-600">{game.winnerTeam}</span>
+                          <div className="flex items-center justify-center py-2 bg-green-600/20 border border-green-500/30 rounded-lg">
+                            <span className="text-green-200 font-semibold">
+                              🏆 Winner: {game.winnerTeam}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -272,28 +323,42 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             </div>
 
             {/* My Picks Panel */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">My Picks</h2>
-
+            <div className="glass-card">
+              <div className="px-6 py-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                    <span className="text-2xl">👤</span>
+                  </div>
+                  <h2 className="text-2xl font-bold text-white">My Picks</h2>
+                </div>
+                
                 {myPicks.length === 0 ? (
-                  <p className="text-gray-500">No picks submitted yet.</p>
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">🎯</div>
+                    <p className="text-green-200 text-lg">No picks submitted yet.</p>
+                    <p className="text-green-300 text-sm mt-2">Select teams above to make your picks!</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {myPicks.map((pick) => {
                       const game = games.find(g => g.id === pick.gameId);
                       return (
-                        <div key={pick.gameId} className="flex justify-between items-center py-2 border-b">
-                          <div>
-                            <div className="text-sm font-medium">
-                              {game?.awayTeam} @ {game?.homeTeam}
+                        <div key={pick.gameId} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <TeamLogo team={game?.awayTeam || ''} size="sm" />
+                              <span className="text-white font-medium">@</span>
+                              <TeamLogo team={game?.homeTeam || ''} size="sm" />
                             </div>
-                            <div className="text-xs text-gray-500">
-                              {game && formatGameTime(game.startTime)}
+                            <div className="flex items-center space-x-2">
+                              <span className="text-green-200 text-sm font-medium">Picked:</span>
+                              <div className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-bold">
+                                {pick.pickedTeam}
+                              </div>
                             </div>
                           </div>
-                          <div className="text-sm font-medium text-blue-600">
-                            {pick.pickedTeam}
+                          <div className="text-xs text-green-300 mt-2">
+                            {game && formatGameTime(game.startTime)}
                           </div>
                         </div>
                       );
@@ -301,22 +366,28 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                   </div>
                 )}
 
-                {!isLocked && !myPicks.length && picks.filter(p => !!p.team).length > 0 && (
+                {!isLocked && picks.filter(p => !!p.team).length > 0 && (
                   <button
                     onClick={handleSubmit}
                     disabled={submitting}
-                    className="mt-4 w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                    className="mt-6 w-full btn-yellow py-4 px-6 hover:scale-105 disabled:opacity-50 disabled:transform-none"
                   >
-                    {submitting ? 'Submitting...' : 'Submit Picks'}
+                    <span className="flex items-center justify-center">
+                      <span className="mr-2 text-xl">🏈</span>
+                      {submitting ? 'Submitting...' : 'Submit Picks'}
+                    </span>
                   </button>
                 )}
 
                 {myPicks.length > 0 && !showAllPicks && (
                   <button
                     onClick={fetchAllPicks}
-                    className="mt-4 w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700"
+                    className="mt-4 w-full btn-blue py-3 px-6 hover:scale-105"
                   >
-                    View All Picks
+                    <span className="flex items-center justify-center">
+                      <span className="mr-2">👥</span>
+                      View All Picks
+                    </span>
                   </button>
                 )}
               </div>
@@ -325,35 +396,50 @@ export default function WeekPage({ params }: { params: { season: string; week: s
 
           {/* All Picks Tab */}
           {showAllPicks && (
-            <div className="mt-8 bg-white shadow rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">All Picks</h2>
-
+            <div className="mt-8 glass-card">
+              <div className="px-6 py-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                    <span className="text-2xl">👥</span>
+                  </div>
+                  <h2 className="text-2xl font-bold text-white">All Picks</h2>
+                </div>
+                
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          User
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-white/20">
+                        <th className="px-4 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                          Player
                         </th>
                         {games.map((game) => (
-                          <th key={game.id} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {game.awayTeam} @ {game.homeTeam}
+                          <th key={game.id} className="px-4 py-4 text-center text-xs font-medium text-green-200 uppercase tracking-wider">
+                            <div className="flex items-center justify-center space-x-1">
+                              <TeamLogo team={game.awayTeam} size="sm" />
+                              <span className="text-white">@</span>
+                              <TeamLogo team={game.homeTeam} size="sm" />
+                            </div>
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="divide-y divide-white/10">
                       {Object.entries(allPicks).map(([userName, picks]) => (
-                        <tr key={userName}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <tr key={userName} className="hover:bg-white/5 transition-colors duration-200">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-white">
                             {userName}
                           </td>
                           {games.map((game) => {
                             const pick = picks.find((p: Pick) => p.gameId === game.id);
                             return (
-                              <td key={game.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {pick?.pickedTeam || '-'}
+                              <td key={game.id} className="px-4 py-4 whitespace-nowrap text-center">
+                                {pick?.pickedTeam ? (
+                                  <div className="bg-yellow-500 text-black px-2 py-1 rounded-full text-xs font-bold inline-block">
+                                    {pick.pickedTeam}
+                                  </div>
+                                ) : (
+                                  <span className="text-white/50 text-xs">-</span>
+                                )}
                               </td>
                             );
                           })}
@@ -367,6 +453,6 @@ export default function WeekPage({ params }: { params: { season: string; week: s
           )}
         </div>
       </main>
-    </div>
+    </div >
   );
 }
