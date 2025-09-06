@@ -29,6 +29,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   const [user, setUser] = useState<User | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [myPicks, setMyPicks] = useState<Pick[]>([]);
+  const [picks, setPicks] = useState<Array<{ gameId: number; team?: string }>>([]);
   const [allPicks, setAllPicks] = useState<Record<string, Pick[]>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -83,53 +84,41 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   };
 
   const handlePickChange = (gameId: number, pickedTeam: string) => {
-    setMyPicks(prev => {
-      const existing = prev.find(p => p.gameId === gameId);
-      if (existing) {
-        return prev.map(p => p.gameId === gameId ? { ...p, pickedTeam } : p);
-      } else {
-        return [...prev, { gameId, pickedTeam }];
-      }
+    setPicks(prev => {
+      const rest = prev.filter(p => p.gameId !== gameId);
+      return [...rest, { gameId, team: pickedTeam }];
     });
   };
 
-  const handleSubmit = async () => {
-    if (myPicks.length === 0) {
-      setError('Please make at least one pick');
-      return;
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const payload = {
+      season,
+      week,
+      picks: picks.filter(p => !!p.team).map(p => ({ gameId: p.gameId, pickedTeam: p.team! })),
+    };
+
+    if (payload.picks.length === 0) return alert('Select at least one game');
 
     setSubmitting(true);
-    setError('');
-    setSuccess('');
-
     try {
-      const response = await fetch('/api/picks/submit', {
+      const res = await fetch('/api/picks/submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          season,
-          week,
-          picks: myPicks,
-        }),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('Picks submitted successfully!');
-        await fetchData(); // Refresh data
-      } else {
-        setError(data.error || 'Failed to submit picks');
-      }
-    } catch (error) {
-      setError('Network error. Please try again.');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      alert('Picks submitted!');
+      location.reload();
+    } catch (err: any) {
+      alert(`Submit failed: ${err.message}`);
     } finally {
       setSubmitting(false);
     }
   };
+
 
   const fetchAllPicks = async () => {
     try {
@@ -147,8 +136,8 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   };
 
   const getPickedTeam = (gameId: number) => {
-    const pick = myPicks.find(p => p.gameId === gameId);
-    return pick?.pickedTeam || '';
+    const pick = picks.find(p => p.gameId === gameId);
+    return pick?.team || '';
   };
 
   const formatGameTime = (startTime: string) => {
@@ -210,7 +199,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             <div className="bg-white shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">Games</h2>
-                
+
                 {games.length === 0 ? (
                   <p className="text-gray-500">No games scheduled for this week.</p>
                 ) : (
@@ -221,30 +210,29 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                           <span className="text-sm text-gray-500">
                             {formatGameTime(game.startTime)}
                           </span>
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            game.status === 'final' ? 'bg-green-100 text-green-800' :
-                            game.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
+                          <span className={`text-xs px-2 py-1 rounded ${game.status === 'final' ? 'bg-green-100 text-green-800' :
+                              game.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                            }`}>
                             {game.status}
                           </span>
                         </div>
-                        
+
                         <div className="flex justify-between items-center">
                           <div className="flex-1">
                             <div className="text-sm font-medium">{game.awayTeam}</div>
                             <div className="text-sm font-medium">{game.homeTeam}</div>
                           </div>
-                          
+
                           {!isLocked && game.status === 'scheduled' && (
                             <div className="flex space-x-2">
                               <label className="flex items-center">
                                 <input
                                   type="radio"
-                                  name={`game-${game.id}`}
+                                  name={`pick-${game.id}`}
                                   value={game.awayTeam}
                                   checked={getPickedTeam(game.id) === game.awayTeam}
-                                  onChange={(e) => handlePickChange(game.id, e.target.value)}
+                                  onChange={() => handlePickChange(game.id, game.awayTeam)}
                                   className="mr-2"
                                 />
                                 <span className="text-sm">{game.awayTeam}</span>
@@ -252,24 +240,24 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                               <label className="flex items-center">
                                 <input
                                   type="radio"
-                                  name={`game-${game.id}`}
+                                  name={`pick-${game.id}`}
                                   value={game.homeTeam}
                                   checked={getPickedTeam(game.id) === game.homeTeam}
-                                  onChange={(e) => handlePickChange(game.id, e.target.value)}
+                                  onChange={() => handlePickChange(game.id, game.homeTeam)}
                                   className="mr-2"
                                 />
                                 <span className="text-sm">{game.homeTeam}</span>
                               </label>
                             </div>
                           )}
-                          
+
                           {isLocked && (
                             <div className="text-sm text-gray-500">
                               {getPickedTeam(game.id) || 'No pick'}
                             </div>
                           )}
                         </div>
-                        
+
                         {game.winnerTeam && (
                           <div className="mt-2 text-sm">
                             <span className="font-medium">Winner: </span>
@@ -287,7 +275,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             <div className="bg-white shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">My Picks</h2>
-                
+
                 {myPicks.length === 0 ? (
                   <p className="text-gray-500">No picks submitted yet.</p>
                 ) : (
@@ -313,10 +301,10 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                   </div>
                 )}
 
-                {!isLocked && myPicks.length === 0 && (
+                {!isLocked && !myPicks.length && picks.filter(p => !!p.team).length > 0 && (
                   <button
                     onClick={handleSubmit}
-                    disabled={submitting || myPicks.length === 0}
+                    disabled={submitting}
                     className="mt-4 w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {submitting ? 'Submitting...' : 'Submit Picks'}
@@ -340,7 +328,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             <div className="mt-8 bg-white shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">All Picks</h2>
-                
+
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">

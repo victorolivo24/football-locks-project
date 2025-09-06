@@ -68,9 +68,9 @@ export function getLockTime(season: number, week: number): DateTime {
 
 // Check if picks are locked for a given week
 export function isPicksLocked(season: number, week: number): boolean {
+  if (process.env.NEXT_PUBLIC_DISABLE_LOCKS === '1') return false; // dev override
   const lockTime = getLockTime(season, week);
   const now = DateTime.now().setZone('America/New_York');
-
   return now >= lockTime;
 }
 export async function calculateAllWeeklyScores(season: number, week: number) {

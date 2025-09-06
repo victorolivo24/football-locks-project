@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
+  // Next.js 14 doesn't need experimental.appDir
 }
 
 module.exports = nextConfig

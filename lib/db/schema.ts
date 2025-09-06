@@ -8,35 +8,34 @@ export const users = pgTable('users', {
 
 // NFL Games table
 export const games = pgTable('games', {
-  id: bigint('id', { mode: 'number' }).primaryKey(), // ESPN event id
+  id: bigint('id', { mode: 'number' }).primaryKey(),
   season: integer('season').notNull(),
   week: integer('week').notNull(),
-  startTime: timestamp('start_time', { withTimezone: true }).notNull(),
-  homeTeam: text('home_team').notNull(),
-  awayTeam: text('away_team').notNull(),
-  winnerTeam: text('winner_team'), // null until resolved
-  status: text('status').notNull().default('scheduled'), // scheduled|in_progress|final
+  startTime: timestamp('starttime', { withTimezone: true }).notNull(), // 👈 maps to starttime
+  homeTeam: text('hometeam').notNull(),                                 // 👈 hometeam
+  awayTeam: text('awayteam').notNull(),                                 // 👈 awayteam
+  winnerTeam: text('winnerteam'),                                       // 👈 winnerteam
+  status: text('status').notNull().default('scheduled'),
 });
-
 // Picks table - one row per user per game
 export const picks = pgTable('picks', {
-  userId: integer('user_id').references(() => users.id),
-  gameId: bigint('game_id', { mode: 'number' }).references(() => games.id),
-  pickedTeam: text('picked_team').notNull(),
+  userId: integer('userid').references(() => users.id),
+  gameId: bigint('gameid', { mode: 'number' }).references(() => games.id),
+  pickedTeam: text('pickedteam').notNull(),
   week: integer('week').notNull(),
   season: integer('season').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('createdat', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   pk: { primaryKey: [table.userId, table.gameId] },
 }));
 
 // Weekly scores table - computed results
 export const weeklyScores = pgTable('weekly_scores', {
-  userId: integer('user_id').references(() => users.id),
+  userId: integer('userid').references(() => users.id),
   season: integer('season').notNull(),
   week: integer('week').notNull(),
   points: integer('points').notNull(),
-  computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+  computedAt: timestamp('computedat', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   pk: { primaryKey: [table.userId, table.season, table.week] },
 }));
