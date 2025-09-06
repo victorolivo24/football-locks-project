@@ -59,7 +59,10 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {} as Record<string, any[]>);
 
-    return NextResponse.json({ picksByUser });
+    // Also include all users so the UI can show "hasn't submitted"
+    const allUsers = await db.select({ id: users.id, name: users.name }).from(users);
+
+    return NextResponse.json({ picksByUser, users: allUsers });
   } catch (error) {
     console.error('Get all picks error:', error);
     return NextResponse.json(

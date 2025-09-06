@@ -48,11 +48,7 @@ export const TEAMS: Record<TeamKey, TeamMeta> = {
 };
 
 export function getTeamMeta(team: string): TeamMeta | undefined {
-  // Input in DB is expected to be nickname (e.g., 'Chiefs').
-  // Fallback tries to match case-insensitively by nickname.
-  const key = Object.keys(TEAMS).find(
-    (k) => k.toLowerCase() === team.trim().toLowerCase()
-  ) as TeamKey | undefined;
+  const key = getTeamKey(team);
   return key ? TEAMS[key] : undefined;
 }
 
@@ -64,3 +60,69 @@ export function getEspnLogoUrl(team: string, size: 100 | 200 | 500 = 500): strin
   return `https://a.espncdn.com/i/teamlogos/nfl/${size}/scoreboard/${meta.abbr}.png`;
 }
 
+// Utility: normalize various team name formats to our TeamKey nickname
+export function getTeamKey(input: string): TeamKey | undefined {
+  if (!input) return undefined;
+  const raw = input.trim();
+  // Exact nickname match
+  const exact = (Object.keys(TEAMS) as TeamKey[]).find(
+    (k) => k.toLowerCase() === raw.toLowerCase()
+  );
+  if (exact) return exact;
+
+  // Full city name, take last token (e.g., 'Buffalo Bills' -> 'Bills')
+  const parts = raw.split(/\s+/);
+  const last = parts[parts.length - 1];
+  const byLast = (Object.keys(TEAMS) as TeamKey[]).find(
+    (k) => k.toLowerCase() === last.toLowerCase()
+  );
+  if (byLast) return byLast;
+
+  // Common alternate long names map
+  const alt: Record<string, TeamKey> = {
+    'Arizona Cardinals': 'Cardinals',
+    'Atlanta Falcons': 'Falcons',
+    'Baltimore Ravens': 'Ravens',
+    'Buffalo Bills': 'Bills',
+    'Carolina Panthers': 'Panthers',
+    'Chicago Bears': 'Bears',
+    'Cincinnati Bengals': 'Bengals',
+    'Cleveland Browns': 'Browns',
+    'Dallas Cowboys': 'Cowboys',
+    'Denver Broncos': 'Broncos',
+    'Detroit Lions': 'Lions',
+    'Green Bay Packers': 'Packers',
+    'Houston Texans': 'Texans',
+    'Indianapolis Colts': 'Colts',
+    'Jacksonville Jaguars': 'Jaguars',
+    'Kansas City Chiefs': 'Chiefs',
+    'Las Vegas Raiders': 'Raiders',
+    'Los Angeles Chargers': 'Chargers',
+    'Los Angeles Rams': 'Rams',
+    'Miami Dolphins': 'Dolphins',
+    'Minnesota Vikings': 'Vikings',
+    'New England Patriots': 'Patriots',
+    'New Orleans Saints': 'Saints',
+    'New York Giants': 'Giants',
+    'New York Jets': 'Jets',
+    'Philadelphia Eagles': 'Eagles',
+    'Pittsburgh Steelers': 'Steelers',
+    'San Francisco 49ers': '49ers',
+    'Seattle Seahawks': 'Seahawks',
+    'Tampa Bay Buccaneers': 'Buccaneers',
+    'Tennessee Titans': 'Titans',
+    'Washington Commanders': 'Commanders',
+  };
+  const altKey = Object.keys(alt).find((k) => k.toLowerCase() === raw.toLowerCase());
+  if (altKey) return alt[altKey];
+
+  return undefined;
+}
+
+export function normalizeTeam(input: string): string {
+  return getTeamKey(input) ?? input.trim();
+}
+
+export function isSameTeam(a: string, b: string): boolean {
+  return normalizeTeam(a).toLowerCase() === normalizeTeam(b).toLowerCase();
+}

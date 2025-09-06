@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { DateTime } from 'luxon';
 import { isPicksLocked } from '@/lib/nfl';
 import TeamLogo from '@/components/TeamLogo';
+import { isSameTeam, normalizeTeam } from '@/lib/teams';
 
 interface Game {
   id: number;
@@ -42,6 +43,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   const season = parseInt(params.season);
   const week = parseInt(params.week);
   const isLocked = isPicksLocked(season, week);
+  const hasSubmitted = myPicks.length > 0;
 
   useEffect(() => {
     checkAuth();
@@ -191,6 +193,12 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                 Picks are locked for this week
               </div>
             )}
+            {!isLocked && hasSubmitted && (
+              <div className="inline-flex items-center px-6 py-3 bg-green-600/20 border border-green-500/30 rounded-full text-green-200 font-semibold">
+                <span className="mr-2">✅</span>
+                You already submitted your picks
+              </div>
+            )}
           </div>
 
           {error && (
@@ -245,13 +253,19 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                         </div>
                         
                         <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-4">
-                            <TeamLogo team={game.awayTeam} size="md" />
+                          <div className="flex items-center space-x-6">
+                            <div className="flex flex-col items-center">
+                              <TeamLogo team={game.awayTeam} size="md" />
+                              <span className="text-green-200 text-xs mt-1 max-w-[80px] text-center truncate">{normalizeTeam(game.awayTeam)}</span>
+                            </div>
                             <span className="text-white font-semibold text-lg">@</span>
-                            <TeamLogo team={game.homeTeam} size="md" />
+                            <div className="flex flex-col items-center">
+                              <TeamLogo team={game.homeTeam} size="md" />
+                              <span className="text-green-200 text-xs mt-1 max-w-[80px] text-center truncate">{normalizeTeam(game.homeTeam)}</span>
+                            </div>
                           </div>
                           
-                          {!isLocked && game.status === 'scheduled' && (
+                          {!isLocked && !hasSubmitted && game.status === 'scheduled' && (
                             <div className="flex space-x-4">
                               <label className="flex items-center cursor-pointer group">
                                 <input
@@ -341,14 +355,24 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                 ) : (
                   <div className="space-y-3">
                     {myPicks.map((pick) => {
-                      const game = games.find(g => g.id === pick.gameId);
+                      // Find the game by id; if team mismatch, fall back to matching by team
+                      let game = games.find(g => g.id === pick.gameId);
+                      if (game && !(isSameTeam(pick.pickedTeam, game.homeTeam) || isSameTeam(pick.pickedTeam, game.awayTeam))) {
+                        game = games.find(g => isSameTeam(pick.pickedTeam, g.homeTeam) || isSameTeam(pick.pickedTeam, g.awayTeam));
+                      }
                       return (
                         <div key={pick.gameId} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <TeamLogo team={game?.awayTeam || ''} size="sm" />
+                            <div className="flex items-center space-x-6">
+                              <div className="flex flex-col items-center">
+                                <TeamLogo team={game?.awayTeam || ''} size="sm" />
+                                <span className="text-green-200 text-[10px] mt-1 max-w-[60px] text-center truncate">{game ? normalizeTeam(game.awayTeam) : ''}</span>
+                              </div>
                               <span className="text-white font-medium">@</span>
-                              <TeamLogo team={game?.homeTeam || ''} size="sm" />
+                              <div className="flex flex-col items-center">
+                                <TeamLogo team={game?.homeTeam || ''} size="sm" />
+                                <span className="text-green-200 text-[10px] mt-1 max-w-[60px] text-center truncate">{game ? normalizeTeam(game.homeTeam) : ''}</span>
+                              </div>
                             </div>
                             <div className="flex items-center space-x-2">
                               <span className="text-green-200 text-sm font-medium">Picked:</span>
@@ -366,7 +390,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                   </div>
                 )}
 
-                {!isLocked && picks.filter(p => !!p.team).length > 0 && (
+                {!isLocked && !hasSubmitted && picks.filter(p => !!p.team).length > 0 && (
                   <button
                     onClick={handleSubmit}
                     disabled={submitting}
@@ -379,78 +403,18 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                   </button>
                 )}
 
-                {myPicks.length > 0 && !showAllPicks && (
-                  <button
-                    onClick={fetchAllPicks}
-                    className="mt-4 w-full btn-blue py-3 px-6 hover:scale-105"
-                  >
-                    <span className="flex items-center justify-center">
-                      <span className="mr-2">👥</span>
-                      View All Picks
-                    </span>
-                  </button>
-                )}
+                <Link
+                  href={`/picks/${season}/${week}`}
+                  className="mt-4 w-full btn-blue py-3 px-6 hover:scale-105 inline-flex items-center justify-center"
+                >
+                  <span className="mr-2">👥</span>
+                  View All Picks
+                </Link>
               </div>
             </div>
           </div>
 
-          {/* All Picks Tab */}
-          {showAllPicks && (
-            <div className="mt-8 glass-card">
-              <div className="px-6 py-6">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">👥</span>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white">All Picks</h2>
-                </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className="border-b border-white/20">
-                        <th className="px-4 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
-                          Player
-                        </th>
-                        {games.map((game) => (
-                          <th key={game.id} className="px-4 py-4 text-center text-xs font-medium text-green-200 uppercase tracking-wider">
-                            <div className="flex items-center justify-center space-x-1">
-                              <TeamLogo team={game.awayTeam} size="sm" />
-                              <span className="text-white">@</span>
-                              <TeamLogo team={game.homeTeam} size="sm" />
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {Object.entries(allPicks).map(([userName, picks]) => (
-                        <tr key={userName} className="hover:bg-white/5 transition-colors duration-200">
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-white">
-                            {userName}
-                          </td>
-                          {games.map((game) => {
-                            const pick = picks.find((p: Pick) => p.gameId === game.id);
-                            return (
-                              <td key={game.id} className="px-4 py-4 whitespace-nowrap text-center">
-                                {pick?.pickedTeam ? (
-                                  <div className="bg-yellow-500 text-black px-2 py-1 rounded-full text-xs font-bold inline-block">
-                                    {pick.pickedTeam}
-                                  </div>
-                                ) : (
-                                  <span className="text-white/50 text-xs">-</span>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* All Picks moved to its own page at /picks/[season]/[week] */}
         </div>
       </main>
     </div >

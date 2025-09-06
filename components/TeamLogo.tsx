@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
-import { getEspnLogoUrl, getTeamMeta } from '@/lib/teams';
+import { getEspnLogoUrl, getTeamMeta, normalizeTeam } from '@/lib/teams';
 
 interface TeamLogoProps {
   team: string;
@@ -17,7 +17,7 @@ const sizePx: Record<NonNullable<TeamLogoProps['size']>, number> = {
 };
 
 export default function TeamLogo({ team, size = 'md', className = '' }: TeamLogoProps) {
-  const meta = getTeamMeta(team);
+  const meta = getTeamMeta(normalizeTeam(team));
   const px = sizePx[size];
   const [errored, setErrored] = useState(false);
 
