@@ -29,8 +29,8 @@ export const picks = pgTable('picks', {
   pk: { primaryKey: [table.userId, table.gameId] },
 }));
 
-// Weekly scores table - computed results
-export const weeklyScores = pgTable('weekly_scores', {
+// Weekly scores table - computed results (actual table name: weeklyscores)
+export const weeklyScores = pgTable('weeklyscores', {
   userId: integer('userid').references(() => users.id),
   season: integer('season').notNull(),
   week: integer('week').notNull(),

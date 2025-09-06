@@ -7,6 +7,7 @@ export default function AdminPage() {
   const [week, setWeek] = useState<number>(1);
   const [gameId, setGameId] = useState<number | ''>('');
   const [winner, setWinner] = useState('');
+  const [passcode, setPasscode] = useState('');
 
   async function createWeek() {
     try {
@@ -29,7 +30,7 @@ export default function AdminPage() {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-admin-pass': process.env.NEXT_PUBLIC_ADMIN_PASS ?? '',
+          'x-admin-pass': passcode,
         },
         body: JSON.stringify(body),
       });
@@ -45,16 +46,41 @@ export default function AdminPage() {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-admin-pass': process.env.NEXT_PUBLIC_ADMIN_PASS ?? '',
+        'x-admin-pass': passcode,
       },
       body: JSON.stringify({ gameId: Number(gameId), winnerTeam: winner, season, week }),
     });
     alert(await res.text());
   }
 
+  async function seedWeek1() {
+    if (!season) return alert('Enter a season');
+    const res = await fetch('/api/admin/seed-week1-picks', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-admin-pass': passcode,
+      },
+      body: JSON.stringify({ season }),
+    });
+    const text = await res.text();
+    alert(text);
+  }
+
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
       <h1 className="text-3xl font-bold text-white">Admin</h1>
+
+      <div className="glass-card p-5 space-y-3">
+        <h2 className="text-xl font-semibold text-white">Auth</h2>
+        <input
+          className="glass-section px-3 py-2 w-64 text-white placeholder-white/60"
+          value={passcode}
+          onChange={(e) => setPasscode(e.target.value)}
+          placeholder="Admin passcode"
+        />
+        <div className="text-green-200 text-sm">Tip: paste your passcode here once per session.</div>
+      </div>
 
       <div className="glass-card p-5 space-y-3">
         <h2 className="text-xl font-semibold text-white">Create Week (paste JSON array)</h2>
@@ -106,7 +132,21 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      <div className="glass-card p-5 space-y-3">
+        <h2 className="text-xl font-semibold text-white">Seed Week 1 Picks</h2>
+        <div className="flex items-center gap-3">
+          <input
+            className="glass-section px-3 py-2 w-28 text-white placeholder-white/60"
+            type="number"
+            value={season}
+            onChange={(e) => setSeason(Number(e.target.value))}
+            placeholder="Season"
+          />
+          <button onClick={seedWeek1} className="btn-yellow px-4 py-2 hover:scale-105">Seed Now</button>
+        </div>
+        <div className="text-green-200/90 text-sm">Users: Victor, Jihoo, Ryan, Mihir</div>
+      </div>
     </div>
   );
 }
-
