@@ -104,9 +104,9 @@ export default function ScoreboardPage() {
             <div className="flex items-center space-x-3">
               <Link href="/" className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <span className="text-black font-bold text-lg">🏈</span>
+                  <span className="text-black font-bold text-lg">🔒</span>
                 </div>
-                <span className="text-2xl font-bold text-white">NFL Pick'em</span>
+                <span className="text-2xl font-bold text-white">NFL Locks</span>
               </Link>
             </div>
             <div className="flex items-center space-x-4">
@@ -180,8 +180,7 @@ export default function ScoreboardPage() {
           </div>
 
           <div className="mt-6 text-sm text-green-200/90">
-            <p className="mb-1"><strong>Scoring:</strong> All picks correct = number of picks. Any wrong pick = 0.</p>
-            <p><strong>Note:</strong> You must pick ALL games in a week to be eligible for points.</p>
+            <p className="mb-1"><strong>Scoring:</strong> All locks correct = number of locks. Any wrong pick = 0.</p>
           </div>
         </div>
       </main>

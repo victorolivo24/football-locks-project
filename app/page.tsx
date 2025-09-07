@@ -121,9 +121,9 @@ export default function Dashboard() {
           <div className="flex justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                <span className="text-black font-bold text-lg">🏈</span>
+                <span className="text-black font-bold text-lg">🔒</span>
               </div>
-              <h1 className="text-2xl font-bold text-white">NFL Pick'em</h1>
+              <h1 className="text-2xl font-bold text-white">NFL Locks</h1>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-green-200 font-medium">Welcome, {user.name}</span>
@@ -143,7 +143,7 @@ export default function Dashboard() {
           {/* Hero Section */}
           <div className="text-center mb-8">
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-              NFL Pick'em
+              NFL Locks
             </h1>
             <p className="text-xl text-green-200 mb-6">
               Season {weekInfo.season} • Week {weekInfo.week}
@@ -206,7 +206,7 @@ export default function Dashboard() {
               href={`/week/${weekInfo.season}/${weekInfo.week}`}
               className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl shadow-2xl hover:from-yellow-400 hover:to-yellow-500 transform hover:scale-105 transition-all duration-200 border-2 border-yellow-400/50"
             >
-              <span className="mr-2 text-2xl">🏈</span>
+              <span className="mr-2 text-2xl">🔒</span>
               {isLocked ? 'View Picks' : 'Make Picks'}
               <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             </Link>

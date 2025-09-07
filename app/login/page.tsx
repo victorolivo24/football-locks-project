@@ -46,11 +46,11 @@ export default function LoginPage() {
           <div className="text-center">
             <div className="flex justify-center mb-6">
               <div className="w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center">
-                <span className="text-black font-bold text-4xl">🏈</span>
+                <span className="text-black font-bold text-4xl">🔒</span>
               </div>
             </div>
             <h2 className="text-4xl font-bold text-white mb-2">
-              NFL Pick'em
+              NFL Locks
             </h2>
             <p className="text-green-200 text-lg">
               Pick your name to get started
@@ -95,7 +95,7 @@ export default function LoginPage() {
                 className="group relative w-full flex justify-center py-4 px-6 text-lg font-bold text-black bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl hover:from-yellow-400 hover:to-yellow-500 transform hover:scale-105 transition-all duration-200 shadow-2xl border-2 border-yellow-400/50 disabled:opacity-50 disabled:transform-none"
               >
                 <span className="flex items-center">
-                  <span className="mr-2 text-2xl">🏈</span>
+                  <span className="mr-2 text-2xl">🔒</span>
                   {loading ? 'Signing in...' : 'Start Playing'}
                 </span>
               </button>

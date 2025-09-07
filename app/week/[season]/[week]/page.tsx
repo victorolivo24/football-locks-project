@@ -167,9 +167,9 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             <div className="flex items-center space-x-3">
               <Link href="/" className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <span className="text-black font-bold text-lg">🏈</span>
+                  <span className="text-black font-bold text-lg">🔒</span>
                 </div>
-                <span className="text-2xl font-bold text-white">NFL Pick'em</span>
+                <span className="text-2xl font-bold text-white">NFL Locks</span>
               </Link>
             </div>
             <div className="flex items-center space-x-4">
@@ -184,7 +184,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
           {/* Hero Section */}
           <div className="text-center mb-8">
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-              Week {week} Picks
+              Week {week} Locks
             </h1>
             <p className="text-xl text-green-200 mb-6">Season {season}</p>
             {isLocked && (
@@ -225,14 +225,14 @@ export default function WeekPage({ params }: { params: { season: string; week: s
               <div className="px-6 py-6">
                 <div className="flex items-center space-x-3 mb-6">
                   <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">🏈</span>
+                    <span className="text-2xl">🔒</span>
                   </div>
                   <h2 className="text-2xl font-bold text-white">Games</h2>
                 </div>
                 
                 {games.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="text-6xl mb-4">🏈</div>
+                    <div className="text-6xl mb-4">🔒</div>
                     <p className="text-green-200 text-lg">No games scheduled for this week.</p>
                   </div>
                 ) : (
@@ -397,7 +397,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                     className="mt-6 w-full btn-yellow py-4 px-6 hover:scale-105 disabled:opacity-50 disabled:transform-none"
                   >
                     <span className="flex items-center justify-center">
-                      <span className="mr-2 text-xl">🏈</span>
+                <span className="mr-2 text-xl">🔒</span>
                       {submitting ? 'Submitting...' : 'Submit Picks'}
                     </span>
                   </button>
