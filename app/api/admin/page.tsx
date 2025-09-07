@@ -67,6 +67,25 @@ export default function AdminPage() {
     alert(text);
   }
 
+  async function fetchFullSeason() {
+    if (!season) return alert('Enter a season');
+    if (!passcode) return alert('Enter admin passcode');
+    try {
+      const res = await fetch('/api/admin/fetch-season', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-admin-pass': passcode,
+        },
+        body: JSON.stringify({ season }),
+      });
+      const text = await res.text();
+      alert(text);
+    } catch (e: any) {
+      alert('Failed: ' + e?.message);
+    }
+  }
+
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
       <h1 className="text-3xl font-bold text-white">Admin</h1>
@@ -130,6 +149,20 @@ export default function AdminPage() {
           <button onClick={setResult} className="btn-blue px-4 py-2 hover:scale-105">
             Finalize & Score
           </button>
+        </div>
+      </div>
+
+      <div className="glass-card p-5 space-y-3">
+        <h2 className="text-xl font-semibold text-white">Fetch Season Schedule</h2>
+        <div className="flex items-center gap-3">
+          <input
+            className="glass-section px-3 py-2 w-28 text-white placeholder-white/60"
+            type="number"
+            value={season}
+            onChange={(e) => setSeason(Number(e.target.value))}
+            placeholder="Season"
+          />
+          <button onClick={fetchFullSeason} className="btn-blue px-4 py-2 hover:scale-105">Fetch All 18 Weeks</button>
         </div>
       </div>
 

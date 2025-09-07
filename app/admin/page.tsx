@@ -29,6 +29,7 @@ export default function AdminPage() {
   const [passcode, setPasscode] = useState('');
   const [selectedSeason, setSelectedSeason] = useState<number>(2024);
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
+  const [fetchingSeason, setFetchingSeason] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -215,6 +216,63 @@ export default function AdminPage() {
                   ))}
                 </select>
               </div>
+            </div>
+          </div>
+
+          {/* Fetch Season Schedule */}
+          <div className="mb-6 bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Fetch Season Schedule</h2>
+            <p className="text-sm text-gray-600 mb-3">
+              Pulls all 18 regular-season weeks from ESPN and upserts into the database for the selected season.
+            </p>
+            <div className="flex items-end gap-3 max-w-md">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700">Season</label>
+                <select
+                  value={selectedSeason}
+                  onChange={(e) => setSelectedSeason(parseInt(e.target.value))}
+                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                  <option value={2024}>2024</option>
+                  <option value={2023}>2023</option>
+                </select>
+              </div>
+              <button
+                disabled={!passcode || fetchingSeason}
+                onClick={async () => {
+                  if (!passcode) {
+                    setError('Please enter admin passcode');
+                    return;
+                  }
+                  setFetchingSeason(true);
+                  setError('');
+                  setSuccess('');
+                  try {
+                    const res = await fetch('/api/admin/fetch-season', {
+                      method: 'POST',
+                      headers: {
+                        'content-type': 'application/json',
+                        'x-admin-pass': passcode,
+                      },
+                      body: JSON.stringify({ season: selectedSeason }),
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      setSuccess(`Fetched ${data.results?.reduce((s: number, r: any) => s + (r.count||0), 0)} games across ${data.totalWeeks} weeks for ${data.season}.`);
+                      await fetchGames();
+                    } else {
+                      setError(data.error || 'Failed to fetch season schedule');
+                    }
+                  } catch (err) {
+                    setError('Network error while fetching season schedule');
+                  } finally {
+                    setFetchingSeason(false);
+                  }
+                }}
+                className="inline-flex items-center bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {fetchingSeason ? 'Fetching…' : 'Fetch All 18 Weeks'}
+              </button>
             </div>
           </div>
 
