@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     const toInsert: Array<{ userId: number; gameId: number; pickedTeam: string; week: number; season: number }> = [];
     const missing: Array<{ user: string; team: string; reason: string }> = [];
 
-    function findGameIdForTeam(teamName: string): { gameId: number; pickedTeam: string } | null {
+    const findGameIdForTeam = (teamName: string): { gameId: number; pickedTeam: string } | null => {
       const norm = normalizeTeam(teamName);
       const g = weekGames.find(
         (g) => isSameTeam(norm, g.homeTeam) || isSameTeam(norm, g.awayTeam)
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       if (!g) return null;
       const pickedTeam = isSameTeam(norm, g.homeTeam) ? g.homeTeam : g.awayTeam;
       return { gameId: Number(g.id), pickedTeam };
-    }
+    };
 
     for (const [name, teamsPicked] of Object.entries(SEED_WEEK1)) {
       const uid = userIdByName.get(name);
