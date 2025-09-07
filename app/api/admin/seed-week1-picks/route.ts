@@ -13,6 +13,8 @@ const SEED_WEEK1: SeedMap = {
   Victor: ['Broncos', 'Eagles'],
   Jihoo: ['Eagles', 'Commanders', 'Broncos'],
   Ryan: ['Broncos', 'Cardinals'],
+  Chris: ['Chiefs', 'Bengals', 'Buccaneers'],
+  Dakota: ['Eagles', 'Chiefs'],
   Mihir: ['Eagles', 'Broncos', 'Cardinals'],
 };
 
@@ -102,4 +104,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e?.message ?? 'internal error' }, { status: 500 });
   }
 }
-

@@ -1,21 +1,48 @@
 import { NextResponse } from 'next/server';
+import { DateTime } from 'luxon';
 import { getCurrentNFLWeek } from '@/lib/nfl';
 import { db } from '@/lib/db';
 import { games } from '@/lib/db/schema';
-import { desc, and } from 'drizzle-orm';
+import { desc, asc, eq } from 'drizzle-orm';
 
 export async function GET() {
   try {
     // First try to get the latest week that has games in the database
-    const latestGame = await db.query.games.findFirst({
-      orderBy: [desc(games.season), desc(games.week)],
+    // Determine the latest season that has any games
+    const seasonAnchor = await db.query.games.findFirst({
+      orderBy: [desc(games.season), asc(games.week)],
     });
 
-    if (latestGame) {
-      return NextResponse.json({
-        season: latestGame.season,
-        week: latestGame.week
-      });
+    if (seasonAnchor) {
+      const season = seasonAnchor.season;
+      // Pull all games for that season and compute earliest kickoff per week
+      const seasonGames = await db.query.games.findMany({ where: eq(games.season, season) });
+      const byWeek = new Map<number, Date>();
+      for (const g of seasonGames) {
+        const w = g.week;
+        const t = new Date(g.startTime as any);
+        const prev = byWeek.get(w);
+        if (!prev || t < prev) byWeek.set(w, t);
+      }
+
+      // Build week open times: Tuesday 7:00 AM ET of the game week (based on earliest kickoff)
+      const weekWindows = Array.from(byWeek.entries())
+        .map(([week, firstKick]) => {
+          const first = DateTime.fromJSDate(firstKick).setZone('America/New_York');
+          const tuesday = first.startOf('week').plus({ days: 1 }).set({ hour: 7, minute: 0, second: 0, millisecond: 0 });
+          return { week, openAt: tuesday };
+        })
+        .sort((a, b) => a.week - b.week);
+
+      if (weekWindows.length > 0) {
+        const now = DateTime.now().setZone('America/New_York');
+        // Find the last week whose openAt is <= now; if none, use the first
+        let currentWeek = weekWindows[0].week;
+        for (const w of weekWindows) {
+          if (now >= w.openAt) currentWeek = w.week; else break;
+        }
+        return NextResponse.json({ season, week: currentWeek });
+      }
     }
 
     // Fallback to calculated week if no games in database

@@ -112,22 +112,36 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
           {users.map((u) => {
             const picks = picksByUser[u.name] || [];
             const has = picks.length > 0;
+            const isPickLoss = (p: PickItem) => {
+              const g = games.find((g) => g.id === p.gameId) ||
+                        games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+              if (!g) return false;
+              if (g.status !== 'final' || !g.winnerTeam) return false;
+              return !isSameTeam(g.winnerTeam, p.pickedTeam);
+            };
+            const busted = has && picks.some((p) => isPickLoss(p));
             return (
-              <div key={u.id} className="glass-card p-5">
+              <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-white font-bold text-lg">{u.name}</div>
+                  <div className="text-white font-bold text-lg flex items-center gap-3">
+                    <span>{u.name}</span>
+                    {busted && (
+                      <span className="text-red-300 text-xs font-semibold bg-red-900/40 px-2 py-1 rounded-full">Busted</span>
+                    )}
+                  </div>
                   {!has && <div className="text-yellow-300 font-semibold">Hasn’t submitted yet</div>}
                 </div>
                 {has && (
-                  <div className="grid sm:grid-cols-2 gap-3">
+                  <div className={`grid sm:grid-cols-2 gap-3`}>
                     {picks.map((p) => {
                       const g = games.find((g) => g.id === p.gameId) ||
                                games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
                       if (!g) return null;
+                      const loss = g.status === 'final' && g.winnerTeam && !isSameTeam(g.winnerTeam, p.pickedTeam);
                       const pickedHome = isSameTeam(p.pickedTeam, g.homeTeam);
                       const pickedAway = isSameTeam(p.pickedTeam, g.awayTeam);
                       return (
-                        <div key={`${u.id}-${p.gameId}`} className="glass-section p-4">
+                        <div key={`${u.id}-${p.gameId}`} className={`glass-section p-4 ${loss ? 'line-through opacity-70' : ''}`}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-6">
                               <div className={`flex flex-col items-center ${pickedAway ? 'opacity-100' : 'opacity-70'}`}>
@@ -141,7 +155,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                               </div>
                             </div>
                             <div>
-                              <span className="bg-yellow-500 text-black px-2 py-1 rounded-full text-xs font-bold">{normalizeTeam(p.pickedTeam)}</span>
+                              <span className={`bg-yellow-500 text-black px-2 py-1 rounded-full text-xs font-bold`}>{normalizeTeam(p.pickedTeam)}</span>
                             </div>
                           </div>
                           <div className="text-[11px] text-green-300 mt-2">{formatGameTime(g.startTime)}</div>
@@ -158,4 +172,3 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
     </div>
   );
 }
-
