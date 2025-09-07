@@ -229,14 +229,7 @@ export default function Dashboard() {
               <div className="absolute inset-0 bg-white/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             </Link>
 
-            <Link
-              href="/admin"
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-gray-700 to-gray-800 rounded-xl shadow-2xl hover:from-gray-600 hover:to-gray-700 transform hover:scale-105 transition-all duration-200 border-2 border-gray-600/50"
-            >
-              <span className="mr-2 text-2xl">⚙️</span>
-              Admin
-              <div className="absolute inset-0 bg-white/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-            </Link>
+            {/* Admin link removed for deployment */}
           </div>
         </div>
       </main>
