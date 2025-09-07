@@ -13,6 +13,7 @@ interface Game {
   awayTeam: string;
   startTime: string;
   status: string;
+  winnerTeam?: string | null;
 }
 
 interface PickItem {
