@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import OddsCard from './OddsCard';
 
 interface WeeklyScore {
   week: number;
@@ -83,6 +84,7 @@ export default function ScoreboardPage() {
   };
 
   const maxWeek = getMaxWeek();
+  const currentWeekForOdds = Math.max(1, maxWeek || 1);
 
   if (loading) {
     return (
@@ -179,9 +181,14 @@ export default function ScoreboardPage() {
             </div>
           </div>
 
-          <div className="mt-6 text-sm text-green-200/90">
-            <p className="mb-1"><strong>Scoring:</strong> All locks correct = number of locks. Any wrong pick = 0.</p>
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <div className="text-sm text-green-200/90">
+              <p className="mb-1"><strong>Scoring:</strong> All locks correct = number of locks. Any wrong pick = 0.</p>
+            </div>
+            <OddsCard season={season} week={currentWeekForOdds} />
           </div>
+
+          
         </div>
       </main>
     </div>
