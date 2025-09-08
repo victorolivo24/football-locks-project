@@ -121,6 +121,14 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
               return !isSameTeam(g.winnerTeam, p.pickedTeam);
             };
             const busted = has && picks.some((p) => isPickLoss(p));
+            // Perfect if user has picks and every pick corresponds to a final game and matches the winner
+            const perfect = has && picks.every((p) => {
+              const g = games.find((g) => g.id === p.gameId) ||
+                        games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+              if (!g) return false;
+              if (g.status !== 'final' || !g.winnerTeam) return false;
+              return isSameTeam(g.winnerTeam, p.pickedTeam);
+            });
             return (
               <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
                 <div className="flex items-center justify-between mb-3">
@@ -128,6 +136,9 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                     <span>{u.name}</span>
                     {busted && (
                       <span className="text-red-300 text-xs font-semibold bg-red-900/40 px-2 py-1 rounded-full">Busted</span>
+                    )}
+                    {!busted && perfect && (
+                      <span className="text-green-200 text-xs font-semibold bg-green-600/20 border border-green-500/30 px-2 py-1 rounded-full">Perfect</span>
                     )}
                   </div>
                   {!has && <div className="text-yellow-300 font-semibold">Hasn’t submitted yet</div>}
