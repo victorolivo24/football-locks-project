@@ -139,6 +139,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                                games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
                       if (!g) return null;
                       const loss = g.status === 'final' && g.winnerTeam && !isSameTeam(g.winnerTeam, p.pickedTeam);
+                      const hit = g.status === 'final' && g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam);
                       const pickedHome = isSameTeam(p.pickedTeam, g.homeTeam);
                       const pickedAway = isSameTeam(p.pickedTeam, g.awayTeam);
                       return (
@@ -155,8 +156,11 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                                 <span className="text-green-200 text-[11px] mt-1 text-center max-w-[80px] truncate">{normalizeTeam(g.homeTeam)}</span>
                               </div>
                             </div>
-                            <div>
+                            <div className="flex items-center gap-2">
                               <span className={`bg-yellow-500 text-black px-2 py-1 rounded-full text-xs font-bold`}>{normalizeTeam(p.pickedTeam)}</span>
+                              {hit && (
+                                <span className="text-green-200 text-[10px] font-semibold bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded-full">HIT</span>
+                              )}
                             </div>
                           </div>
                           <div className="text-[11px] text-green-300 mt-2">{formatGameTime(g.startTime)}</div>

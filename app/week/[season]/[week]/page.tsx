@@ -360,6 +360,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                       if (game && !(isSameTeam(pick.pickedTeam, game.homeTeam) || isSameTeam(pick.pickedTeam, game.awayTeam))) {
                         game = games.find(g => isSameTeam(pick.pickedTeam, g.homeTeam) || isSameTeam(pick.pickedTeam, g.awayTeam));
                       }
+                      const isHit = !!(game && game.status === 'final' && game.winnerTeam && isSameTeam(game.winnerTeam, pick.pickedTeam));
                       return (
                         <div key={pick.gameId} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
                           <div className="flex items-center justify-between">
@@ -379,6 +380,9 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                               <div className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-bold">
                                 {pick.pickedTeam}
                               </div>
+                              {isHit && (
+                                <span className="ml-2 text-green-200 text-xs font-semibold bg-green-600/20 border border-green-500/30 px-2 py-1 rounded-full">HIT</span>
+                              )}
                             </div>
                           </div>
                           <div className="text-xs text-green-300 mt-2">
