@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- Mobile radio pick visibility fixes --- */
+/* Prevent radio "bubble" from shrinking in flex rows */
+input[type="radio"] {
+  flex: 0 0 auto;
+}
+
+/* Allow label content to shrink/truncate inside flex containers */
+label {
+  min-width: 0;
+}
+
+/* Truncate long team names within labels to avoid overflow */
+label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* If a parent uses overflow-hidden, don’t clip controls on small screens */
+@media (max-width: 640px) {
+  [class*="overflow-hidden"] {
+    overflow: visible !important;
+  }
+}
+
 :root {
   --background: #061b10; /* deep green */
   --foreground: #f3f4f6; /* gray-100 */
