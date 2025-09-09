@@ -26,6 +26,18 @@ label span {
   [class*="overflow-hidden"] {
     overflow: visible !important;
   }
+
+  /* Stack radio pick options inside flex rows on small screens */
+  .flex:has(> label input[type="radio"]) {
+    flex-wrap: wrap;
+  }
+  .flex:has(> label input[type="radio"]) > label {
+    width: 100%;
+  }
+  /* If options are not direct children of the flex row, handle one level deeper */
+  .flex:has(input[type="radio"]) label {
+    width: 100%;
+  }
 }
 
 :root {
