@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
 import { getLockTime, isPicksLocked } from '@/lib/nfl';
+import { motion } from 'framer-motion';
+import { useMotionLevel } from '@/components/motion/MotionProvider';
 
 interface User {
   name: string;
@@ -100,6 +102,20 @@ export default function Dashboard() {
     }
   };
 
+  const { intensity } = useMotionLevel();
+  const heroPulse = {
+    animate: {
+      scale: [1, 1.05 + 0.05 * intensity, 1],
+      opacity: [0.35, 0.55 * intensity, 0.35],
+    },
+    transition: {
+      duration: 6 / intensity,
+      repeat: Infinity,
+      repeatType: 'mirror',
+      ease: 'easeInOut',
+    },
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -116,121 +132,183 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen">
-      <nav className="relative glass-card">
+      <motion.nav
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+        className="relative glass-card border border-white/10 backdrop-blur-2xl mx-auto mt-4 max-w-6xl"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                <span className="text-black font-bold text-lg">🔒</span>
+            <motion.div
+              className="flex items-center space-x-3"
+              whileHover={{ x: -2, rotate: -2 }}
+            >
+              <div className="pulse-ring w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-sky-500 flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-lg">🔒</span>
               </div>
-              <h1 className="text-2xl font-bold text-white">NFL Locks</h1>
-            </div>
+              <h1 className="text-2xl font-bold text-slate-100">NFL Locks</h1>
+            </motion.div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-green-200 font-medium">Welcome, {user.name}</span>
-              <button
+              <span className="text-sm text-cyan-200 font-medium">Welcome, {user.name}</span>
+              <motion.button
+                whileHover={{ scale: 1.05, boxShadow: '0 10px 35px rgba(24,216,255,0.35)' }}
+                whileTap={{ scale: 0.96 }}
                 onClick={handleLogout}
-                className="text-sm text-green-300 hover:text-white transition-colors duration-200 px-3 py-1 rounded-md hover:bg-white/10"
+                className="relative overflow-hidden rounded-lg border border-white/15 bg-white/5 px-3 py-1 text-sm text-slate-200 transition-all"
               >
-                Logout
-              </button>
+                <span className="relative z-[2]">Logout</span>
+                <motion.span
+                  className="absolute inset-0 bg-gradient-to-r from-indigo-500/30 via-cyan-400/20 to-transparent opacity-0"
+                  whileHover={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                />
+              </motion.button>
             </div>
           </div>
         </div>
-      </nav>
+      </motion.nav>
 
       <main className="relative max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           {/* Hero Section */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-              NFL Locks
-            </h1>
-            <p className="text-xl text-green-200 mb-6">
+          <div className="text-center mb-8 relative">
+            <motion.div
+              {...heroPulse}
+              className="absolute inset-x-10 -top-16 h-64 rounded-full bg-gradient-to-r from-indigo-500/30 via-purple-500/20 to-cyan-400/25 blur-3xl"
+            />
+            <motion.h1
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', delay: 0.05 }}
+              className="text-4xl md:text-6xl font-bold mb-4 neon-text"
+            >
+              <span className="bg-gradient-to-r from-indigo-200 via-purple-200 to-cyan-200 bg-clip-text text-transparent">
+                NFL Locks
+              </span>
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="text-xl text-slate-300 mb-6"
+            >
               Season {weekInfo.season} • Week {weekInfo.week}
-            </p>
+            </motion.p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-8">
             {/* Current Week Info */}
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 shadow-2xl border border-blue-500/20">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">📅</span>
+            {[
+              {
+                title: 'Current Week',
+                emoji: '📅',
+                gradient: 'from-indigo-600/30 via-purple-600/25 to-sky-500/10',
+                border: 'border-indigo-400/20',
+                body: (
+                  <>
+                    <p className="text-4xl font-bold text-white mb-2">Week {weekInfo.week}</p>
+                    <p className="text-indigo-100">Season {weekInfo.season}</p>
+                  </>
+                ),
+              },
+              {
+                title: 'Picks Lock In',
+                emoji: '⏰',
+                gradient: 'from-rose-600/30 via-pink-600/20 to-amber-500/10',
+                border: 'border-rose-400/25',
+                body: (
+                  <>
+                    <p className="text-3xl font-bold text-white mb-2">{timeUntilLock}</p>
+                    <p className="text-rose-100">Thursday 8:00 PM ET</p>
+                  </>
+                ),
+              },
+              {
+                title: 'Status',
+                emoji: isLocked ? '🔒' : '✅',
+                gradient: isLocked
+                  ? 'from-slate-600/40 via-slate-800/40 to-slate-900/60'
+                  : 'from-emerald-500/25 via-teal-500/20 to-indigo-500/15',
+                border: isLocked ? 'border-slate-500/30' : 'border-emerald-400/25',
+                body: (
+                  <>
+                    <p className="text-3xl font-bold text-white mb-2">{isLocked ? 'LOCKED' : 'OPEN'}</p>
+                    <p className="text-slate-300">
+                      {isLocked ? 'Picks are locked' : 'Picks are open'}
+                    </p>
+                  </>
+                ),
+              },
+            ].map((card, idx) => (
+              <motion.div
+                key={card.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08 * idx, type: 'spring', stiffness: 140, damping: 20 }}
+                whileHover={{ y: -6, rotateX: 2, rotateY: -2 }}
+                className={`rounded-2xl p-6 shadow-2xl border ${card.border} bg-gradient-to-br ${card.gradient}`}
+              >
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-12 h-12 bg-white/10 border border-white/10 rounded-full flex items-center justify-center">
+                    <span className="text-2xl">{card.emoji}</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-100">{card.title}</h3>
                 </div>
-                <h3 className="text-lg font-semibold text-white">Current Week</h3>
-              </div>
-              <p className="text-4xl font-bold text-white mb-2">
-                Week {weekInfo.week}
-              </p>
-              <p className="text-blue-200">Season {weekInfo.season}</p>
-            </div>
-
-            {/* Lock Countdown */}
-            <div className="bg-gradient-to-br from-red-600 to-red-700 rounded-xl p-6 shadow-2xl border border-red-500/20">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">⏰</span>
-                </div>
-                <h3 className="text-lg font-semibold text-white">Picks Lock In</h3>
-              </div>
-              <p className="text-3xl font-bold text-white mb-2">
-                {timeUntilLock}
-              </p>
-              <p className="text-red-200">Thursday 8:00 PM ET</p>
-            </div>
-
-            {/* Status */}
-            <div className={`rounded-xl p-6 shadow-2xl border ${
-              isLocked 
-                ? 'bg-gradient-to-br from-gray-600 to-gray-700 border-gray-500/20' 
-                : 'bg-gradient-to-br from-green-600 to-green-700 border-green-500/20'
-            }`}>
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">{isLocked ? '🔒' : '✅'}</span>
-                </div>
-                <h3 className="text-lg font-semibold text-white">Status</h3>
-              </div>
-              <p className="text-3xl font-bold text-white mb-2">
-                {isLocked ? 'LOCKED' : 'OPEN'}
-              </p>
-              <p className="text-white/80">
-                {isLocked ? 'Picks are locked' : 'Picks are open'}
-              </p>
-            </div>
+                {card.body}
+              </motion.div>
+            ))}
           </div>
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href={`/week/${weekInfo.season}/${weekInfo.week}`}
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl shadow-2xl hover:from-yellow-400 hover:to-yellow-500 transform hover:scale-105 transition-all duration-200 border-2 border-yellow-400/50"
+              className="group relative btn-yellow px-8 py-4 text-lg tracking-wide overflow-hidden rounded-2xl"
             >
               <span className="mr-2 text-2xl">🔒</span>
               {isLocked ? 'View Picks' : 'Make Picks'}
-              <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+              <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-2xl"></div>
             </Link>
             
             <Link
               href={`/scoreboard?season=${weekInfo.season}`}
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-green-900 bg-gradient-to-r from-white to-gray-100 rounded-xl shadow-2xl hover:from-gray-100 hover:to-white transform hover:scale-105 transition-all duration-200 border-2 border-white/50"
+              className="group relative btn-blue px-8 py-4 text-lg tracking-wide overflow-hidden rounded-2xl"
             >
               <span className="mr-2 text-2xl">🏆</span>
               View Scoreboard
-              <div className="absolute inset-0 bg-green-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+              <div className="absolute inset-0 bg-cyan-200/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-2xl"></div>
             </Link>
 
             <Link
               href={`/picks/${weekInfo.season}/${weekInfo.week}`}
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-2xl hover:from-blue-500 hover:to-blue-600 transform hover:scale-105 transition-all duration-200 border-2 border-blue-500/30"
+              className="group relative btn-slate px-8 py-4 text-lg tracking-wide overflow-hidden rounded-2xl"
             >
               <span className="mr-2 text-2xl">👥</span>
               All Picks
-              <div className="absolute inset-0 bg-white/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+              <div className="absolute inset-0 bg-white/15 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-2xl"></div>
             </Link>
 
             {/* Admin link removed for deployment */}
           </div>
+
+          <motion.div
+            className="mt-12 flex justify-center"
+            initial={{ opacity: 0, scale: 0.8 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ type: 'spring', stiffness: 160, damping: 18 }}
+          >
+            <div className="holo-border px-8 py-4">
+              <div className="flex items-center gap-3 text-slate-200 text-sm">
+                <span className="text-cyan-200">💡</span>
+                <p>
+                  Tip: crank motion to <span className="text-emerald-300 font-semibold">Hyper</span> to reveal deeper
+                  parallax, glowing trails, and button ripples.
+                </p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </main>
     </div >

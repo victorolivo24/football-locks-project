@@ -16,6 +16,7 @@
     "clsx": "^2.0.0",
     "drizzle-kit": "^0.20.9",
     "drizzle-orm": "^0.29.3",
+    "framer-motion": "^12.23.24",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.294.0",
     "luxon": "^3.4.4",

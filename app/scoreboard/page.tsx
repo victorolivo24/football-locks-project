@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import OddsCard from './OddsCard';
+import { useMotionLevel } from '@/components/motion/MotionProvider';
 
 interface WeeklyScore {
   week: number;
@@ -29,6 +31,7 @@ export default function ScoreboardPage() {
   const [season, setSeason] = useState<number>(2024);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { intensity } = useMotionLevel();
 
   useEffect(() => {
     checkAuth();
@@ -100,61 +103,104 @@ export default function ScoreboardPage() {
 
   return (
     <div className="min-h-screen">
-      <nav className="relative glass-card">
+      <motion.nav
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 140, damping: 20 }}
+        className="relative glass-card max-w-6xl mx-auto mt-4"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-3">
+            <motion.div className="flex items-center space-x-3" whileHover={{ rotateX: 1, rotateY: -1 }}>
               <Link href="/" className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <span className="text-black font-bold text-lg">🔒</span>
+                <div className="pulse-ring w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-sky-500 flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-lg">🔒</span>
                 </div>
-                <span className="text-2xl font-bold text-white">NFL Locks</span>
+                <span className="text-2xl font-bold text-slate-100">NFL Locks</span>
               </Link>
-            </div>
+            </motion.div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-green-200 font-medium">Welcome, {user.name}</span>
+              <span className="text-sm text-cyan-200 font-medium">Welcome, {user.name}</span>
             </div>
           </div>
         </div>
-      </nav>
+      </motion.nav>
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold text-white">Scoreboard</h1>
-            <p className="text-green-200">Season {season}</p>
+          <div className="text-center mb-6 relative">
+            <motion.div
+              className="absolute inset-x-16 -top-16 h-48 rounded-full blur-3xl bg-gradient-to-r from-indigo-500/30 via-purple-500/20 to-cyan-400/25"
+              animate={{ scale: [1, 1.06, 1], opacity: [0.35, 0.55, 0.35] }}
+              transition={{ duration: 9 / intensity, repeat: Infinity }}
+            />
+            <motion.h1
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 170, damping: 20 }}
+              className="text-4xl font-bold"
+            >
+              <span className="bg-gradient-to-r from-indigo-200 via-purple-200 to-cyan-200 bg-clip-text text-transparent">
+                Scoreboard
+              </span>
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="text-slate-300"
+            >
+              Season {season}
+            </motion.p>
           </div>
 
-          <div className="glass-card overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 150, damping: 24 }}
+            className="glass-card overflow-hidden"
+          >
             <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-white/10">
-                    <th className="px-6 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider sticky left-0 bg-white/5 backdrop-blur-sm">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-indigo-100 uppercase tracking-wider sticky left-0 bg-white/5 backdrop-blur-sm">
                       Rank
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider sticky left-16 bg-white/5 backdrop-blur-sm">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-indigo-100 uppercase tracking-wider sticky left-16 bg-white/5 backdrop-blur-sm">
                       Player
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-indigo-100 uppercase tracking-wider">
                       Total
                     </th>
                     {Array.from({ length: maxWeek }, (_, i) => i + 1).map((week) => (
-                      <th key={week} className="px-6 py-3 text-center text-xs font-medium text-green-200 uppercase tracking-wider">
+                      <th key={week} className="px-6 py-3 text-center text-xs font-medium text-indigo-100 uppercase tracking-wider">
                         W{week}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10">
+                <motion.tbody
+                  className="divide-y divide-white/10"
+                  initial="hidden"
+                  animate="visible"
+                  variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.05 } } }}
+                >
                   {scores.map((userScore, index) => (
-                    <tr key={userScore.userId} className="hover:bg-white/5 transition-colors">
+                    <motion.tr
+                      key={userScore.userId}
+                      variants={{
+                        hidden: { opacity: 0, y: 12 },
+                        visible: { opacity: 1, y: 0 },
+                      }}
+                      className="hover:bg-white/5 transition-colors"
+                    >
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white sticky left-0 bg-transparent">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-md ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-white/10 text-white'}`}>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-md ${index === 0 ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' : 'bg-white/10 text-slate-200'}`}>
                           {index + 1}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-white sticky left-16 bg-transparent">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-100 sticky left-16 bg-transparent">
                         {userScore.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
@@ -166,25 +212,30 @@ export default function ScoreboardPage() {
                           <td key={week} className="px-6 py-4 whitespace-nowrap text-sm text-center">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
                               weekScore > 0
-                                ? 'bg-green-600/20 text-green-200 border border-green-500/30'
-                                : 'bg-white/10 text-white/80 border border-white/10'
+                                ? 'bg-emerald-500/15 text-emerald-100 border border-emerald-400/30'
+                                : 'bg-white/5 text-slate-300 border border-white/10'
                             }`}>
                               {weekScore}
                             </span>
                           </td>
                         );
                       })}
-                    </tr>
+                    </motion.tr>
                   ))}
-                </tbody>
+                </motion.tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
 
           <div className="mt-6 grid gap-6 md:grid-cols-2">
-            <div className="text-sm text-green-200/90">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              className="text-sm text-slate-300"
+            >
               <p className="mb-1"><strong>Scoring:</strong> All locks correct = number of locks. Any wrong pick = 0.</p>
-            </div>
+            </motion.div>
             <OddsCard season={season} week={currentWeekForOdds} />
           </div>
 

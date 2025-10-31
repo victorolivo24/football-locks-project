@@ -7,6 +7,8 @@ import { DateTime } from 'luxon';
 import { isPicksLocked } from '@/lib/nfl';
 import TeamLogo from '@/components/TeamLogo';
 import { isSameTeam, normalizeTeam } from '@/lib/teams';
+import { motion } from 'framer-motion';
+import { useMotionLevel } from '@/components/motion/MotionProvider';
 
 interface Game {
   id: number;
@@ -44,6 +46,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   const week = parseInt(params.week);
   const isLocked = isPicksLocked(season, week);
   const hasSubmitted = myPicks.length > 0;
+  const { intensity } = useMotionLevel();
 
   useEffect(() => {
     checkAuth();
@@ -161,62 +164,121 @@ export default function WeekPage({ params }: { params: { season: string; week: s
 
   return (
     <div className="min-h-screen">
-      <nav className="relative glass-card">
+      <motion.nav
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 160, damping: 20 }}
+        className="relative glass-card max-w-6xl mx-auto mt-4"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-3">
+            <motion.div whileHover={{ rotateX: 2, rotateY: -2 }} className="flex items-center space-x-3">
               <Link href="/" className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <span className="text-black font-bold text-lg">🔒</span>
+                <div className="pulse-ring w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-sky-500 flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-lg">🔒</span>
                 </div>
-                <span className="text-2xl font-bold text-white">NFL Locks</span>
+                <span className="text-2xl font-bold text-slate-100">NFL Locks</span>
               </Link>
-            </div>
+            </motion.div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-green-200 font-medium">Welcome, {user.name}</span>
+              <span className="text-sm text-cyan-200 font-medium">Welcome, {user.name}</span>
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="hidden sm:flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-slate-400"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                Real-time vibes online
+              </motion.div>
             </div>
           </div>
         </div>
-      </nav>
+      </motion.nav>
 
       <main className="relative max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           {/* Hero Section */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-              Week {week} Locks
-            </h1>
-            <p className="text-xl text-green-200 mb-6">Season {season}</p>
-            {isLocked && (
-              <div className="inline-flex items-center px-6 py-3 bg-red-600/20 border border-red-500/30 rounded-full text-red-200 font-semibold">
-                <span className="mr-2">🔒</span>
-                Picks are locked for this week
-              </div>
-            )}
-            {!isLocked && hasSubmitted && (
-              <div className="inline-flex items-center px-6 py-3 bg-green-600/20 border border-green-500/30 rounded-full text-green-200 font-semibold">
-                <span className="mr-2">✅</span>
-                You already submitted your picks
-              </div>
-            )}
+          <div className="text-center mb-8 relative overflow-hidden">
+            <motion.div
+              className="absolute inset-x-10 -top-20 h-56 rounded-full blur-3xl bg-gradient-to-r from-indigo-500/30 via-purple-500/25 to-cyan-400/25"
+              animate={{
+                scale: [1, 1.08, 1],
+                opacity: [0.4, 0.6, 0.4],
+              }}
+              transition={{ duration: 7 / intensity, repeat: Infinity }}
+            />
+            <motion.h1
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 180, damping: 22 }}
+              className="text-4xl md:text-6xl font-bold mb-4 neon-text"
+            >
+              <span className="bg-gradient-to-r from-indigo-200 via-purple-200 to-cyan-200 bg-clip-text text-transparent">
+                Week {week} Locks
+              </span>
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-xl text-slate-300 mb-6"
+            >
+              Season {season}
+            </motion.p>
+            <motion.div
+              className="flex justify-center gap-4 flex-wrap"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.08 } },
+              }}
+            >
+              {isLocked && (
+                <motion.div
+                  variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+                  className="inline-flex items-center px-6 py-3 bg-rose-500/15 border border-rose-500/40 rounded-full text-rose-100 font-semibold backdrop-blur-sm"
+                >
+                  <span className="mr-2">🔒</span>
+                  Picks are locked for this week
+                </motion.div>
+              )}
+              {!isLocked && hasSubmitted && (
+                <motion.div
+                  variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+                  className="inline-flex items-center px-6 py-3 bg-emerald-500/15 border border-emerald-400/30 rounded-full text-emerald-100 font-semibold backdrop-blur-sm"
+                >
+                  <span className="mr-2">✅</span>
+                  You already submitted your picks
+                </motion.div>
+              )}
+            </motion.div>
           </div>
 
           {error && (
-            <div className="mb-6 bg-red-600/20 border border-red-500/30 text-red-200 px-6 py-4 rounded-xl backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 bg-rose-500/15 border border-rose-500/40 text-rose-100 px-6 py-4 rounded-xl backdrop-blur-sm"
+            >
               <div className="flex items-center">
                 <span className="mr-2">⚠️</span>
                 {error}
               </div>
-            </div>
+            </motion.div>
           )}
 
           {success && (
-            <div className="mb-6 bg-green-600/20 border border-green-500/30 text-green-200 px-6 py-4 rounded-xl backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 bg-emerald-500/15 border border-emerald-400/30 text-emerald-100 px-6 py-4 rounded-xl backdrop-blur-sm"
+            >
               <div className="flex items-center">
                 <span className="mr-2">✅</span>
                 {success}
               </div>
-            </div>
+            </motion.div>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -224,29 +286,36 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             <div className="glass-card">
               <div className="px-6 py-6">
                 <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-sky-500 flex items-center justify-center shadow-lg">
                     <span className="text-2xl">🔒</span>
                   </div>
-                  <h2 className="text-2xl font-bold text-white">Games</h2>
+                  <h2 className="text-2xl font-bold text-slate-100">Games</h2>
                 </div>
                 
                 {games.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="text-6xl mb-4">🔒</div>
-                    <p className="text-green-200 text-lg">No games scheduled for this week.</p>
+                    <p className="text-slate-300 text-lg">No games scheduled for this week.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {games.map((game) => (
-                      <div key={game.id} className="glass-section p-6 hover:bg-white/10 transition-all duration-200">
+                    {games.map((game, index) => (
+                      <motion.div
+                        key={game.id}
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.02 * index }}
+                        whileHover={{ y: -4, rotateX: 1.5, rotateY: -1.5 }}
+                        className="glass-section p-6"
+                      >
                         <div className="flex justify-between items-center mb-4">
-                          <span className="text-sm text-green-200 font-medium">
+                          <span className="text-sm text-slate-300 font-medium">
                             {formatGameTime(game.startTime)}
                           </span>
                           <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                            game.status === 'final' ? 'bg-green-600/20 text-green-200 border border-green-500/30' :
-                            game.status === 'in_progress' ? 'bg-yellow-600/20 text-yellow-200 border border-yellow-500/30' :
-                            'bg-blue-600/20 text-blue-200 border border-blue-500/30'
+                            game.status === 'final' ? 'bg-emerald-500/15 text-emerald-100 border border-emerald-400/30' :
+                            game.status === 'in_progress' ? 'bg-amber-500/15 text-amber-100 border border-amber-400/30' :
+                            'bg-indigo-500/15 text-indigo-100 border border-indigo-400/30'
                           }`}>
                             {game.status.toUpperCase()}
                           </span>
@@ -256,12 +325,12 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                           <div className="flex items-center space-x-6">
                             <div className="flex flex-col items-center">
                               <TeamLogo team={game.awayTeam} size="md" />
-                              <span className="text-green-200 text-xs mt-1 max-w-[80px] text-center truncate">{normalizeTeam(game.awayTeam)}</span>
+                              <span className="text-slate-300 text-xs mt-1 max-w-[80px] text-center truncate">{normalizeTeam(game.awayTeam)}</span>
                             </div>
                             <span className="text-white font-semibold text-lg">@</span>
                             <div className="flex flex-col items-center">
                               <TeamLogo team={game.homeTeam} size="md" />
-                              <span className="text-green-200 text-xs mt-1 max-w-[80px] text-center truncate">{normalizeTeam(game.homeTeam)}</span>
+                              <span className="text-slate-300 text-xs mt-1 max-w-[80px] text-center truncate">{normalizeTeam(game.homeTeam)}</span>
                             </div>
                           </div>
                           
@@ -278,14 +347,17 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                                 />
                                 <div className={`pick-radio ${
                                   getPickedTeam(game.id) === game.awayTeam 
-                                    ? 'bg-yellow-500 border-yellow-400' 
-                                    : 'border-white/30 group-hover:border-yellow-400 group-hover:bg-yellow-500/20'
+                                    ? 'bg-indigo-500 border-indigo-300 text-white' 
+                                    : 'border-white/25 group-hover:border-indigo-300 group-hover:bg-indigo-500/15'
                                 }`}>
                                   {getPickedTeam(game.id) === game.awayTeam && (
-                                    <div className="w-3 h-3 bg-white rounded-full"></div>
+                                    <motion.div
+                                      layoutId={`picked-${game.id}`}
+                                      className="w-3 h-3 bg-white rounded-full"
+                                    />
                                   )}
                                 </div>
-                                <span className="ml-2 text-white font-medium group-hover:text-yellow-200 transition-colors">
+                                <span className="ml-2 text-white font-medium group-hover:text-indigo-200 transition-colors">
                                   {game.awayTeam}
                                 </span>
                               </label>
@@ -301,14 +373,17 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                                 />
                                 <div className={`pick-radio ${
                                   getPickedTeam(game.id) === game.homeTeam 
-                                    ? 'bg-yellow-500 border-yellow-400' 
-                                    : 'border-white/30 group-hover:border-yellow-400 group-hover:bg-yellow-500/20'
+                                    ? 'bg-indigo-500 border-indigo-300 text-white' 
+                                    : 'border-white/25 group-hover:border-indigo-300 group-hover:bg-indigo-500/15'
                                 }`}>
                                   {getPickedTeam(game.id) === game.homeTeam && (
-                                    <div className="w-3 h-3 bg-white rounded-full"></div>
+                                    <motion.div
+                                      layoutId={`picked-${game.id}`}
+                                      className="w-3 h-3 bg-white rounded-full"
+                                    />
                                   )}
                                 </div>
-                                <span className="ml-2 text-white font-medium group-hover:text-yellow-200 transition-colors">
+                                <span className="ml-2 text-white font-medium group-hover:text-indigo-200 transition-colors">
                                   {game.homeTeam}
                                 </span>
                               </label>
@@ -316,20 +391,20 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                           )}
                           
                           {isLocked && (
-                            <div className="text-sm text-green-200 font-medium">
+                            <div className="text-sm text-slate-300 font-medium">
                               {getPickedTeam(game.id) || 'No pick'}
                             </div>
                           )}
                         </div>
                         
                         {game.winnerTeam && (
-                          <div className="flex items-center justify-center py-2 bg-green-600/20 border border-green-500/30 rounded-lg">
-                            <span className="text-green-200 font-semibold">
+                          <div className="flex items-center justify-center py-2 bg-emerald-500/15 border border-emerald-400/30 rounded-lg">
+                            <span className="text-emerald-100 font-semibold">
                               🏆 Winner: {game.winnerTeam}
                             </span>
                           </div>
                         )}
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 )}
@@ -337,24 +412,29 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             </div>
 
             {/* My Picks Panel */}
-            <div className="glass-card">
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12, type: 'spring', stiffness: 160, damping: 22 }}
+              className="glass-card"
+            >
               <div className="px-6 py-6">
                 <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-cyan-400 flex items-center justify-center shadow-lg">
                     <span className="text-2xl">👤</span>
                   </div>
-                  <h2 className="text-2xl font-bold text-white">My Picks</h2>
+                  <h2 className="text-2xl font-bold text-slate-100">My Picks</h2>
                 </div>
                 
                 {myPicks.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="text-6xl mb-4">🎯</div>
-                    <p className="text-green-200 text-lg">No picks submitted yet.</p>
-                    <p className="text-green-300 text-sm mt-2">Select teams above to make your picks!</p>
+                    <p className="text-slate-300 text-lg">No picks submitted yet.</p>
+                    <p className="text-slate-400 text-sm mt-2">Select teams above to make your picks!</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {myPicks.map((pick) => {
+                    {myPicks.map((pick, idx) => {
                       // Find the game by id; if team mismatch, fall back to matching by team
                       let game = games.find(g => g.id === pick.gameId);
                       if (game && !(isSameTeam(pick.pickedTeam, game.homeTeam) || isSameTeam(pick.pickedTeam, game.awayTeam))) {
@@ -362,33 +442,41 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                       }
                       const isHit = !!(game && game.status === 'final' && game.winnerTeam && isSameTeam(game.winnerTeam, pick.pickedTeam));
                       return (
-                        <div key={pick.gameId} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                        <motion.div
+                          key={pick.gameId}
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.05 * idx }}
+                          whileHover={{ scale: 1.02, translateY: -4 }}
+                          className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 relative overflow-hidden"
+                        >
+                          <div className="absolute inset-0 opacity-15 bg-gradient-to-br from-indigo-500/30 via-purple-500/20 to-cyan-400/20 pointer-events-none" />
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-6">
                               <div className="flex flex-col items-center">
                                 <TeamLogo team={game?.awayTeam || ''} size="sm" />
-                                <span className="text-green-200 text-[10px] mt-1 max-w-[60px] text-center truncate">{game ? normalizeTeam(game.awayTeam) : ''}</span>
+                                <span className="text-slate-300 text-[10px] mt-1 max-w-[60px] text-center truncate">{game ? normalizeTeam(game.awayTeam) : ''}</span>
                               </div>
                               <span className="text-white font-medium">@</span>
                               <div className="flex flex-col items-center">
                                 <TeamLogo team={game?.homeTeam || ''} size="sm" />
-                                <span className="text-green-200 text-[10px] mt-1 max-w-[60px] text-center truncate">{game ? normalizeTeam(game.homeTeam) : ''}</span>
+                                <span className="text-slate-300 text-[10px] mt-1 max-w-[60px] text-center truncate">{game ? normalizeTeam(game.homeTeam) : ''}</span>
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <span className="text-green-200 text-sm font-medium">Picked:</span>
-                              <div className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-bold">
+                              <span className="text-slate-300 text-sm font-medium">Picked:</span>
+                              <div className="bg-indigo-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg shadow-indigo-500/25">
                                 {pick.pickedTeam}
                               </div>
                               {isHit && (
-                                <span className="ml-2 text-green-200 text-xs font-semibold bg-green-600/20 border border-green-500/30 px-2 py-1 rounded-full">HIT</span>
+                                <span className="ml-2 text-emerald-100 text-xs font-semibold bg-emerald-500/15 border border-emerald-400/30 px-2 py-1 rounded-full">HIT</span>
                               )}
                             </div>
                           </div>
-                          <div className="text-xs text-green-300 mt-2">
+                          <div className="text-xs text-slate-400 mt-2">
                             {game && formatGameTime(game.startTime)}
                           </div>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
@@ -409,13 +497,13 @@ export default function WeekPage({ params }: { params: { season: string; week: s
 
                 <Link
                   href={`/picks/${season}/${week}`}
-                  className="mt-4 w-full btn-blue py-3 px-6 hover:scale-105 inline-flex items-center justify-center"
+                  className="mt-4 w-full btn-blue py-3 px-6 hover:scale-105 inline-flex items-center justify-center relative overflow-hidden"
                 >
                   <span className="mr-2">👥</span>
                   View All Picks
                 </Link>
               </div>
-            </div>
+            </motion.div>
           </div>
 
           {/* All Picks moved to its own page at /picks/[season]/[week] */}

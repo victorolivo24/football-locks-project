@@ -41,20 +41,81 @@ label span {
 }
 
 :root {
-  --background: #061b10; /* deep green */
-  --foreground: #f3f4f6; /* gray-100 */
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #061b10;
-    --foreground: #f3f4f6;
-  }
+  --background: #020312;
+  --foreground: #e0e9ff;
+  --surface: rgba(18, 26, 56, 0.78);
+  --surface-strong: rgba(11, 18, 44, 0.92);
+  --muted: rgba(147, 164, 207, 0.6);
+  --accent: #9d7bff;
+  --accent-secondary: #18d8ff;
+  --neon-pink: #ff3cac;
+  --neon-lime: #a3ff12;
+  --cyber-emerald: #29ffa6;
+  --intensity: 1;
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background: radial-gradient(circle at 15% 20%, rgba(157, 123, 255, 0.2), transparent 55%),
+    radial-gradient(circle at 85% 10%, rgba(24, 216, 255, 0.2), transparent 45%),
+    radial-gradient(circle at 50% 80%, rgba(41, 255, 166, 0.18), transparent 55%),
+    linear-gradient(180deg, #02020b 0%, #060923 45%, #02030c 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  font-family: var(--font-outfit), 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 20% 20%, rgba(255, 60, 172, 0.12), transparent 40%),
+    radial-gradient(circle at 80% 30%, rgba(24, 216, 255, 0.12), transparent 42%),
+    radial-gradient(circle at 50% 80%, rgba(41, 255, 166, 0.1), transparent 50%);
+  mix-blend-mode: screen;
+  filter: blur(60px);
+  opacity: 0.65;
+  animation: auroraFlow 28s ease-in-out infinite alternate;
+  z-index: -2;
+}
+
+body::after {
+  background: radial-gradient(circle at 30% 60%, rgba(0, 208, 255, 0.16), transparent 48%),
+    radial-gradient(circle at 70% 70%, rgba(136, 57, 255, 0.12), transparent 55%);
+  animation: auroraDrift 32s ease-in-out infinite alternate-reverse;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-lexend-mega), var(--font-outfit), 'Inter', sans-serif;
+  letter-spacing: 0.01em;
+}
+
+@keyframes auroraFlow {
+  0% {
+    transform: translate3d(-2%, -1%, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(1%, 1%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(3%, -2%, 0) scale(1.02);
+  }
+}
+
+@keyframes auroraDrift {
+  0% {
+    transform: translate3d(2%, 1%, 0) scale(1.03) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(-2%, -2%, 0) scale(1.07) rotate(1deg);
+  }
+  100% {
+    transform: translate3d(1%, 3%, 0) scale(1.04) rotate(-1deg);
+  }
 }
 
 /* Football theme helpers */
@@ -64,48 +125,212 @@ body {
   /* Subtle football field gradient with yard lines */
   .football-field {
     background-image:
-      linear-gradient(160deg, #0a3d1e 0%, #0f4f28 45%, #0b3e21 100%),
-      repeating-linear-gradient(
-        to right,
-        rgba(255, 255, 255, 0.08) 0 1px,
-        transparent 1px 60px
-      );
-    background-blend-mode: overlay;
+      radial-gradient(circle at 20% 15%, rgba(139, 92, 246, 0.18), transparent 55%),
+      radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.18), transparent 45%),
+      linear-gradient(160deg, rgba(5, 7, 26, 0.95) 0%, rgba(14, 19, 44, 0.9) 50%, rgba(3, 6, 26, 0.95) 100%);
+    background-color: rgba(5, 7, 20, 0.94);
   }
 
   .glass-card {
-    @apply bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl;
+    position: relative;
+    background: linear-gradient(150deg, rgba(23, 31, 67, 0.7) 0%, rgba(8, 13, 34, 0.92) 100%);
+    box-shadow: 0 30px 60px rgba(12, 19, 46, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    overflow: hidden;
+    @apply backdrop-blur-2xl rounded-3xl;
+  }
+
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), transparent 40%);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  .glass-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at 20% 20%, rgba(24, 216, 255, 0.16), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(157, 123, 255, 0.16), transparent 50%);
+    opacity: calc(0.5 * var(--intensity));
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+    animation: holoPulse 12s ease-in-out infinite alternate;
   }
 
   .glass-section {
-    @apply bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl;
+    position: relative;
+    background: linear-gradient(150deg, rgba(39, 52, 95, 0.35), rgba(16, 24, 48, 0.6));
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    overflow: hidden;
+    @apply backdrop-blur-xl rounded-2xl transition-all duration-300;
+  }
+
+  .glass-section::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 55%);
+    opacity: calc(0.3 * var(--intensity));
+    transition: opacity 0.4s ease;
   }
 
   .btn-gradient {
-    @apply inline-flex items-center justify-center font-bold rounded-xl border-2 shadow-2xl transition-transform duration-200;
+    @apply relative inline-flex items-center justify-center font-bold rounded-2xl border shadow-lg transition-transform duration-200;
+    box-shadow: 0 18px 30px rgba(79, 70, 229, 0.45);
+    overflow: hidden;
+  }
+
+  .btn-gradient::after {
+    content: '';
+    position: absolute;
+    inset: -120%;
+    background: conic-gradient(from 0deg, transparent, rgba(255, 255, 255, 0.25), transparent 60%);
+    animation: sweep 4.5s linear infinite;
   }
 
   .btn-yellow {
-    @apply btn-gradient text-black border-yellow-400/50;
-    background-image: linear-gradient(90deg, #f59e0b, #f59e0b, #fbbf24);
+    @apply btn-gradient text-white border-transparent;
+    background-image: linear-gradient(135deg, #8b5cf6 0%, #6366f1 45%, #0ea5e9 100%);
   }
 
   .btn-blue {
-    @apply btn-gradient text-white border-blue-500/30;
-    background-image: linear-gradient(90deg, #2563eb, #1d4ed8);
+    @apply btn-gradient text-white border-transparent;
+    background-image: linear-gradient(135deg, #22d3ee 0%, #14b8a6 45%, #0ea5e9 100%);
   }
 
   .btn-slate {
-    @apply btn-gradient text-white border-gray-600/50;
-    background-image: linear-gradient(90deg, #374151, #1f2937);
+    @apply btn-gradient text-white border-white/10;
+    background-image: linear-gradient(135deg, rgba(51, 65, 85, 0.95), rgba(30, 41, 59, 0.95));
   }
 
   .btn-ghost {
     @apply inline-flex items-center justify-center font-semibold rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors;
+    backdrop-filter: blur(12px);
   }
 
   /* Custom radio style (hidden input + visual) */
   .pick-radio {
     @apply w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200;
+    box-shadow: inset 0 0 0 0 rgba(138, 180, 255, 0.4);
+  }
+
+  .neon-text {
+    text-shadow: 0 0 18px rgba(24, 216, 255, 0.65), 0 0 48px rgba(157, 123, 255, 0.45);
+  }
+
+  .holo-border {
+    position: relative;
+    border-radius: 9999px;
+    background: linear-gradient(120deg, rgba(24, 216, 255, 0.45), rgba(157, 123, 255, 0.55), rgba(255, 60, 172, 0.45));
+    padding: 1px;
+  }
+
+  .holo-border > * {
+    border-radius: inherit;
+    background: rgba(7, 11, 26, 0.92);
+  }
+
+  .pulse-ring {
+    position: relative;
+  }
+
+  .pulse-ring::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+    border: 1px solid rgba(157, 123, 255, 0.45);
+    filter: blur(0);
+    animation: ringPulse 2.8s ease-in-out infinite;
+  }
+
+  .tilt-hover {
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+    transform-style: preserve-3d;
+  }
+
+  .tilt-hover:hover {
+    transform: perspective(900px) rotateX(6deg) rotateY(-6deg) translateY(-6px);
+    box-shadow: 0 25px 60px rgba(9, 14, 38, 0.7);
+  }
+
+  .glow-divider {
+    height: 1px;
+    width: 100%;
+    background: linear-gradient(90deg, transparent, rgba(157, 123, 255, 0.35), rgba(24, 216, 255, 0.55), transparent);
+  }
+
+  .floating {
+    animation: floaty 16s ease-in-out infinite;
+  }
+
+  .floating-slow {
+    animation: floaty 26s ease-in-out infinite alternate;
+  }
+
+  .floating-fast {
+    animation: floaty 10s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes sweep {
+  0% {
+    transform: rotate(0deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes ringPulse {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.92);
+  }
+  60% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+
+@keyframes floaty {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(1.6%, -1.4%, 0) scale(1.03);
+  }
+  100% {
+    transform: translate3d(-1.2%, 1.8%, 0) scale(1.01);
+  }
+}
+
+@keyframes holoPulse {
+  0% {
+    opacity: calc(0.35 * var(--intensity));
+  }
+  50% {
+    opacity: calc(0.55 * var(--intensity));
+  }
+  100% {
+    opacity: calc(0.35 * var(--intensity));
   }
 }
