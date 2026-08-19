@@ -87,9 +87,27 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   const handlePickChange = (gameId: number, pickedTeam: string) => {
     if (isLocked || hasSubmitted) return;
     setPicks(prev => {
+      const existing = prev.find(p => p.gameId === gameId);
       const rest = prev.filter(p => p.gameId !== gameId);
+
+      // If user clicks the already selected team, uncheck / clear the pick
+      if (existing && existing.team === pickedTeam) {
+        return rest;
+      }
+
       return [...rest, { gameId, team: pickedTeam }];
     });
+  };
+
+  const handleClearSinglePick = (gameId: number) => {
+    if (isLocked || hasSubmitted) return;
+    setPicks(prev => prev.filter(p => p.gameId !== gameId));
+  };
+
+  const handleClearAllDraftPicks = () => {
+    if (isLocked || hasSubmitted) return;
+    if (picks.length === 0) return;
+    setPicks([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -428,8 +446,15 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                     </div>
                   ) : (
                     <div className="space-y-2 mb-6">
-                      <div className="text-xs text-green-200 font-semibold mb-2">
-                        Selected {pickedCount} of {games.length} games:
+                      <div className="flex items-center justify-between text-xs text-green-200 font-semibold mb-2">
+                        <span>Selected {pickedCount} of {games.length} games:</span>
+                        <button
+                          type="button"
+                          onClick={handleClearAllDraftPicks}
+                          className="text-red-300 hover:text-red-200 underline font-normal text-[11px]"
+                        >
+                          Clear All
+                        </button>
                       </div>
                       <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
                         {picks.filter(p => !!p.team).map((p) => {
@@ -437,14 +462,24 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                           return (
                             <div
                               key={p.gameId}
-                              className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/10 text-xs"
+                              className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/10 text-xs gap-2"
                             >
-                              <span className="text-white/80 truncate max-w-[140px]">
+                              <span className="text-white/80 truncate max-w-[120px]">
                                 {g ? `${normalizeTeam(g.awayTeam)} @ ${normalizeTeam(g.homeTeam)}` : `Game #${p.gameId}`}
                               </span>
-                              <span className="font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/30 truncate max-w-[120px]">
-                                🔒 {normalizeTeam(p.team!)}
-                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/30 truncate max-w-[110px]">
+                                  🔒 {normalizeTeam(p.team!)}
+                                </span>
+                                <button
+                                  type="button"
+                                  title="Remove pick"
+                                  onClick={() => handleClearSinglePick(p.gameId)}
+                                  className="text-white/50 hover:text-red-300 px-1 hover:bg-white/10 rounded"
+                                >
+                                  ✕
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
