@@ -11,13 +11,21 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, password } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const { name, password, mode = 'login' } = body;
     const trimmedName = typeof name === 'string' ? name.trim() : '';
     const trimmedPassword = typeof password === 'string' ? password.trim() : '';
 
     if (!trimmedName) {
       return NextResponse.json(
         { error: 'Name is required' },
+        { status: 400 }
+      );
+    }
+
+    if (trimmedName.length < 2) {
+      return NextResponse.json(
+        { error: 'Name must be at least 2 characters long' },
         { status: 400 }
       );
     }
@@ -29,41 +37,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let user = await getUserByLogin(trimmedName);
+    const existingUser = await getUserByLogin(trimmedName);
 
-    if (user) {
-      if (user.passwordHash) {
-        if (!trimmedPassword || !verifyPassword(trimmedPassword, user.passwordHash)) {
-          return NextResponse.json(
-            { error: 'Incorrect password' },
-            { status: 401 }
-          );
-        }
-      } else if (trimmedPassword) {
-        await setPasswordForUser(user.id, trimmedPassword);
+    if (mode === 'register') {
+      if (existingUser) {
+        return NextResponse.json(
+          { error: `An account named "${existingUser.name}" already exists. Please log in.` },
+          { status: 409 }
+        );
       }
-    } else {
-      user = await createRegisteredUser(trimmedName, trimmedPassword || undefined);
+
+      const newUser = await createRegisteredUser(trimmedName, trimmedPassword || undefined);
+      if (!newUser) {
+        return NextResponse.json(
+          { error: 'Unable to create account. Please try again.' },
+          { status: 500 }
+        );
+      }
+
+      const sessionUser = { name: newUser.name, userId: newUser.id };
+      const response = NextResponse.json(
+        { success: true, user: sessionUser, message: 'Account created successfully!' },
+        { status: 201 }
+      );
+      setUserSession(sessionUser, response);
+      return response;
     }
 
-    if (!user) {
+    // Default: Login mode
+    if (!existingUser) {
       return NextResponse.json(
-        { error: 'Unable to create user' },
-        { status: 500 }
+        { error: `No account found for "${trimmedName}". Please create an account.` },
+        { status: 404 }
       );
     }
 
-    const sessionUser = { name: user.name, userId: user.id };
+    if (existingUser.passwordHash) {
+      if (!trimmedPassword) {
+        return NextResponse.json(
+          { error: 'This account has a password. Please enter your password.' },
+          { status: 401 }
+        );
+      }
+      if (!verifyPassword(trimmedPassword, existingUser.passwordHash)) {
+        return NextResponse.json(
+          { error: 'Incorrect password.' },
+          { status: 401 }
+        );
+      }
+    } else if (trimmedPassword) {
+      // If user had no password and provides one, save it for future logins
+      await setPasswordForUser(existingUser.id, trimmedPassword);
+    }
 
-    // Create response
+    const sessionUser = { name: existingUser.name, userId: existingUser.id };
     const response = NextResponse.json(
       { success: true, user: sessionUser },
       { status: 200 }
     );
-
-    // Set user session cookie
-    setUserSession(sessionUser);
-
+    setUserSession(sessionUser, response);
     return response;
   } catch (error) {
     console.error('Login error:', error);

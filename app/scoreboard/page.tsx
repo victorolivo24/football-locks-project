@@ -154,35 +154,43 @@ export default function ScoreboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {scores.map((userScore, index) => (
-                    <tr key={userScore.userId} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white sticky left-0 bg-transparent">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-md ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-white/10 text-white'}`}>
-                          {index + 1}
-                        </span>
+                  {scores.length === 0 ? (
+                    <tr>
+                      <td colSpan={maxWeek + 3} className="px-6 py-12 text-center text-green-200">
+                        No players have submitted picks yet for Season {season}.
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-white sticky left-16 bg-transparent">
-                        {userScore.name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
-                        {userScore.totalScore}
-                      </td>
-                      {Array.from({ length: maxWeek }, (_, i) => i + 1).map((week) => {
-                        const weekScore = getWeeklyScore(userScore, week);
-                        return (
-                          <td key={week} className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                              weekScore > 0
-                                ? 'bg-green-600/20 text-green-200 border border-green-500/30'
-                                : 'bg-white/10 text-white/80 border border-white/10'
-                            }`}>
-                              {weekScore}
-                            </span>
-                          </td>
-                        );
-                      })}
                     </tr>
-                  ))}
+                  ) : (
+                    scores.map((userScore, index) => (
+                      <tr key={userScore.userId} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white sticky left-0 bg-transparent">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-md ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-white/10 text-white'}`}>
+                            {index + 1}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-white sticky left-16 bg-transparent">
+                          {userScore.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
+                          {userScore.totalScore}
+                        </td>
+                        {Array.from({ length: maxWeek }, (_, i) => i + 1).map((week) => {
+                          const weekScore = getWeeklyScore(userScore, week);
+                          return (
+                            <td key={week} className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                weekScore > 0
+                                  ? 'bg-green-600/20 text-green-200 border border-green-500/30'
+                                  : 'bg-white/10 text-white/80 border border-white/10'
+                              }`}>
+                                {weekScore}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

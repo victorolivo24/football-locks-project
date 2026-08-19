@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db } from './db';
@@ -11,25 +12,24 @@ export interface UserSession {
 
 const PASSWORD_PREFIX = 'scrypt';
 
-// Fallback for legacy cookies if the database is unavailable.
-const USER_MAP = {
-  'Victor': { id: 1, name: 'Victor' },
-  'Mihir': { id: 2, name: 'Mihir' },
-  'Dakota': { id: 3, name: 'Dakota' },
-  'Chris': { id: 4, name: 'Chris' },
-  'Ryan': { id: 5, name: 'Ryan' },
-  'Jihoo': { id: 6, name: 'Jihoo' },
-} as const;
-
-export type UserName = keyof typeof USER_MAP;
-
-export function validateUserName(name: string): boolean {
-  return name in USER_MAP;
-}
-
-export function getUserByName(name: string): UserSession | null {
-  const user = USER_MAP[name as UserName];
-  return user ? { name: user.name, userId: user.id } : null;
+let schemaEnsured = false;
+export async function ensureUsersSchema() {
+  if (schemaEnsured) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        passwordhash TEXT
+      );
+    `);
+    await db.execute(sql`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS passwordhash TEXT;
+    `);
+    schemaEnsured = true;
+  } catch (err) {
+    console.warn('ensureUsersSchema notice:', (err as any)?.message);
+  }
 }
 
 export function hashPassword(password: string) {
@@ -39,58 +39,119 @@ export function hashPassword(password: string) {
 }
 
 export function verifyPassword(password: string, storedHash: string) {
-  const [prefix, salt, hash] = storedHash.split('$');
-  if (prefix !== PASSWORD_PREFIX || !salt || !hash) return false;
+  try {
+    const [prefix, salt, hash] = storedHash.split('$');
+    if (prefix !== PASSWORD_PREFIX || !salt || !hash) return false;
 
-  const expected = Buffer.from(hash, 'hex');
-  const actual = scryptSync(password, salt, 64);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+    const expected = Buffer.from(hash, 'hex');
+    const actual = scryptSync(password, salt, 64);
+    return expected.length === actual.length && timingSafeEqual(expected, actual);
+  } catch {
+    return false;
+  }
 }
 
 export async function getUserByLogin(name: string) {
   const trimmedName = name.trim();
-  return db
-    .select({
-      id: users.id,
-      name: users.name,
-      passwordHash: users.passwordHash,
-    })
-    .from(users)
-    .where(sql`lower(${users.name}) = lower(${trimmedName})`)
-    .limit(1)
-    .then((rows) => rows[0] || null);
+  if (!trimmedName) return null;
+  await ensureUsersSchema();
+
+  try {
+    const rows = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        passwordHash: users.passwordHash,
+      })
+      .from(users)
+      .where(sql`lower(${users.name}) = lower(${trimmedName})`)
+      .limit(1);
+
+    if (rows[0]) return rows[0];
+  } catch (err: any) {
+    console.warn('getUserByLogin query error, attempting fallback:', err?.message);
+    try {
+      const rows = await db
+        .select({
+          id: users.id,
+          name: users.name,
+        })
+        .from(users)
+        .where(sql`lower(${users.name}) = lower(${trimmedName})`)
+        .limit(1);
+
+      if (rows[0]) {
+        return { id: rows[0].id, name: rows[0].name, passwordHash: null };
+      }
+    } catch (fallbackErr: any) {
+      console.warn('getUserByLogin fallback query failed:', fallbackErr?.message);
+    }
+  }
+
+  return null;
 }
 
 export async function createRegisteredUser(name: string, password?: string) {
   const trimmedName = name.trim();
-  const passwordHash = password ? hashPassword(password) : null;
+  if (!trimmedName) return null;
+  await ensureUsersSchema();
+  const passwordHash = password && password.trim() ? hashPassword(password.trim()) : null;
 
-  return db
-    .insert(users)
-    .values({ name: trimmedName, passwordHash })
-    .returning({ id: users.id, name: users.name, passwordHash: users.passwordHash })
-    .then((rows) => rows[0]);
+  try {
+    if (passwordHash) {
+      const rows = await db
+        .insert(users)
+        .values({ name: trimmedName, passwordHash })
+        .returning({ id: users.id, name: users.name, passwordHash: users.passwordHash });
+      if (rows[0]) return rows[0];
+    } else {
+      const rows = await db
+        .insert(users)
+        .values({ name: trimmedName })
+        .returning({ id: users.id, name: users.name });
+      if (rows[0]) return { id: rows[0].id, name: rows[0].name, passwordHash: null };
+    }
+  } catch (err: any) {
+    console.warn('createRegisteredUser insert notice:', err?.message);
+    const existing = await getUserByLogin(trimmedName);
+    if (existing) return existing;
+    throw err;
+  }
+
+  return null;
 }
 
 export async function setPasswordForUser(userId: number, password: string) {
+  await ensureUsersSchema();
   const passwordHash = hashPassword(password);
-  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  try {
+    await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  } catch (err: any) {
+    console.warn('setPasswordForUser error:', err?.message);
+  }
 }
 
-export function setUserSession(user: UserSession) {
-  const cookieStore = cookies();
-  cookieStore.set('user-id', String(user.userId), {
-    httpOnly: false,
-    secure: false,
-    sameSite: 'lax',
-    maxAge: 30 * 24 * 60 * 60,
-  });
-  cookieStore.set('user-name', user.name, {
+export function setUserSession(user: UserSession, response?: NextResponse) {
+  const cookieOptions = {
     httpOnly: false, // Allow client-side access
-    secure: false, // Don't require HTTPS for local testing
-    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
     maxAge: 30 * 24 * 60 * 60, // 30 days
-  });
+  };
+
+  if (response) {
+    response.cookies.set('user-id', String(user.userId), cookieOptions);
+    response.cookies.set('user-name', user.name, cookieOptions);
+  }
+
+  try {
+    const cookieStore = cookies();
+    cookieStore.set('user-id', String(user.userId), cookieOptions);
+    cookieStore.set('user-name', user.name, cookieOptions);
+  } catch {
+    // Handled via response cookies
+  }
 }
 
 export async function getCurrentUser(): Promise<UserSession | null> {
@@ -110,7 +171,7 @@ export async function getCurrentUser(): Promise<UserSession | null> {
 
       if (user) return { name: user.name, userId: user.id };
     } catch {
-      // db fallback below
+      // fallback to userName check
     }
   }
 
@@ -118,17 +179,20 @@ export async function getCurrentUser(): Promise<UserSession | null> {
     try {
       const user = await getUserByLogin(userName);
       if (user) return { name: user.name, userId: user.id };
-    } catch {
-      // db fallback below
-    }
-    return getUserByName(userName);
+    } catch {}
   }
 
   return null;
 }
 
-export function clearUserSession() {
-  const cookieStore = cookies();
-  cookieStore.delete('user-id');
-  cookieStore.delete('user-name');
+export function clearUserSession(response?: NextResponse) {
+  if (response) {
+    response.cookies.delete('user-id');
+    response.cookies.delete('user-name');
+  }
+  try {
+    const cookieStore = cookies();
+    cookieStore.delete('user-id');
+    cookieStore.delete('user-name');
+  } catch {}
 }

@@ -110,7 +110,12 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
         </div>
 
         <div className="space-y-4">
-          {users.map((u) => {
+          {users.length === 0 ? (
+            <div className="glass-card p-8 text-center text-green-200">
+              No registered players found yet.
+            </div>
+          ) : (
+            users.map((u) => {
             const picks = picksByUser[u.name] || [];
             const has = picks.length > 0;
             const isPickLoss = (p: PickItem) => {

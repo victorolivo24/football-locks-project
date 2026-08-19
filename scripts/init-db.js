@@ -61,17 +61,6 @@ async function main() {
       primary key (userid, season, week)
     )`;
 
-    await sql`insert into users (id, name) values
-      (1, 'Victor'),
-      (2, 'Mihir'),
-      (3, 'Dakota'),
-      (4, 'Chris'),
-      (5, 'Ryan'),
-      (6, 'Jihoo')
-      on conflict (name) do nothing`;
-
-    await sql`select setval('users_id_seq', greatest((select max(id) from users), 1), true)`;
-
     const tables = await sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`;
     console.log(`Initialized tables: ${tables.map((row) => row.table_name).join(', ')}`);
   } finally {

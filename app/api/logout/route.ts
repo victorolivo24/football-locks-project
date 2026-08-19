@@ -7,7 +7,7 @@ import { clearUserSession } from '@/lib/auth';
 export async function POST() {
   try {
     const response = NextResponse.json({ success: true });
-    clearUserSession();
+    clearUserSession(response);
     return response;
   } catch (error) {
     console.error('Logout error:', error);
