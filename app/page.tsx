@@ -138,13 +138,6 @@ export default function Dashboard() {
     <div className="min-h-screen">
       <nav className="relative glass-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-  const isLocked = isPicksLocked(weekInfo.season, weekInfo.week);
-
-  return (
-    <div className="min-h-screen">
-      <nav className="relative glass-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
