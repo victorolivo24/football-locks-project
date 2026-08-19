@@ -5,6 +5,9 @@ import { db } from '@/lib/db';
 import { picks } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();

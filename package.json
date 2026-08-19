@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:migrate": "drizzle-kit push",
+    "db:migrate": "node scripts/init-db.js",
+    "db:import-schedule": "node scripts/import-schedule.js",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio"
   },

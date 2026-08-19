@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGamesForWeek } from '@/lib/nfl';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+function isMissingGamesTable(error: unknown) {
+  return error instanceof Error && error.message.includes('relation "games" does not exist');
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -14,7 +21,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const games = await getGamesForWeek(season, week);
+    const games = await getGamesForWeek(season, week).catch((error) => {
+      if (isMissingGamesTable(error)) return [];
+      throw error;
+    });
     
     return NextResponse.json({ games });
   } catch (error) {

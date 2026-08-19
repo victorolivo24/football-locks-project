@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [weekInfo, setWeekInfo] = useState<WeekInfo | null>(null);
   const [timeUntilLock, setTimeUntilLock] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -49,8 +50,6 @@ export default function Dashboard() {
       }
     } catch (error) {
       router.push('/login');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -60,9 +59,15 @@ export default function Dashboard() {
       if (response.ok) {
         const data = await response.json();
         setWeekInfo(data);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || 'Unable to load the current NFL week.');
       }
     } catch (error) {
       console.error('Error fetching week info:', error);
+      setError('Unable to connect to the server. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -109,7 +114,22 @@ export default function Dashboard() {
   }
 
   if (!user || !weekInfo) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="glass-card max-w-lg w-full p-6 text-center">
+          <h1 className="text-2xl font-bold text-white mb-3">NFL Locks</h1>
+          <p className="text-red-200 mb-4">
+            {error || 'Unable to load the dashboard.'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="btn-yellow px-5 py-3"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const isLocked = isPicksLocked(weekInfo.season, weekInfo.week);
