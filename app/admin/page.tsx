@@ -57,8 +57,9 @@ export default function AdminPage() {
     e.preventDefault();
     setAuthError('');
 
-    if (inputPassword.trim() === 'victor') {
-      setPasscode(inputPassword.trim());
+    const trimmed = inputPassword.trim();
+    if (trimmed.toLowerCase() === 'victor') {
+      setPasscode(trimmed);
       setIsAuthenticated(true);
       setInputPassword('');
     } else {

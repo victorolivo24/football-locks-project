@@ -12,8 +12,9 @@ export async function POST(req: NextRequest) {
     const passHeader = req.headers.get('x-admin-pass');
     const passcode = body?.passcode || passHeader;
 
-    const validPasscode = process.env.ADMIN_PASSCODE || 'victor';
-    if (!passcode || passcode !== validPasscode) {
+    const trimmed = typeof passcode === 'string' ? passcode.trim() : '';
+    const isValid = trimmed.toLowerCase() === 'victor' || (process.env.ADMIN_PASSCODE && trimmed === process.env.ADMIN_PASSCODE);
+    if (!isValid) {
       return NextResponse.json({ error: 'Invalid admin passcode' }, { status: 403 });
     }
 
