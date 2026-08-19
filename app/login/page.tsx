@@ -3,10 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const USER_NAMES = ['Victor', 'Mihir', 'Dakota', 'Chris', 'Ryan', 'Jihoo'];
-
 export default function LoginPage() {
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -22,7 +21,7 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, password }),
       });
 
       const data = await response.json();
@@ -53,30 +52,44 @@ export default function LoginPage() {
               NFL Locks
             </h2>
             <p className="text-green-200 text-lg">
-              Pick your name to get started
+              Enter your name to get started
             </p>
           </div>
           
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="name" className="block text-sm font-bold text-white mb-3">
-                Who are you?
+                Name
               </label>
-              <select
+              <input
                 id="name"
                 name="name"
                 required
-                className="appearance-none relative block w-full px-4 py-3 bg-white/10 border border-white/30 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 focus:z-10 text-sm backdrop-blur-sm"
+                autoComplete="name"
+                className="relative block w-full px-4 py-3 bg-white/10 border border-white/30 text-white placeholder-green-100/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 focus:z-10 text-sm backdrop-blur-sm"
+                placeholder="Victor"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-              >
-                <option value="" className="text-gray-900">Select your name</option>
-                {USER_NAMES.map((userName) => (
-                  <option key={userName} value={userName} className="text-gray-900">
-                    {userName}
-                  </option>
-                ))}
-              </select>
+              />
+              <p className="mt-2 text-xs text-green-200">
+                New names are registered automatically.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-bold text-white mb-3">
+                Password <span className="font-normal text-green-200">(optional)</span>
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                className="relative block w-full px-4 py-3 bg-white/10 border border-white/30 text-white placeholder-green-100/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 focus:z-10 text-sm backdrop-blur-sm"
+                placeholder="Leave blank if you did not set one"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
 
             {error && (

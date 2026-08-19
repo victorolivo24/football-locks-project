@@ -138,6 +138,13 @@ export default function Dashboard() {
     <div className="min-h-screen">
       <nav className="relative glass-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+  const isLocked = isPicksLocked(weekInfo.season, weekInfo.week);
+
+  return (
+    <div className="min-h-screen">
+      <nav className="relative glass-card">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
@@ -145,8 +152,14 @@ export default function Dashboard() {
               </div>
               <h1 className="text-2xl font-bold text-white">NFL Locks</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <span className="text-sm text-green-200 font-medium">Welcome, {user.name}</span>
+              <Link
+                href="/admin"
+                className="text-sm text-yellow-400 hover:text-yellow-300 transition-colors duration-200 px-2.5 py-1 rounded-md hover:bg-white/10"
+              >
+                ⚙️ Admin
+              </Link>
               <button
                 onClick={handleLogout}
                 className="text-sm text-green-300 hover:text-white transition-colors duration-200 px-3 py-1 rounded-md hover:bg-white/10"
@@ -249,7 +262,14 @@ export default function Dashboard() {
               <div className="absolute inset-0 bg-white/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             </Link>
 
-            {/* Admin link removed for deployment */}
+            <Link
+              href="/admin"
+              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-gray-700 to-gray-800 rounded-xl shadow-2xl hover:from-gray-600 hover:to-gray-700 transform hover:scale-105 transition-all duration-200 border-2 border-gray-600/30"
+            >
+              <span className="mr-2 text-2xl">⚙️</span>
+              Admin
+              <div className="absolute inset-0 bg-white/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+            </Link>
           </div>
         </div>
       </main>

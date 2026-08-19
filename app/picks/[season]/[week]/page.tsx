@@ -154,27 +154,36 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                       const pickedHome = isSameTeam(p.pickedTeam, g.homeTeam);
                       const pickedAway = isSameTeam(p.pickedTeam, g.awayTeam);
                       return (
-                        <div key={`${u.id}-${p.gameId}`} className={`glass-section p-4 ${loss ? 'line-through opacity-70' : ''}`}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-6">
-                              <div className={`flex flex-col items-center ${pickedAway ? 'opacity-100' : 'opacity-70'}`}>
+                        <div key={`${u.id}-${p.gameId}`} className={`glass-section p-3 sm:p-4 min-w-0 overflow-hidden ${loss ? 'opacity-70' : ''}`}>
+                          <div className="flex items-center justify-between gap-3 min-w-0">
+                            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
+                              <div className={`flex items-center gap-1.5 min-w-0 ${pickedAway ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
                                 <TeamLogo team={g.awayTeam} size="sm" />
-                                <span className="text-green-200 text-[11px] mt-1 text-center max-w-[80px] truncate">{normalizeTeam(g.awayTeam)}</span>
+                                <span className="text-xs truncate max-w-[70px] sm:max-w-[90px]">{normalizeTeam(g.awayTeam)}</span>
                               </div>
-                              <span className="text-white font-semibold">@</span>
-                              <div className={`flex flex-col items-center ${pickedHome ? 'opacity-100' : 'opacity-70'}`}>
+                              <span className="text-white/60 font-semibold text-xs shrink-0">@</span>
+                              <div className={`flex items-center gap-1.5 min-w-0 ${pickedHome ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
                                 <TeamLogo team={g.homeTeam} size="sm" />
-                                <span className="text-green-200 text-[11px] mt-1 text-center max-w-[80px] truncate">{normalizeTeam(g.homeTeam)}</span>
+                                <span className="text-xs truncate max-w-[70px] sm:max-w-[90px]">{normalizeTeam(g.homeTeam)}</span>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`bg-yellow-500 text-black px-2 py-1 rounded-full text-xs font-bold`}>{normalizeTeam(p.pickedTeam)}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`bg-yellow-500 text-black px-2.5 py-0.5 rounded-full text-xs font-bold ${loss ? 'line-through bg-red-400 text-black' : ''}`}>
+                                🔒 {normalizeTeam(p.pickedTeam)}
+                              </span>
                               {hit && (
-                                <span className="text-green-200 text-[10px] font-semibold bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded-full">HIT</span>
+                                <span className="text-green-200 text-[10px] font-bold bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded-full shrink-0">
+                                  HIT ✅
+                                </span>
+                              )}
+                              {loss && (
+                                <span className="text-red-200 text-[10px] font-bold bg-red-600/20 border border-red-500/30 px-2 py-0.5 rounded-full shrink-0">
+                                  MISS ❌
+                                </span>
                               )}
                             </div>
                           </div>
-                          <div className="text-[11px] text-green-300 mt-2">{formatGameTime(g.startTime)}</div>
+                          <div className="text-[10px] text-green-300/80 mt-1.5 truncate">{formatGameTime(g.startTime)}</div>
                         </div>
                       );
                     })}

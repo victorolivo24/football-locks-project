@@ -73,97 +73,7 @@ export function isPicksLocked(season: number, week: number): boolean {
   const now = DateTime.now().setZone('America/New_York');
   return now >= lockTime;
 }
-export async function calculateAllWeeklyScores(season: number, week: number) {
-  // 1) Get all final games in this week
-  const weekGames = await db
-    .select({
-      id: games.id,
-      winnerTeam: games.winnerTeam,
-      status: games.status,
-    })
-    .from(games)
-    .where(and(eq(games.season, season), eq(games.week, week)));
-
-  const gameMap = new Map<number, { winnerTeam: string | null; status: string }>();
-  for (const g of weekGames) {
-    gameMap.set(Number(g.id), { winnerTeam: g.winnerTeam, status: g.status });
-  }
-
-  // 2) For each user, gather their picks for the week
-  const leagueUsers = await db.select({ id: users.id, name: users.name }).from(users);
-
-  for (const u of leagueUsers) {
-    const userPicks = await db
-      .select({
-        gameId: picks.gameId,
-        pickedTeam: picks.pickedTeam,
-      })
-      .from(picks)
-      .where(
-        and(
-          eq(picks.userId, u.id),
-          eq(picks.season, season),
-          eq(picks.week, week)
-        )
-      );
-
-    // No picks => 0 points
-    if (userPicks.length === 0) {
-      await upsertWeeklyScore(u.id, season, week, 0);
-      continue;
-    }
-
-    // 3) Verify all picked games are final and all correct
-    let allFinal = true;
-    let allCorrect = true;
-
-    for (const p of userPicks) {
-      const gm = gameMap.get(Number(p.gameId));
-      if (!gm) {
-        // Game not in DB (shouldn’t happen if schedule ingestion ran) -> treat as not final yet
-        allFinal = false;
-        break;
-      }
-      if (gm.status !== 'final') {
-        allFinal = false;
-        break;
-      }
-      if (!gm.winnerTeam || gm.winnerTeam !== p.pickedTeam) {
-        allCorrect = false;
-        // We can break early because any wrong pick yields 0 for the week
-        break;
-      }
-    }
-
-    if (!allFinal) {
-      // Don’t write a score yet (wait until all relevant games are final)
-      continue;
-    }
-
-    const points = allCorrect ? userPicks.length : 0;
-    await upsertWeeklyScore(u.id, season, week, points);
-  }
-
-  return { ok: true };
-}
-
-async function upsertWeeklyScore(userId: number, season: number, week: number, points: number) {
-  // Drizzle upsert pattern (Postgres ON CONFLICT)
-  await db
-    .insert(weeklyScores)
-    .values({
-      userId,
-      season,
-      week,
-      points,
-      // computed_at defaults in schema; set here only if you want explicit timestamp:
-      // computedAt: new Date(),
-    } as any)
-    .onConflictDoUpdate({
-      target: [weeklyScores.userId, weeklyScores.season, weeklyScores.week],
-      set: { points, computedAt: sql`now()` },
-    });
-}
+export { calculateAllWeeklyScores } from './scoring';
 
 // Fetch NFL schedule from ESPN API
 export async function fetchNFLSchedule(season: number, week: number): Promise<any[]> {
@@ -228,7 +138,7 @@ export async function getGamesForWeek(season: number, week: number) {
 }
 
 // Update game results
-export async function updateGameResult(gameId: number, winnerTeam: string, status: string) {
+export async function updateGameResult(gameId: number, winnerTeam: string | null, status: string) {
   await db.update(games)
     .set({ winnerTeam, status })
     .where(eq(games.id, gameId));

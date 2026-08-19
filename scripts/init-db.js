@@ -25,8 +25,11 @@ async function main() {
   try {
     await sql`create table if not exists users (
       id serial primary key,
-      name text not null unique
+      name text not null unique,
+      passwordhash text
     )`;
+
+    await sql`alter table users add column if not exists passwordhash text`;
 
     await sql`create table if not exists games (
       id bigint primary key,

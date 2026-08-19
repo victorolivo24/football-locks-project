@@ -26,7 +26,7 @@ export default function ScoreboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [scores, setScores] = useState<UserScore[]>([]);
   const [loading, setLoading] = useState(true);
-  const [season, setSeason] = useState<number>(2024);
+  const [season, setSeason] = useState<number>(2026);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -35,6 +35,13 @@ export default function ScoreboardPage() {
     const seasonParam = searchParams.get('season');
     if (seasonParam) {
       setSeason(parseInt(seasonParam));
+    } else {
+      fetch('/api/week')
+        .then(res => res.json())
+        .then(data => {
+          if (data.season) setSeason(data.season);
+        })
+        .catch(() => undefined);
     }
   }, [searchParams]);
 

@@ -1,6 +1,7 @@
 import { db } from './db';
 import { picks, weeklyScores, games } from './db/schema';
 import { eq, and } from 'drizzle-orm';
+import { isSameTeam } from './teams';
 
 // Calculate weekly score for a user
 export async function calculateWeeklyScore(userId: number, season: number, week: number): Promise<number> {
@@ -25,6 +26,10 @@ export async function calculateWeeklyScore(userId: number, season: number, week:
     ),
   });
 
+  if (weekGames.length === 0) {
+    return 0;
+  }
+
   // Check if all games are final
   const allGamesFinal = weekGames.every(game => game.status === 'final');
   if (!allGamesFinal) {
@@ -43,7 +48,7 @@ export async function calculateWeeklyScore(userId: number, season: number, week:
   // Check if all picks are correct
   const allPicksCorrect = userPicks.every(pick => {
     const game = weekGames.find(g => g.id === pick.gameId);
-    return game && game.winnerTeam === pick.pickedTeam;
+    return game && game.winnerTeam && isSameTeam(game.winnerTeam, pick.pickedTeam);
   });
 
   // All-or-nothing scoring: if all picks correct, get points equal to number of picks
@@ -65,7 +70,7 @@ export async function calculateAllWeeklyScores(season: number, week: number) {
       points,
     }).onConflictDoUpdate({
       target: [weeklyScores.userId, weeklyScores.season, weeklyScores.week],
-      set: { points },
+      set: { points, computedAt: new Date() },
     });
   }
 }

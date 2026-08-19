@@ -4,6 +4,7 @@ import { pgTable, serial, text, integer, bigint, timestamp, boolean } from 'driz
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull().unique(),
+  passwordHash: text('passwordhash'),
 });
 
 // NFL Games table

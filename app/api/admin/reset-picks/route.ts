@@ -8,28 +8,54 @@ import { and, eq } from 'drizzle-orm';
 
 export async function POST(req: NextRequest) {
   try {
-    const pass = req.headers.get('x-admin-pass');
-    if (pass !== process.env.ADMIN_PASSCODE) {
-      return NextResponse.json({ error: 'forbidden (bad admin pass)' }, { status: 403 });
+    const body = await req.json().catch(() => null);
+    const passHeader = req.headers.get('x-admin-pass');
+    const passcode = body?.passcode || passHeader;
+
+    if (!process.env.ADMIN_PASSCODE || passcode !== process.env.ADMIN_PASSCODE) {
+      return NextResponse.json({ error: 'Invalid admin passcode' }, { status: 403 });
     }
 
-    const body = await req.json().catch(() => null);
     const season = Number(body?.season);
     const week = Number(body?.week);
+    const userId = body?.userId ? Number(body?.userId) : undefined;
+
     if (!Number.isFinite(season) || !Number.isFinite(week)) {
-      return NextResponse.json({ error: 'season & week required (numbers)' }, { status: 400 });
+      return NextResponse.json({ error: 'Season and week are required' }, { status: 400 });
     }
 
-    // Delete picks for this season/week
-    await db.delete(picks).where(and(eq(picks.season, season), eq(picks.week, week)));
+    if (userId && Number.isFinite(userId)) {
+      // Delete picks for specific user in this season/week
+      await db.delete(picks).where(
+        and(
+          eq(picks.season, season),
+          eq(picks.week, week),
+          eq(picks.userId, userId)
+        )
+      );
 
-    // Also clear any computed weekly scores for this week to avoid stale totals
-    await db.delete(weeklyScores).where(and(eq(weeklyScores.season, season), eq(weeklyScores.week, week)));
+      // Clear weekly score for this user/season/week
+      await db.delete(weeklyScores).where(
+        and(
+          eq(weeklyScores.season, season),
+          eq(weeklyScores.week, week),
+          eq(weeklyScores.userId, userId)
+        )
+      );
 
-    return NextResponse.json({ ok: true, season, week, message: 'Picks and weekly scores cleared' });
+      return NextResponse.json({ ok: true, season, week, userId, message: `Picks cleared for user ID ${userId} in Week ${week}` });
+    } else {
+      // Delete all picks for this season/week
+      await db.delete(picks).where(and(eq(picks.season, season), eq(picks.week, week)));
+
+      // Clear any computed weekly scores for this week
+      await db.delete(weeklyScores).where(and(eq(weeklyScores.season, season), eq(weeklyScores.week, week)));
+
+      return NextResponse.json({ ok: true, season, week, message: `All picks and scores cleared for Season ${season} Week ${week}` });
+    }
   } catch (e: any) {
     console.error('reset-picks error:', e);
-    return NextResponse.json({ error: e?.message ?? 'internal error' }, { status: 500 });
+    return NextResponse.json({ error: e?.message ?? 'Internal error' }, { status: 500 });
   }
 }
 

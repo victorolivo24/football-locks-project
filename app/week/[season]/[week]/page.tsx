@@ -14,7 +14,7 @@ interface Game {
   awayTeam: string;
   startTime: string;
   status: string;
-  winnerTeam?: string;
+  winnerTeam?: string | null;
 }
 
 interface Pick {
@@ -32,10 +32,8 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   const [games, setGames] = useState<Game[]>([]);
   const [myPicks, setMyPicks] = useState<Pick[]>([]);
   const [picks, setPicks] = useState<Array<{ gameId: number; team?: string }>>([]);
-  const [allPicks, setAllPicks] = useState<Record<string, Pick[]>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [showAllPicks, setShowAllPicks] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const router = useRouter();
@@ -70,14 +68,14 @@ export default function WeekPage({ params }: { params: { season: string; week: s
       const gamesResponse = await fetch(`/api/schedule?season=${season}&week=${week}`);
       if (gamesResponse.ok) {
         const gamesData = await gamesResponse.json();
-        setGames(gamesData.games);
+        setGames(gamesData.games || []);
       }
 
       // Fetch my picks
       const picksResponse = await fetch(`/api/picks/my?season=${season}&week=${week}`);
       if (picksResponse.ok) {
         const picksData = await picksResponse.json();
-        setMyPicks(picksData.picks);
+        setMyPicks(picksData.picks || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -87,6 +85,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   };
 
   const handlePickChange = (gameId: number, pickedTeam: string) => {
+    if (isLocked || hasSubmitted) return;
     setPicks(prev => {
       const rest = prev.filter(p => p.gameId !== gameId);
       return [...rest, { gameId, team: pickedTeam }];
@@ -95,16 +94,30 @@ export default function WeekPage({ params }: { params: { season: string; week: s
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked || hasSubmitted) return;
+
+    const validPicks = picks.filter(p => !!p.team).map(p => ({ gameId: p.gameId, pickedTeam: p.team! }));
+
+    if (validPicks.length === 0) {
+      alert('Please select at least one game to submit.');
+      return;
+    }
+
+    if (validPicks.length < games.length) {
+      const confirmSubmit = window.confirm(
+        `You have selected ${validPicks.length} of ${games.length} games. To earn points under all-or-nothing rules, you must pick all games. Do you still want to submit?`
+      );
+      if (!confirmSubmit) return;
+    }
 
     const payload = {
       season,
       week,
-      picks: picks.filter(p => !!p.team).map(p => ({ gameId: p.gameId, pickedTeam: p.team! })),
+      picks: validPicks,
     };
 
-    if (payload.picks.length === 0) return alert('Select at least one game');
-
     setSubmitting(true);
+    setError('');
     try {
       const res = await fetch('/api/picks/submit', {
         method: 'POST',
@@ -113,32 +126,22 @@ export default function WeekPage({ params }: { params: { season: string; week: s
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || res.statusText);
-      alert('Picks submitted!');
-      location.reload();
+      setSuccess('Picks submitted successfully!');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (err: any) {
-      alert(`Submit failed: ${err.message}`);
+      setError(`Submit failed: ${err.message}`);
     } finally {
       setSubmitting(false);
     }
   };
 
-
-  const fetchAllPicks = async () => {
-    try {
-      const response = await fetch(`/api/picks/all?season=${season}&week=${week}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAllPicks(data.picksByUser);
-        setShowAllPicks(true);
-      } else {
-        setError('You must submit your picks first to view others');
-      }
-    } catch (error) {
-      setError('Error fetching picks');
-    }
-  };
-
   const getPickedTeam = (gameId: number) => {
+    if (hasSubmitted) {
+      const submittedPick = myPicks.find(p => p.gameId === gameId);
+      return submittedPick?.pickedTeam || '';
+    }
     const pick = picks.find(p => p.gameId === gameId);
     return pick?.team || '';
   };
@@ -147,10 +150,12 @@ export default function WeekPage({ params }: { params: { season: string; week: s
     return DateTime.fromISO(startTime).setZone('America/New_York').toFormat('EEE, MMM d, h:mm a');
   };
 
+  const pickedCount = picks.filter(p => !!p.team).length;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+        <div className="text-xl text-white">Loading Week {week}...</div>
       </div>
     );
   }
@@ -160,7 +165,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-12">
       <nav className="relative glass-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -179,248 +184,375 @@ export default function WeekPage({ params }: { params: { season: string; week: s
         </div>
       </nav>
 
-      <main className="relative max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          {/* Hero Section */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-              Week {week} Locks
-            </h1>
-            <p className="text-xl text-green-200 mb-6">Season {season}</p>
-            {isLocked && (
-              <div className="inline-flex items-center px-6 py-3 bg-red-600/20 border border-red-500/30 rounded-full text-red-200 font-semibold">
-                <span className="mr-2">🔒</span>
-                Picks are locked for this week
-              </div>
-            )}
-            {!isLocked && hasSubmitted && (
-              <div className="inline-flex items-center px-6 py-3 bg-green-600/20 border border-green-500/30 rounded-full text-green-200 font-semibold">
-                <span className="mr-2">✅</span>
-                You already submitted your picks
-              </div>
-            )}
+      <main className="relative max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {/* Hero Section */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
+            Week {week} Locks
+          </h1>
+          <p className="text-lg text-green-200 mb-4">Season {season}</p>
+          {isLocked && (
+            <div className="inline-flex items-center px-5 py-2.5 bg-red-600/20 border border-red-500/30 rounded-full text-red-200 font-semibold text-sm">
+              <span className="mr-2">🔒</span>
+              Picks are locked for this week (Thursday 8:00 PM ET deadline passed)
+            </div>
+          )}
+          {!isLocked && hasSubmitted && (
+            <div className="inline-flex items-center px-5 py-2.5 bg-green-600/20 border border-green-500/30 rounded-full text-green-200 font-semibold text-sm">
+              <span className="mr-2">✅</span>
+              You have submitted your picks for Week {week}
+            </div>
+          )}
+          {!isLocked && !hasSubmitted && (
+            <div className="inline-flex items-center px-5 py-2.5 bg-yellow-500/20 border border-yellow-400/40 rounded-full text-yellow-200 font-semibold text-sm">
+              <span className="mr-2">⏳</span>
+              Select your winners below and click Submit Picks before Thursday 8:00 PM ET
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <div className="mb-6 bg-red-600/20 border border-red-500/30 text-red-200 px-6 py-4 rounded-xl backdrop-blur-sm">
+            <div className="flex items-center">
+              <span className="mr-2">⚠️</span>
+              {error}
+            </div>
           </div>
+        )}
 
-          {error && (
-            <div className="mb-6 bg-red-600/20 border border-red-500/30 text-red-200 px-6 py-4 rounded-xl backdrop-blur-sm">
-              <div className="flex items-center">
-                <span className="mr-2">⚠️</span>
-                {error}
-              </div>
+        {success && (
+          <div className="mb-6 bg-green-600/20 border border-green-500/30 text-green-200 px-6 py-4 rounded-xl backdrop-blur-sm">
+            <div className="flex items-center">
+              <span className="mr-2">✅</span>
+              {success}
             </div>
-          )}
+          </div>
+        )}
 
-          {success && (
-            <div className="mb-6 bg-green-600/20 border border-green-500/30 text-green-200 px-6 py-4 rounded-xl backdrop-blur-sm">
-              <div className="flex items-center">
-                <span className="mr-2">✅</span>
-                {success}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Games and Picks */}
-            <div className="glass-card">
-              <div className="px-6 py-6">
-                <div className="flex items-center space-x-3 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Games and Picks (2 columns on lg) */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="glass-card p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">🔒</span>
+                    <span className="text-xl">🏈</span>
                   </div>
-                  <h2 className="text-2xl font-bold text-white">Games</h2>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Matchups</h2>
+                    <p className="text-xs text-green-200">
+                      {games.length} games scheduled this week
+                    </p>
+                  </div>
                 </div>
-                
-                {games.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4">🔒</div>
-                    <p className="text-green-200 text-lg">No games scheduled for this week.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {games.map((game) => (
-                      <div key={game.id} className="glass-section p-6 hover:bg-white/10 transition-all duration-200">
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-sm text-green-200 font-medium">
-                            {formatGameTime(game.startTime)}
-                          </span>
-                          <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                            game.status === 'final' ? 'bg-green-600/20 text-green-200 border border-green-500/30' :
-                            game.status === 'in_progress' ? 'bg-yellow-600/20 text-yellow-200 border border-yellow-500/30' :
-                            'bg-blue-600/20 text-blue-200 border border-blue-500/30'
-                          }`}>
-                            {game.status.toUpperCase()}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-6">
-                            <div className="flex flex-col items-center">
-                              <TeamLogo team={game.awayTeam} size="md" />
-                              <span className="text-green-200 text-xs mt-1 max-w-[80px] text-center truncate">{normalizeTeam(game.awayTeam)}</span>
-                            </div>
-                            <span className="text-white font-semibold text-lg">@</span>
-                            <div className="flex flex-col items-center">
-                              <TeamLogo team={game.homeTeam} size="md" />
-                              <span className="text-green-200 text-xs mt-1 max-w-[80px] text-center truncate">{normalizeTeam(game.homeTeam)}</span>
-                            </div>
-                          </div>
-                          
-                          {!isLocked && !hasSubmitted && game.status === 'scheduled' && (
-                            <div className="flex space-x-4">
-                              <label className="flex items-center cursor-pointer group">
-                                <input
-                                  type="radio"
-                                  name={`pick-${game.id}`}
-                                  value={game.awayTeam}
-                                  checked={getPickedTeam(game.id) === game.awayTeam}
-                                  onChange={() => handlePickChange(game.id, game.awayTeam)}
-                                  className="sr-only"
-                                />
-                                <div className={`pick-radio ${
-                                  getPickedTeam(game.id) === game.awayTeam 
-                                    ? 'bg-yellow-500 border-yellow-400' 
-                                    : 'border-white/30 group-hover:border-yellow-400 group-hover:bg-yellow-500/20'
-                                }`}>
-                                  {getPickedTeam(game.id) === game.awayTeam && (
-                                    <div className="w-3 h-3 bg-white rounded-full"></div>
-                                  )}
-                                </div>
-                                <span className="ml-2 text-white font-medium group-hover:text-yellow-200 transition-colors">
-                                  {game.awayTeam}
-                                </span>
-                              </label>
-                              
-                              <label className="flex items-center cursor-pointer group">
-                                <input
-                                  type="radio"
-                                  name={`pick-${game.id}`}
-                                  value={game.homeTeam}
-                                  checked={getPickedTeam(game.id) === game.homeTeam}
-                                  onChange={() => handlePickChange(game.id, game.homeTeam)}
-                                  className="sr-only"
-                                />
-                                <div className={`pick-radio ${
-                                  getPickedTeam(game.id) === game.homeTeam 
-                                    ? 'bg-yellow-500 border-yellow-400' 
-                                    : 'border-white/30 group-hover:border-yellow-400 group-hover:bg-yellow-500/20'
-                                }`}>
-                                  {getPickedTeam(game.id) === game.homeTeam && (
-                                    <div className="w-3 h-3 bg-white rounded-full"></div>
-                                  )}
-                                </div>
-                                <span className="ml-2 text-white font-medium group-hover:text-yellow-200 transition-colors">
-                                  {game.homeTeam}
-                                </span>
-                              </label>
-                            </div>
-                          )}
-                          
-                          {isLocked && (
-                            <div className="text-sm text-green-200 font-medium">
-                              {getPickedTeam(game.id) || 'No pick'}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {game.winnerTeam && (
-                          <div className="flex items-center justify-center py-2 bg-green-600/20 border border-green-500/30 rounded-lg">
-                            <span className="text-green-200 font-semibold">
-                              🏆 Winner: {game.winnerTeam}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+
+                {!isLocked && !hasSubmitted && (
+                  <div className="text-right">
+                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-white/10 text-yellow-300 border border-yellow-400/30">
+                      {pickedCount} / {games.length} Picked
+                    </span>
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* My Picks Panel */}
-            <div className="glass-card">
-              <div className="px-6 py-6">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">👤</span>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white">My Picks</h2>
+              {games.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-5xl mb-3">🏈</div>
+                  <p className="text-green-200 text-lg">No games scheduled for this week yet.</p>
                 </div>
-                
-                {myPicks.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4">🎯</div>
-                    <p className="text-green-200 text-lg">No picks submitted yet.</p>
-                    <p className="text-green-300 text-sm mt-2">Select teams above to make your picks!</p>
+              ) : (
+                <div className="space-y-4">
+                  {games.map((game) => {
+                    const currentPick = getPickedTeam(game.id);
+                    const isAwayPicked = isSameTeam(currentPick, game.awayTeam);
+                    const isHomePicked = isSameTeam(currentPick, game.homeTeam);
+                    const isFinal = game.status === 'final';
+
+                    return (
+                      <div
+                        key={game.id}
+                        className="glass-section p-4 sm:p-5 hover:bg-white/10 transition-all duration-200 overflow-hidden"
+                      >
+                        {/* Game Header Bar */}
+                        <div className="flex items-center justify-between mb-3 text-xs">
+                          <span className="text-green-200 font-medium">
+                            {formatGameTime(game.startTime)}
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                              isFinal
+                                ? 'bg-green-600/20 text-green-200 border border-green-500/30'
+                                : game.status === 'in_progress'
+                                ? 'bg-yellow-600/20 text-yellow-200 border border-yellow-500/30'
+                                : 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
+                            }`}
+                          >
+                            {game.status}
+                          </span>
+                        </div>
+
+                        {/* Pick Selection Grid */}
+                        {!isLocked && !hasSubmitted && game.status === 'scheduled' ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                            {/* Away Team Pick Button */}
+                            <button
+                              type="button"
+                              onClick={() => handlePickChange(game.id, game.awayTeam)}
+                              className={`group relative flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 text-left w-full min-w-0 ${
+                                isAwayPicked
+                                  ? 'bg-yellow-500/25 border-yellow-400 ring-2 ring-yellow-400/50 shadow-lg'
+                                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                              }`}
+                            >
+                              <div className="shrink-0">
+                                <TeamLogo team={game.awayTeam} size="sm" />
+                              </div>
+                              <div className="min-w-0 flex-1 overflow-hidden">
+                                <div className="text-[10px] text-green-300 font-semibold uppercase tracking-wider">Away</div>
+                                <div className="text-sm font-bold text-white truncate">
+                                  {game.awayTeam}
+                                </div>
+                              </div>
+                              <div className="shrink-0">
+                                {isAwayPicked ? (
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-yellow-400 text-black text-xs font-black shadow">
+                                    🔒
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-white/20 text-transparent group-hover:border-yellow-400/50">
+                                    •
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+
+                            {/* Home Team Pick Button */}
+                            <button
+                              type="button"
+                              onClick={() => handlePickChange(game.id, game.homeTeam)}
+                              className={`group relative flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 text-left w-full min-w-0 ${
+                                isHomePicked
+                                  ? 'bg-yellow-500/25 border-yellow-400 ring-2 ring-yellow-400/50 shadow-lg'
+                                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                              }`}
+                            >
+                              <div className="shrink-0">
+                                <TeamLogo team={game.homeTeam} size="sm" />
+                              </div>
+                              <div className="min-w-0 flex-1 overflow-hidden">
+                                <div className="text-[10px] text-green-300 font-semibold uppercase tracking-wider">Home</div>
+                                <div className="text-sm font-bold text-white truncate">
+                                  {game.homeTeam}
+                                </div>
+                              </div>
+                              <div className="shrink-0">
+                                {isHomePicked ? (
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-yellow-400 text-black text-xs font-black shadow">
+                                    🔒
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-white/20 text-transparent group-hover:border-yellow-400/50">
+                                    •
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          </div>
+                        ) : (
+                          /* Locked / Submitted Display */
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <TeamLogo team={game.awayTeam} size="sm" />
+                                <span className={`text-sm font-bold truncate ${isAwayPicked ? 'text-yellow-400' : 'text-white'}`}>
+                                  {game.awayTeam}
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold text-green-300 px-2">@</span>
+                              <div className="flex items-center gap-3 min-w-0 justify-end">
+                                <span className={`text-sm font-bold truncate ${isHomePicked ? 'text-yellow-400' : 'text-white'}`}>
+                                  {game.homeTeam}
+                                </span>
+                                <TeamLogo team={game.homeTeam} size="sm" />
+                              </div>
+                            </div>
+
+                            {/* User Pick Tag */}
+                            {currentPick && (
+                              <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-400/30">
+                                <span className="text-yellow-200 font-medium">Your Pick:</span>
+                                <span className="font-bold text-yellow-300 flex items-center gap-1">
+                                  <span>🔒</span> {currentPick}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Winner Banner if final */}
+                        {game.winnerTeam && (
+                          <div className="mt-3 flex items-center justify-center py-2 px-3 bg-green-600/20 border border-green-500/30 rounded-lg text-xs font-bold text-green-200">
+                            🏆 Winner: {game.winnerTeam}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Panel: My Picks & Actions */}
+          <div className="space-y-6">
+            <div className="glass-card p-6">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">👤</span>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white">My Picks</h2>
+                  <p className="text-xs text-green-200">
+                    {hasSubmitted ? 'Submitted locks' : 'Current selections'}
+                  </p>
+                </div>
+              </div>
+
+              {!hasSubmitted && !isLocked ? (
+                <div>
+                  {pickedCount === 0 ? (
+                    <div className="text-center py-8 text-green-200">
+                      <div className="text-4xl mb-2">🎯</div>
+                      <p className="font-medium text-sm">No picks selected yet.</p>
+                      <p className="text-xs text-green-300 mt-1">Select a team in each matchup on the left.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 mb-6">
+                      <div className="text-xs text-green-200 font-semibold mb-2">
+                        Selected {pickedCount} of {games.length} games:
+                      </div>
+                      <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                        {picks.filter(p => !!p.team).map((p) => {
+                          const g = games.find(game => game.id === p.gameId);
+                          return (
+                            <div
+                              key={p.gameId}
+                              className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/10 text-xs"
+                            >
+                              <span className="text-white/80 truncate max-w-[140px]">
+                                {g ? `${normalizeTeam(g.awayTeam)} @ ${normalizeTeam(g.homeTeam)}` : `Game #${p.gameId}`}
+                              </span>
+                              <span className="font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/30 truncate max-w-[120px]">
+                                🔒 {normalizeTeam(p.team!)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {pickedCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      className="w-full btn-yellow py-3.5 px-6 font-bold text-base hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none shadow-xl"
+                    >
+                      <span className="flex items-center justify-center">
+                        <span className="mr-2 text-xl">🔒</span>
+                        {submitting
+                          ? 'Submitting Picks...'
+                          : pickedCount === games.length
+                          ? `Submit All ${games.length} Picks`
+                          : `Submit ${pickedCount} Picks (${games.length - pickedCount} remaining)`}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              ) : myPicks.length === 0 ? (
+                <div className="text-center py-8 text-green-200">
+                  <div className="text-4xl mb-2">🔒</div>
+                  <p className="font-medium text-sm">No picks submitted for this week.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-xs text-green-200 font-semibold mb-2">
+                    Your {myPicks.length} Submitted Picks:
                   </div>
-                ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                     {myPicks.map((pick) => {
-                      // Find the game by id; if team mismatch, fall back to matching by team
                       let game = games.find(g => g.id === pick.gameId);
                       if (game && !(isSameTeam(pick.pickedTeam, game.homeTeam) || isSameTeam(pick.pickedTeam, game.awayTeam))) {
                         game = games.find(g => isSameTeam(pick.pickedTeam, g.homeTeam) || isSameTeam(pick.pickedTeam, g.awayTeam));
                       }
                       const isHit = !!(game && game.status === 'final' && game.winnerTeam && isSameTeam(game.winnerTeam, pick.pickedTeam));
+                      const isLoss = !!(game && game.status === 'final' && game.winnerTeam && !isSameTeam(game.winnerTeam, pick.pickedTeam));
+
                       return (
-                        <div key={pick.gameId} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-6">
-                              <div className="flex flex-col items-center">
-                                <TeamLogo team={game?.awayTeam || ''} size="sm" />
-                                <span className="text-green-200 text-[10px] mt-1 max-w-[60px] text-center truncate">{game ? normalizeTeam(game.awayTeam) : ''}</span>
-                              </div>
-                              <span className="text-white font-medium">@</span>
-                              <div className="flex flex-col items-center">
-                                <TeamLogo team={game?.homeTeam || ''} size="sm" />
-                                <span className="text-green-200 text-[10px] mt-1 max-w-[60px] text-center truncate">{game ? normalizeTeam(game.homeTeam) : ''}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-green-200 text-sm font-medium">Picked:</span>
-                              <div className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-bold">
+                        <div
+                          key={pick.gameId}
+                          className={`p-3 rounded-xl border transition-colors ${
+                            isHit
+                              ? 'bg-green-600/15 border-green-500/30'
+                              : isLoss
+                              ? 'bg-red-600/15 border-red-500/30 opacity-80'
+                              : 'bg-white/5 border-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <TeamLogo team={pick.pickedTeam} size="sm" />
+                              <span className="font-bold text-white truncate max-w-[110px]">
                                 {pick.pickedTeam}
-                              </div>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
                               {isHit && (
-                                <span className="ml-2 text-green-200 text-xs font-semibold bg-green-600/20 border border-green-500/30 px-2 py-1 rounded-full">HIT</span>
+                                <span className="text-[10px] font-bold bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.5 rounded-full">
+                                  HIT ✅
+                                </span>
+                              )}
+                              {isLoss && (
+                                <span className="text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-full">
+                                  LOSS ❌
+                                </span>
+                              )}
+                              {!isHit && !isLoss && (
+                                <span className="text-[10px] font-medium bg-white/10 text-white/70 px-2 py-0.5 rounded-full">
+                                  {game?.status === 'in_progress' ? 'LIVE ⏳' : 'PENDING'}
+                                </span>
                               )}
                             </div>
-                          </div>
-                          <div className="text-xs text-green-300 mt-2">
-                            {game && formatGameTime(game.startTime)}
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                )}
+                </div>
+              )}
 
-                {!isLocked && !hasSubmitted && picks.filter(p => !!p.team).length > 0 && (
-                  <button
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    className="mt-6 w-full btn-yellow py-4 px-6 hover:scale-105 disabled:opacity-50 disabled:transform-none"
-                  >
-                    <span className="flex items-center justify-center">
-                <span className="mr-2 text-xl">🔒</span>
-                      {submitting ? 'Submitting...' : 'Submit Picks'}
-                    </span>
-                  </button>
-                )}
-
+              <div className="mt-6 pt-4 border-t border-white/10">
                 <Link
                   href={`/picks/${season}/${week}`}
-                  className="mt-4 w-full btn-blue py-3 px-6 hover:scale-105 inline-flex items-center justify-center"
+                  className="w-full btn-blue py-3 px-4 font-bold text-sm hover:scale-[1.02] inline-flex items-center justify-center shadow-lg"
                 >
-                  <span className="mr-2">👥</span>
-                  View All Picks
+                  <span className="mr-2 text-lg">👥</span>
+                  View League Picks & Standings
                 </Link>
               </div>
             </div>
-          </div>
 
-          {/* All Picks moved to its own page at /picks/[season]/[week] */}
+            {/* Scoring reminder card */}
+            <div className="glass-section p-4 text-xs text-green-200/80 space-y-1.5">
+              <div className="font-bold text-white text-sm mb-1">⚡ League Rules</div>
+              <p>• Picks lock every <strong>Thursday at 8:00 PM ET</strong>.</p>
+              <p>• <strong>All-or-Nothing</strong>: Must pick every game. If all picks hit, earn points equal to games picked. Any wrong pick = 0 points.</p>
+              <p>• Opponents’ picks become visible after you submit your own picks.</p>
+            </div>
+          </div>
         </div>
       </main>
-    </div >
+    </div>
   );
 }
