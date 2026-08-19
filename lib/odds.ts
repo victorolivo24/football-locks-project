@@ -12,7 +12,8 @@ export async function getLeaderboardTotals(season: number): Promise<LeaderRow[]>
     GROUP BY u.id, u.name
     ORDER BY "points" DESC, u.name ASC
   `);
-  return rows.rows;
+  const list = (rows as any)?.rows || (Array.isArray(rows) ? rows : []);
+  return list;
 }
 
 // Estimate average picks per week from data so far. Fallback to 3.
@@ -23,8 +24,9 @@ export async function getAvgPicksPerWeek(season: number, currentWeek: number): P
       (SELECT COUNT(*) FROM picks WHERE season = ${season} AND week <= ${currentWeek})::int AS total,
       (SELECT COUNT(*) FROM users)::int AS users
   `);
-  const total = res.rows[0]?.total ?? 0;
-  const users = Math.max(1, res.rows[0]?.users ?? 1);
+  const first = (res as any)?.rows?.[0] || (Array.isArray(res) ? res[0] : null);
+  const total = first?.total ?? 0;
+  const users = Math.max(1, first?.users ?? 1);
   const finishedWeeks = Math.max(1, currentWeek);
   const avg = total / (users * finishedWeeks);
   return Math.min(6, Math.max(1, Number.isFinite(avg) ? avg : 3));

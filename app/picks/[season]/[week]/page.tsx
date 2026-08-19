@@ -116,87 +116,88 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
             </div>
           ) : (
             users.map((u) => {
-            const picks = picksByUser[u.name] || [];
-            const has = picks.length > 0;
-            const isPickLoss = (p: PickItem) => {
-              const g = games.find((g) => g.id === p.gameId) ||
-                        games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-              if (!g) return false;
-              if (g.status !== 'final' || !g.winnerTeam) return false;
-              return !isSameTeam(g.winnerTeam, p.pickedTeam);
-            };
-            const busted = has && picks.some((p) => isPickLoss(p));
-            // Perfect if user has picks and every pick corresponds to a final game and matches the winner
-            const perfect = has && picks.every((p) => {
-              const g = games.find((g) => g.id === p.gameId) ||
-                        games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-              if (!g) return false;
-              if (g.status !== 'final' || !g.winnerTeam) return false;
-              return isSameTeam(g.winnerTeam, p.pickedTeam);
-            });
-            return (
-              <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-white font-bold text-lg flex items-center gap-3">
-                    <span>{u.name}</span>
-                    {busted && (
-                      <span className="text-red-300 text-xs font-semibold bg-red-900/40 px-2 py-1 rounded-full">Busted</span>
-                    )}
-                    {!busted && perfect && (
-                      <span className="text-green-200 text-xs font-semibold bg-green-600/20 border border-green-500/30 px-2 py-1 rounded-full">Perfect</span>
-                    )}
+              const picks = picksByUser[u.name] || [];
+              const has = picks.length > 0;
+              const isPickLoss = (p: PickItem) => {
+                const g = games.find((g) => g.id === p.gameId) ||
+                          games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                if (!g) return false;
+                if (g.status !== 'final' || !g.winnerTeam) return false;
+                return !isSameTeam(g.winnerTeam, p.pickedTeam);
+              };
+              const busted = has && picks.some((p) => isPickLoss(p));
+              // Perfect if user has picks and every pick corresponds to a final game and matches the winner
+              const perfect = has && picks.every((p) => {
+                const g = games.find((g) => g.id === p.gameId) ||
+                          games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                if (!g) return false;
+                if (g.status !== 'final' || !g.winnerTeam) return false;
+                return isSameTeam(g.winnerTeam, p.pickedTeam);
+              });
+              return (
+                <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-white font-bold text-lg flex items-center gap-3">
+                      <span>{u.name}</span>
+                      {busted && (
+                        <span className="text-red-300 text-xs font-semibold bg-red-900/40 px-2 py-1 rounded-full">Busted</span>
+                      )}
+                      {!busted && perfect && (
+                        <span className="text-green-200 text-xs font-semibold bg-green-600/20 border border-green-500/30 px-2 py-1 rounded-full">Perfect</span>
+                      )}
+                    </div>
+                    {!has && <div className="text-yellow-300 font-semibold">Hasn’t submitted yet</div>}
                   </div>
-                  {!has && <div className="text-yellow-300 font-semibold">Hasn’t submitted yet</div>}
-                </div>
-                {has && (
-                  <div className={`grid sm:grid-cols-2 gap-3`}>
-                    {picks.map((p) => {
-                      const g = games.find((g) => g.id === p.gameId) ||
-                               games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-                      if (!g) return null;
-                      const loss = g.status === 'final' && g.winnerTeam && !isSameTeam(g.winnerTeam, p.pickedTeam);
-                      const hit = g.status === 'final' && g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam);
-                      const pickedHome = isSameTeam(p.pickedTeam, g.homeTeam);
-                      const pickedAway = isSameTeam(p.pickedTeam, g.awayTeam);
-                      return (
-                        <div key={`${u.id}-${p.gameId}`} className={`glass-section p-3 sm:p-4 min-w-0 overflow-hidden ${loss ? 'opacity-70' : ''}`}>
-                          <div className="flex items-center justify-between gap-3 min-w-0">
-                            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
-                              <div className={`flex items-center gap-1.5 min-w-0 ${pickedAway ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
-                                <TeamLogo team={g.awayTeam} size="sm" />
-                                <span className="text-xs truncate max-w-[70px] sm:max-w-[90px]">{normalizeTeam(g.awayTeam)}</span>
+                  {has && (
+                    <div className={`grid sm:grid-cols-2 gap-3`}>
+                      {picks.map((p) => {
+                        const g = games.find((g) => g.id === p.gameId) ||
+                                 games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                        if (!g) return null;
+                        const loss = g.status === 'final' && g.winnerTeam && !isSameTeam(g.winnerTeam, p.pickedTeam);
+                        const hit = g.status === 'final' && g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam);
+                        const pickedHome = isSameTeam(p.pickedTeam, g.homeTeam);
+                        const pickedAway = isSameTeam(p.pickedTeam, g.awayTeam);
+                        return (
+                          <div key={`${u.id}-${p.gameId}`} className={`glass-section p-3 sm:p-4 min-w-0 overflow-hidden ${loss ? 'opacity-70' : ''}`}>
+                            <div className="flex items-center justify-between gap-3 min-w-0">
+                              <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
+                                <div className={`flex items-center gap-1.5 min-w-0 ${pickedAway ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
+                                  <TeamLogo team={g.awayTeam} size="sm" />
+                                  <span className="text-xs truncate max-w-[70px] sm:max-w-[90px]">{normalizeTeam(g.awayTeam)}</span>
+                                </div>
+                                <span className="text-white/60 font-semibold text-xs shrink-0">@</span>
+                                <div className={`flex items-center gap-1.5 min-w-0 ${pickedHome ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
+                                  <TeamLogo team={g.homeTeam} size="sm" />
+                                  <span className="text-xs truncate max-w-[70px] sm:max-w-[90px]">{normalizeTeam(g.homeTeam)}</span>
+                                </div>
                               </div>
-                              <span className="text-white/60 font-semibold text-xs shrink-0">@</span>
-                              <div className={`flex items-center gap-1.5 min-w-0 ${pickedHome ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
-                                <TeamLogo team={g.homeTeam} size="sm" />
-                                <span className="text-xs truncate max-w-[70px] sm:max-w-[90px]">{normalizeTeam(g.homeTeam)}</span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`bg-yellow-500 text-black px-2.5 py-0.5 rounded-full text-xs font-bold ${loss ? 'line-through bg-red-400 text-black' : ''}`}>
+                                  🔒 {normalizeTeam(p.pickedTeam)}
+                                </span>
+                                {hit && (
+                                  <span className="text-green-200 text-[10px] font-bold bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded-full shrink-0">
+                                    HIT ✅
+                                  </span>
+                                )}
+                                {loss && (
+                                  <span className="text-red-200 text-[10px] font-bold bg-red-600/20 border border-red-500/30 px-2 py-0.5 rounded-full shrink-0">
+                                    MISS ❌
+                                  </span>
+                                )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={`bg-yellow-500 text-black px-2.5 py-0.5 rounded-full text-xs font-bold ${loss ? 'line-through bg-red-400 text-black' : ''}`}>
-                                🔒 {normalizeTeam(p.pickedTeam)}
-                              </span>
-                              {hit && (
-                                <span className="text-green-200 text-[10px] font-bold bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded-full shrink-0">
-                                  HIT ✅
-                                </span>
-                              )}
-                              {loss && (
-                                <span className="text-red-200 text-[10px] font-bold bg-red-600/20 border border-red-500/30 px-2 py-0.5 rounded-full shrink-0">
-                                  MISS ❌
-                                </span>
-                              )}
-                            </div>
+                            <div className="text-[10px] text-green-300/80 mt-1.5 truncate">{formatGameTime(g.startTime)}</div>
                           </div>
-                          <div className="text-[10px] text-green-300/80 mt-1.5 truncate">{formatGameTime(g.startTime)}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </main>
     </div>
