@@ -18,7 +18,11 @@ interface Game {
 }
 
 export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [inputPassword, setInputPassword] = useState('');
   const [passcode, setPasscode] = useState('');
+  const [authError, setAuthError] = useState('');
+
   const [season, setSeason] = useState(2026);
   const [week, setWeek] = useState(1);
   const [games, setGames] = useState<Game[]>([]);
@@ -34,9 +38,6 @@ export default function AdminPage() {
   );
 
   useEffect(() => {
-    const savedPasscode = window.localStorage.getItem('admin-passcode') || '';
-    setPasscode(savedPasscode);
-
     fetch('/api/week')
       .then((response) => response.json())
       .then((data) => {
@@ -47,8 +48,31 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    fetchGames();
-  }, [season, week]);
+    if (isAuthenticated) {
+      fetchGames();
+    }
+  }, [season, week, isAuthenticated]);
+
+  const handleUnlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+
+    if (inputPassword.trim() === 'victor') {
+      setPasscode(inputPassword.trim());
+      setIsAuthenticated(true);
+      setInputPassword('');
+    } else {
+      setAuthError('Incorrect admin password.');
+    }
+  };
+
+  const handleLock = () => {
+    setIsAuthenticated(false);
+    setPasscode('');
+    setInputPassword('');
+    setMessage('');
+    setError('');
+  };
 
   const fetchGames = async () => {
     setLoading(true);
@@ -71,7 +95,6 @@ export default function AdminPage() {
   };
 
   const handleWinnerClick = async (game: Game, team: string) => {
-    // If this team is already the winner, clear it (toggle off)
     const isClearing = game.status === 'final' && game.winnerTeam === team;
     const newWinner = isClearing ? null : team;
     const newStatus = isClearing ? 'scheduled' : 'final';
@@ -79,7 +102,6 @@ export default function AdminPage() {
     setSavingGameId(game.id);
     setMessage('');
     setError('');
-    window.localStorage.setItem('admin-passcode', passcode);
 
     try {
       const response = await fetch('/api/admin/manual-results', {
@@ -114,15 +136,9 @@ export default function AdminPage() {
   };
 
   const handleRecalculateScores = async () => {
-    if (!passcode) {
-      setError('Please enter the admin passcode.');
-      return;
-    }
-
     setRecomputing(true);
     setMessage('');
     setError('');
-    window.localStorage.setItem('admin-passcode', passcode);
 
     try {
       const response = await fetch('/api/admin/manual-results', {
@@ -150,11 +166,6 @@ export default function AdminPage() {
   };
 
   const handleClearPicks = async () => {
-    if (!passcode) {
-      setError('Please enter the admin passcode.');
-      return;
-    }
-
     const confirmed = window.confirm(
       `Are you sure you want to CLEAR ALL PICKS for Season ${season} Week ${week}? This will allow users to submit picks again.`
     );
@@ -162,7 +173,6 @@ export default function AdminPage() {
 
     setMessage('');
     setError('');
-    window.localStorage.setItem('admin-passcode', passcode);
 
     try {
       const response = await fetch('/api/admin/reset-picks', {
@@ -189,6 +199,69 @@ export default function AdminPage() {
   const formatGameTime = (startTime: string) =>
     DateTime.fromISO(startTime).setZone('America/New_York').toFormat('EEE, MMM d, h:mm a');
 
+  // LOCKED STATE: Show password gate only
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="relative max-w-md w-full">
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-6 sm:p-8">
+            <div className="text-center">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-black font-bold text-3xl">🔒</span>
+                </div>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+                Admin Access
+              </h1>
+              <p className="text-green-200 text-sm mb-6">
+                Enter the admin password to manage games, winners, and scores.
+              </p>
+            </div>
+
+            <form onSubmit={handleUnlock} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-green-100 mb-2" htmlFor="admin-password">
+                  Password
+                </label>
+                <input
+                  id="admin-password"
+                  type="password"
+                  autoFocus
+                  required
+                  value={inputPassword}
+                  onChange={(e) => setInputPassword(e.target.value)}
+                  className="w-full rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-white placeholder-green-100/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm backdrop-blur-sm"
+                  placeholder="Enter admin password"
+                />
+              </div>
+
+              {authError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-600/20 text-red-200 px-4 py-3 text-xs sm:text-sm text-center">
+                  ⚠️ {authError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full btn-yellow py-3.5 px-6 font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
+              >
+                Unlock Admin Tools
+              </button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t border-white/10 text-center">
+              <Link href="/" className="text-sm text-green-300 hover:text-white transition-colors">
+                ← Back to Dashboard
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // UNLOCKED STATE: Show full Admin Panel
   return (
     <div className="min-h-screen">
       <nav className="relative glass-card">
@@ -198,6 +271,14 @@ export default function AdminPage() {
               <Link href="/" className="text-white hover:underline">← Back to Dashboard</Link>
               <h1 className="text-2xl font-bold text-white">Admin Results Panel</h1>
             </div>
+            <div className="flex items-center">
+              <button
+                onClick={handleLock}
+                className="text-xs text-yellow-400 border border-yellow-400/40 rounded-lg px-3 py-1.5 hover:bg-yellow-400/10 transition-colors font-bold"
+              >
+                🔒 Lock Admin
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -205,20 +286,7 @@ export default function AdminPage() {
       <main className="max-w-5xl mx-auto p-4 sm:p-6">
         {/* Controls Header */}
         <div className="glass-card p-6 mb-6">
-          <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] items-end">
-            <div>
-              <label className="block text-sm font-semibold text-green-100 mb-2" htmlFor="passcode">
-                Admin Passcode
-              </label>
-              <input
-                id="passcode"
-                type="password"
-                value={passcode}
-                onChange={(event) => setPasscode(event.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white placeholder-green-100/60 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                placeholder="Enter admin passcode"
-              />
-            </div>
+          <div className="grid gap-4 md:grid-cols-[1fr_1fr] items-end">
             <div>
               <label className="block text-sm font-semibold text-green-100 mb-2" htmlFor="season">
                 Season
@@ -228,7 +296,7 @@ export default function AdminPage() {
                 type="number"
                 value={season}
                 onChange={(event) => setSeason(Number(event.target.value))}
-                className="w-full md:w-28 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
               />
             </div>
             <div>
@@ -239,7 +307,7 @@ export default function AdminPage() {
                 id="week"
                 value={week}
                 onChange={(event) => setWeek(Number(event.target.value))}
-                className="w-full md:w-28 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
               >
                 {Array.from({ length: 18 }, (_, index) => index + 1).map((weekNumber) => (
                   <option key={weekNumber} value={weekNumber} className="text-gray-900">
@@ -258,7 +326,7 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={handleRecalculateScores}
-                disabled={recomputing || !passcode}
+                disabled={recomputing}
                 className="btn-yellow px-4 py-2 text-sm font-bold disabled:opacity-50"
               >
                 {recomputing ? 'Recalculating...' : '🔄 Recalculate Scores'}
@@ -266,8 +334,7 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={handleClearPicks}
-                disabled={!passcode}
-                className="rounded-xl border border-red-500/40 bg-red-600/20 hover:bg-red-600/30 text-red-200 px-4 py-2 text-sm font-bold transition-all disabled:opacity-50"
+                className="rounded-xl border border-red-500/40 bg-red-600/20 hover:bg-red-600/30 text-red-200 px-4 py-2 text-sm font-bold transition-all"
               >
                 🗑️ Clear Week Picks
               </button>
@@ -342,7 +409,7 @@ export default function AdminPage() {
                           <button
                             key={team}
                             type="button"
-                            disabled={!passcode || savingGameId === game.id}
+                            disabled={savingGameId === game.id}
                             onClick={() => handleWinnerClick(game, team)}
                             className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold transition-all disabled:opacity-50 min-w-0 ${
                               isWinner
