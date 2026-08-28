@@ -53,16 +53,25 @@ export function getCurrentNFLWeek(): { season: number; week: number } {
   return { season, week };
 }
 
-// Get Thursday 8:00 PM ET lock time for a given week
+// Get lock time for a given week (Wednesday for Week 1, Thursday for others)
 export function getLockTime(season: number, week: number): DateTime {
-  const { season: currentSeason, week: currentWeek } = getCurrentNFLWeek();
-
-  // For now, we'll use a simplified approach
-  // In production, you'd want to use actual NFL calendar data
   const baseDate = DateTime.fromObject({ year: season, month: 9, day: 1 }, { zone: 'America/New_York' });
-  const weekStart = baseDate.plus({ weeks: week - 1 });
-  const thursday = weekStart.plus({ days: 3 }); // Thursday is 3 days after Monday
+  
+  // Find the first Monday of September to establish a reliable week start
+  let firstMonday = baseDate;
+  while (firstMonday.weekday !== 1) { // 1 is Monday in Luxon
+    firstMonday = firstMonday.plus({ days: 1 });
+  }
+  
+  const weekStart = firstMonday.plus({ weeks: week - 1 });
+  
+  // If it's week 1, lock on Wednesday
+  if (week === 1) {
+    const wednesday = weekStart.plus({ days: 2 }); // Wednesday is 2 days after Monday
+    return wednesday.set({ hour: 20, minute: 0, second: 0, millisecond: 0 });
+  }
 
+  const thursday = weekStart.plus({ days: 3 }); // Thursday is 3 days after Monday
   return thursday.set({ hour: 20, minute: 0, second: 0, millisecond: 0 });
 }
 
