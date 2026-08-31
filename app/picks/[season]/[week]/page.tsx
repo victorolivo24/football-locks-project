@@ -290,6 +290,10 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
               const awayWon = isFinal && g.winnerTeam && isSameTeam(g.winnerTeam, g.awayTeam);
               const homeWon = isFinal && g.winnerTeam && isSameTeam(g.winnerTeam, g.homeTeam);
 
+              if (awayPickers.length === 0 && homePickers.length === 0) {
+                return null;
+              }
+
               return (
                 <div key={g.id} className="disco-card p-0 overflow-hidden mb-4">
                   <div className="bg-black/50 px-4 py-3 border-b border-pink-500/30 flex items-center justify-between text-xs font-disco text-cyan-300">
