@@ -121,12 +121,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
       return;
     }
 
-    if (validPicks.length < games.length) {
-      const confirmSubmit = window.confirm(
-        `You have selected ${validPicks.length} of ${games.length} games. To earn points under all-or-nothing rules, you must pick all games. Do you still want to submit?`
-      );
-      if (!confirmSubmit) return;
-    }
+
 
     const payload = {
       season,
@@ -264,13 +259,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                   </div>
                 </div>
 
-                {!isLocked && !hasSubmitted && (
-                  <div className="text-right">
-                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-white/10 text-yellow-300 border border-yellow-400/30">
-                      {pickedCount} / {games.length} Picked
-                    </span>
-                  </div>
-                )}
+
               </div>
 
               {games.length === 0 ? (
@@ -447,7 +436,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                   ) : (
                     <div className="space-y-2 mb-6">
                       <div className="flex items-center justify-between text-xs text-green-200 font-semibold mb-2">
-                        <span>Selected {pickedCount} of {games.length} games:</span>
+                        <span>Selected {pickedCount} {pickedCount === 1 ? 'game' : 'games'}:</span>
                         <button
                           type="button"
                           onClick={handleClearAllDraftPicks}
@@ -498,9 +487,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                         <span className="mr-2 text-xl">🔒</span>
                         {submitting
                           ? 'Submitting Picks...'
-                          : pickedCount === games.length
-                          ? `Submit All ${games.length} Picks`
-                          : `Submit ${pickedCount} Picks (${games.length - pickedCount} remaining)`}
+                          : `Submit ${pickedCount} Picks`}
                       </span>
                     </button>
                   )}
@@ -582,7 +569,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             <div className="glass-section p-4 text-xs text-green-200/80 space-y-1.5">
               <div className="font-bold text-white text-sm mb-1">⚡ League Rules</div>
               <p>• Picks lock every <strong>Thursday at 8:00 PM ET</strong>.</p>
-              <p>• <strong>All-or-Nothing</strong>: Must pick every game. If all picks hit, earn points equal to games picked. Any wrong pick = 0 points.</p>
+              <p>• <strong>All-or-Nothing</strong>: If all your picks hit, earn points equal to games picked. Any wrong pick = 0 points.</p>
               <p>• Opponents’ picks become visible after you submit your own picks.</p>
             </div>
           </div>
