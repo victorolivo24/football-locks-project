@@ -37,6 +37,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
   const [picksByUser, setPicksByUser] = useState<PicksByUser>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState<'game' | 'player'>('player');
 
   useEffect(() => {
     (async () => {
@@ -69,6 +70,31 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
 
   const formatGameTime = (iso: string) =>
     DateTime.fromISO(iso).setZone('America/New_York').toFormat('EEE, MMM d, h:mm a');
+
+  const isPickLoss = (p: PickItem) => {
+    const g = games.find((g) => g.id === p.gameId) ||
+              games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+    if (!g) return false;
+    if (g.status !== 'final' || !g.winnerTeam) return false;
+    return !isSameTeam(g.winnerTeam, p.pickedTeam);
+  };
+
+  const isUserBusted = (u: UserRow) => {
+    const picks = picksByUser[u.name] || [];
+    return picks.some((p) => isPickLoss(p));
+  };
+
+  const isUserPerfect = (u: UserRow) => {
+    const picks = picksByUser[u.name] || [];
+    if (picks.length === 0) return false;
+    return picks.every((p) => {
+      const g = games.find((g) => g.id === p.gameId) ||
+                games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+      if (!g) return false;
+      if (g.status !== 'final' || !g.winnerTeam) return false;
+      return isSameTeam(g.winnerTeam, p.pickedTeam);
+    });
+  };
 
   if (loading) {
     return (
@@ -109,31 +135,41 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
           <h1 className="text-3xl font-bold text-white">Season {season} • Week {week}</h1>
         </div>
 
+        {users.length > 0 && (
+          <div className="flex justify-center mb-8">
+            <div className="inline-flex bg-black/40 p-1 rounded-xl border border-white/10">
+              <button
+                onClick={() => setViewMode('game')}
+                className={`px-6 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  viewMode === 'game' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/60 hover:text-white'
+                }`}
+              >
+                Gameday View
+              </button>
+              <button
+                onClick={() => setViewMode('player')}
+                className={`px-6 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  viewMode === 'player' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/60 hover:text-white'
+                }`}
+              >
+                By Player
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-4">
           {users.length === 0 ? (
             <div className="glass-card p-8 text-center text-green-200">
               No registered players found yet.
             </div>
-          ) : (
+          ) : viewMode === 'player' ? (
             users.map((u) => {
               const picks = picksByUser[u.name] || [];
               const has = picks.length > 0;
-              const isPickLoss = (p: PickItem) => {
-                const g = games.find((g) => g.id === p.gameId) ||
-                          games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-                if (!g) return false;
-                if (g.status !== 'final' || !g.winnerTeam) return false;
-                return !isSameTeam(g.winnerTeam, p.pickedTeam);
-              };
-              const busted = has && picks.some((p) => isPickLoss(p));
-              // Perfect if user has picks and every pick corresponds to a final game and matches the winner
-              const perfect = has && picks.every((p) => {
-                const g = games.find((g) => g.id === p.gameId) ||
-                          games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-                if (!g) return false;
-                if (g.status !== 'final' || !g.winnerTeam) return false;
-                return isSameTeam(g.winnerTeam, p.pickedTeam);
-              });
+              const busted = isUserBusted(u);
+              const perfect = isUserPerfect(u);
+              
               return (
                 <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
                   <div className="flex items-center justify-between mb-3">
@@ -197,6 +233,141 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                 </div>
               );
             })
+          ) : (
+            <div className="space-y-6 disco-container">
+              <div className="disco-content">
+              <div className="disco-card p-4 sm:p-6 mb-6">
+                <h2 className="text-2xl font-disco text-pink-400 mb-2">Gameday Live</h2>
+                <p className="text-sm text-cyan-100">
+                  This view tracks picks game-by-game for players still in contention. 
+                  Once a player misses a pick, they are eliminated for the week and their picks are removed from the remaining games.
+                </p>
+                
+                {(() => {
+                  const bustedUsers = users.filter(isUserBusted);
+                  if (bustedUsers.length === 0) return null;
+                  return (
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <h3 className="text-xs font-bold text-red-300 uppercase tracking-wider mb-3">
+                        Eliminated Players ({bustedUsers.length})
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {bustedUsers.map(u => (
+                          <div key={u.id} className="bg-red-900/30 border border-red-500/30 text-red-200 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5">
+                            <span>❌</span> {u.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="space-y-4">
+                {games.map((g) => {
+                  // Find users who picked away team and are NOT busted on ANOTHER game
+              const awayPickers = users.filter((u) => {
+                const picks = picksByUser[u.name] || [];
+                const thisPick = picks.find(p => p.gameId === g.id && isSameTeam(p.pickedTeam, g.awayTeam));
+                if (!thisPick) return false;
+                
+                // If they busted on a different game, hide them
+                const bustedOther = picks.some(p => p.gameId !== g.id && isPickLoss(p));
+                return !bustedOther;
+              });
+
+              // Find users who picked home team and are NOT busted on ANOTHER game
+              const homePickers = users.filter((u) => {
+                const picks = picksByUser[u.name] || [];
+                const thisPick = picks.find(p => p.gameId === g.id && isSameTeam(p.pickedTeam, g.homeTeam));
+                if (!thisPick) return false;
+                
+                const bustedOther = picks.some(p => p.gameId !== g.id && isPickLoss(p));
+                return !bustedOther;
+              });
+
+              const isFinal = g.status === 'final';
+              const awayWon = isFinal && g.winnerTeam && isSameTeam(g.winnerTeam, g.awayTeam);
+              const homeWon = isFinal && g.winnerTeam && isSameTeam(g.winnerTeam, g.homeTeam);
+
+              return (
+                <div key={g.id} className="disco-card p-0 overflow-hidden mb-4">
+                  <div className="bg-black/50 px-4 py-3 border-b border-pink-500/30 flex items-center justify-between text-xs font-disco text-cyan-300">
+                    <span className="font-medium tracking-wider">{formatGameTime(g.startTime)}</span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                        isFinal
+                          ? 'bg-green-500/20 text-green-300 border border-green-500/40'
+                          : g.status === 'in_progress'
+                          ? 'bg-pink-500/30 text-pink-200 border border-pink-500/50 shadow-[0_0_10px_rgba(236,72,153,0.5)]'
+                          : 'bg-cyan-600/30 text-cyan-100 border border-cyan-500/50'
+                      }`}
+                    >
+                      {g.status}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 divide-x divide-white/5">
+                    {/* Away Team Side */}
+                    <div className={`p-4 ${isFinal && !awayWon ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <TeamLogo team={g.awayTeam} size="md" />
+                        <div className="min-w-0">
+                          <div className="text-[10px] text-cyan-300 font-disco uppercase tracking-widest">Away</div>
+                          <div className="font-bold text-white text-lg truncate font-disco">{normalizeTeam(g.awayTeam)}</div>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {awayPickers.map(u => {
+                          const hit = isFinal && awayWon;
+                          const loss = isFinal && !awayWon;
+                          return (
+                            <div key={u.id} className="flex items-center justify-between disco-section px-3 py-2 rounded text-sm mb-1.5">
+                              <span className="text-white font-medium truncate">{u.name}</span>
+                              {hit && <span className="text-xs bg-green-500/20 text-green-300 px-1.5 rounded">✅</span>}
+                              {loss && <span className="text-xs bg-red-500/20 text-red-300 px-1.5 rounded">❌</span>}
+                            </div>
+                          );
+                        })}
+                        {awayPickers.length === 0 && (
+                          <div className="text-xs text-white/30 italic px-1">No picks</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Home Team Side */}
+                    <div className={`p-4 ${isFinal && !homeWon ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <TeamLogo team={g.homeTeam} size="md" />
+                        <div className="min-w-0">
+                          <div className="text-[10px] text-pink-300 font-disco uppercase tracking-widest">Home</div>
+                          <div className="font-bold text-white text-lg truncate font-disco">{normalizeTeam(g.homeTeam)}</div>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {homePickers.map(u => {
+                          const hit = isFinal && homeWon;
+                          const loss = isFinal && !homeWon;
+                          return (
+                            <div key={u.id} className="flex items-center justify-between disco-section px-3 py-2 rounded text-sm mb-1.5">
+                              <span className="text-white font-medium truncate">{u.name}</span>
+                              {hit && <span className="text-xs bg-green-500/20 text-green-300 px-1.5 rounded">✅</span>}
+                              {loss && <span className="text-xs bg-red-500/20 text-red-300 px-1.5 rounded">❌</span>}
+                            </div>
+                          );
+                        })}
+                        {homePickers.length === 0 && (
+                          <div className="text-xs text-white/30 italic px-1">No picks</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+              </div>
+              </div>
+            </div>
           )}
         </div>
       </main>

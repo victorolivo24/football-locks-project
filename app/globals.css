@@ -19,7 +19,6 @@ body {
   background: var(--background);
 }
 
-/* Football theme helpers */
 @layer utilities {
   .text-balance { text-wrap: balance; }
 
@@ -66,8 +65,66 @@ body {
     @apply inline-flex items-center justify-center font-semibold rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors;
   }
 
-  /* Custom radio style (hidden input + visual) */
   .pick-radio {
     @apply w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200;
+  }
+}
+
+/* =========================================
+   Disco Theme Utilities (For Gameday View)
+   ========================================= */
+
+@keyframes disco-bg {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes pulse-neon {
+  0%, 100% { box-shadow: 0 0 15px rgba(236, 72, 153, 0.4), 0 0 30px rgba(6, 182, 212, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(236, 72, 153, 0.6), 0 0 50px rgba(6, 182, 212, 0.4); }
+}
+
+@layer utilities {
+  .disco-container {
+    @apply relative overflow-hidden rounded-3xl p-6 shadow-2xl;
+    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #4a00e0, #8e2de2);
+    background-size: 400% 400%;
+    animation: disco-bg 15s ease infinite;
+  }
+
+  .disco-container::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background-image: 
+      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Make sure content sits above the grid */
+  .disco-content {
+    @apply relative z-10;
+  }
+
+  .font-disco {
+    font-family: var(--font-righteous), system-ui, sans-serif;
+    letter-spacing: 0.05em;
+  }
+
+  .disco-card {
+    @apply bg-black/40 backdrop-blur-md border border-pink-500/40 rounded-2xl;
+    animation: pulse-neon 4s infinite alternate;
+  }
+
+  .disco-section {
+    @apply bg-white/10 backdrop-blur-sm border border-cyan-500/30 rounded-xl transition-all duration-300;
+  }
+  
+  .disco-section:hover {
+    @apply border-pink-500/50 bg-white/20;
   }
 }
