@@ -26,6 +26,8 @@ export default function AdminPage() {
   const [season, setSeason] = useState(2026);
   const [week, setWeek] = useState(1);
   const [games, setGames] = useState<Game[]>([]);
+  const [users, setUsers] = useState<{id: number, name: string}[]>([]);
+  const [targetUserId, setTargetUserId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [savingGameId, setSavingGameId] = useState<number | null>(null);
   const [recomputing, setRecomputing] = useState(false);
@@ -50,8 +52,21 @@ export default function AdminPage() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchGames();
+      fetchUsers();
     }
   }, [season, week, isAuthenticated]);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch users', error);
+    }
+  };
 
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,8 +182,11 @@ export default function AdminPage() {
   };
 
   const handleClearPicks = async () => {
+    const isAll = targetUserId === 'all';
+    const targetName = isAll ? 'ALL USERS' : users.find(u => u.id.toString() === targetUserId)?.name || 'this user';
+    
     const confirmed = window.confirm(
-      `Are you sure you want to CLEAR ALL PICKS for Season ${season} Week ${week}? This will allow users to submit picks again.`
+      `Are you sure you want to clear picks for ${targetName} for Season ${season} Week ${week}?`
     );
     if (!confirmed) return;
 
@@ -176,14 +194,13 @@ export default function AdminPage() {
     setError('');
 
     try {
+      const payload: any = { passcode, season, week };
+      if (!isAll) payload.userId = Number(targetUserId);
+
       const response = await fetch('/api/admin/reset-picks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          passcode,
-          season,
-          week,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await response.json().catch(() => ({}));
 
@@ -191,7 +208,7 @@ export default function AdminPage() {
         throw new Error(data.error || 'Unable to clear picks');
       }
 
-      setMessage(`Picks and scores cleared for Season ${season} Week ${week}! Users can now submit new picks.`);
+      setMessage(`Picks cleared for ${targetName} for Season ${season} Week ${week}!`);
     } catch (err: any) {
       setError(err.message || 'Error clearing picks');
     }
@@ -323,22 +340,35 @@ export default function AdminPage() {
             <div className="text-sm text-green-100">
               <span className="font-bold text-yellow-400">{finalCount}</span> of <span className="font-bold text-white">{games.length}</span> games marked final. Scores automatically recompute when games update.
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-col sm:flex-row items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={handleRecalculateScores}
                 disabled={recomputing}
-                className="btn-yellow px-4 py-2 text-sm font-bold disabled:opacity-50"
+                className="btn-yellow px-4 py-2 text-sm font-bold disabled:opacity-50 h-[40px]"
               >
                 {recomputing ? 'Recalculating...' : '🔄 Recalculate Scores'}
               </button>
-              <button
-                type="button"
-                onClick={handleClearPicks}
-                className="rounded-xl border border-red-500/40 bg-red-600/20 hover:bg-red-600/30 text-red-200 px-4 py-2 text-sm font-bold transition-all"
-              >
-                🗑️ Clear Week Picks
-              </button>
+              
+              <div className="flex items-center gap-2 bg-red-900/20 p-1 rounded-xl border border-red-500/30">
+                <select
+                  value={targetUserId}
+                  onChange={(e) => setTargetUserId(e.target.value)}
+                  className="bg-transparent text-red-200 text-sm outline-none px-2 py-1 font-semibold cursor-pointer"
+                >
+                  <option value="all" className="text-black">All Users</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id.toString()} className="text-black">{u.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleClearPicks}
+                  className="rounded-lg bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 text-sm font-bold transition-all shadow"
+                >
+                  Clear Picks
+                </button>
+              </div>
             </div>
           </div>
         </div>
