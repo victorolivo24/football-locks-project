@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
-import { isPicksLocked } from '@/lib/nfl';
+import { isPicksLocked, getLockTime } from '@/lib/nfl';
 import TeamLogo from '@/components/TeamLogo';
 import { isSameTeam, normalizeTeam } from '@/lib/teams';
 
@@ -41,6 +41,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   const season = parseInt(params.season);
   const week = parseInt(params.week);
   const isLocked = isPicksLocked(season, week);
+  const lockTimeDisplay = getLockTime(season, week).toFormat('cccc h:mm a') + ' ET';
   const hasSubmitted = myPicks.length > 0;
 
   useEffect(() => {
@@ -207,7 +208,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
           {isLocked && (
             <div className="inline-flex items-center px-5 py-2.5 bg-red-600/20 border border-red-500/30 rounded-full text-red-200 font-semibold text-sm">
               <span className="mr-2">🔒</span>
-              Picks are locked for this week (Thursday 8:00 PM ET deadline passed)
+              Picks are locked for this week ({lockTimeDisplay} deadline passed)
             </div>
           )}
           {!isLocked && hasSubmitted && (
@@ -219,7 +220,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
           {!isLocked && !hasSubmitted && (
             <div className="inline-flex items-center px-5 py-2.5 bg-yellow-500/20 border border-yellow-400/40 rounded-full text-yellow-200 font-semibold text-sm">
               <span className="mr-2">⏳</span>
-              Select your winners below and click Submit Picks before Thursday 8:00 PM ET
+              Select your winners below and click Submit Picks before {lockTimeDisplay}
             </div>
           )}
         </div>
@@ -568,7 +569,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
             {/* Scoring reminder card */}
             <div className="glass-section p-4 text-xs text-green-200/80 space-y-1.5">
               <div className="font-bold text-white text-sm mb-1">⚡ League Rules</div>
-              <p>• Picks lock every <strong>Thursday at 8:00 PM ET</strong>.</p>
+              <p>• Picks lock this week on <strong>{lockTimeDisplay}</strong>.</p>
               <p>• <strong>All-or-Nothing</strong>: If all your picks hit, earn points equal to games picked. Any wrong pick = 0 points.</p>
               <p>• Opponents’ picks become visible after you submit your own picks.</p>
             </div>

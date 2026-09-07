@@ -202,7 +202,7 @@ export default function Dashboard() {
               <p className="text-3xl font-bold text-white mb-2">
                 {timeUntilLock}
               </p>
-              <p className="text-red-200">Thursday 8:00 PM ET</p>
+              <p className="text-red-200">{getLockTime(weekInfo.season, weekInfo.week).toFormat('cccc h:mm a')} ET</p>
             </div>
 
             {/* Status */}
