@@ -4,6 +4,7 @@ import { fairWinProbability, evCurve, bestLockCount } from './luck';
 import {
   makeRng,
   correlatedTitleOdds,
+  projectedFinish,
   edgeOverField,
   bestLeverageLocks,
   consensusRanks,
@@ -13,6 +14,7 @@ import { db } from './db';
 import { games, picks } from './db/schema';
 import { and, eq } from 'drizzle-orm';
 import { isSameTeam } from './teams';
+import { HISTORICAL_PAR } from './history';
 
 const RUNS = 20000;
 const LEVERAGE_RUNS = 3000;
@@ -33,6 +35,7 @@ export interface PlayerOddsResult {
   evLocks: number; // Size that maximises points
   edge: number; // Title points their deviation from the field is worth
   consensusOdds: number; // What they would have if they simply copied the field
+  projectedFinish: number; // Median simulated final score
 }
 
 /**
@@ -116,6 +119,7 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
   });
 
   const odds = correlatedTitleOdds(strategies, probabilities, remainingWeeks, RUNS, makeRng(SEED));
+  const finishes = projectedFinish(strategies, probabilities, remainingWeeks, RUNS, makeRng(SEED));
 
   const rows: PlayerOddsResult[] = insights.players.map((p) => {
     const bestOther = Math.max(
@@ -149,6 +153,7 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
       evLocks,
       edge: edge.edge,
       consensusOdds: edge.consensusOdds,
+      projectedFinish: finishes.get(p.userId) ?? p.totalPoints,
     };
   });
 
@@ -163,6 +168,7 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
     remainingWeeks,
     avgPicksPerWeek: leagueAvgPicks,
     evLocks,
+    par: HISTORICAL_PAR,
     odds: rows.sort((a, b) => b.odds - a.odds),
   };
 }

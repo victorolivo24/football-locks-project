@@ -245,3 +245,47 @@ export function bestLeverageLocks(
 
   return best;
 }
+
+/**
+ * Median final score per player, from the same correlated draws.
+ *
+ * The median rather than the mean: all-or-nothing totals are lumpy and
+ * right-skewed, so an average season is not a season anyone actually has.
+ */
+export function projectedFinish(
+  players: SimStrategy[],
+  rankProbabilities: number[],
+  remainingWeeks: number,
+  runs: number,
+  rng: () => number
+): Map<number, number> {
+  const samples = players.map(() => [] as number[]);
+  const hit = new Array(rankProbabilities.length).fill(false);
+
+  for (let run = 0; run < runs; run++) {
+    const totals = players.map(p => p.points);
+
+    for (let week = 0; week < remainingWeeks; week++) {
+      for (let r = 0; r < rankProbabilities.length; r++) hit[r] = rng() < rankProbabilities[r];
+
+      for (let i = 0; i < players.length; i++) {
+        const ranks = players[i].ranks;
+        if (ranks.length === 0) continue;
+        let survived = true;
+        for (const rank of ranks) {
+          if (!hit[rank]) { survived = false; break; }
+        }
+        if (survived) totals[i] += ranks.length;
+      }
+    }
+
+    for (let i = 0; i < players.length; i++) samples[i].push(totals[i]);
+  }
+
+  const medians = new Map<number, number>();
+  players.forEach((player, i) => {
+    samples[i].sort((a, b) => a - b);
+    medians.set(player.userId, samples[i][Math.floor(samples[i].length / 2)] ?? player.points);
+  });
+  return medians;
+}

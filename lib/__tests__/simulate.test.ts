@@ -6,6 +6,7 @@ import {
   bestLeverageLocks,
   correlatedTitleOdds,
   edgeOverField,
+  projectedFinish,
   SimPlayer,
 } from '../simulate';
 
@@ -189,5 +190,35 @@ describe('edgeOverField', () => {
       board, 5, 2000, 33
     );
     expect(result.edge).toBeCloseTo(result.odds - result.consensusOdds, 1);
+  });
+});
+
+describe('projectedFinish', () => {
+  const board = [0.8, 0.79, 0.73, 0.66, 0.65, 0.64];
+  const strat = (userId: number, points: number, ranks: number[]) => ({ userId, points, ranks });
+
+  it('returns the current score when the season is over', () => {
+    const finish = projectedFinish([strat(1, 17, [0, 1, 2])], board, 0, 100, makeRng(51));
+    expect(finish.get(1)).toBe(17);
+  });
+
+  it('lands a full 3-lock season near what this league actually scores', () => {
+    // 2024 finished 19-25 across six players. The board model never saw that.
+    const finish = projectedFinish([strat(1, 0, [0, 1, 2])], board, 18, 5000, makeRng(52));
+    expect(finish.get(1)!).toBeGreaterThanOrEqual(18);
+    expect(finish.get(1)!).toBeLessThanOrEqual(30);
+  });
+
+  it('projects a bigger ticket lower, since it cashes far less often', () => {
+    const finish = projectedFinish(
+      [strat(1, 0, [0, 1, 2]), strat(2, 0, [0, 1, 2, 3, 4, 5])],
+      board, 18, 5000, makeRng(53)
+    );
+    expect(finish.get(2)!).toBeLessThan(finish.get(1)!);
+  });
+
+  it('builds on points already banked', () => {
+    const finish = projectedFinish([strat(1, 10, [0])], board, 5, 2000, makeRng(54));
+    expect(finish.get(1)!).toBeGreaterThanOrEqual(10);
   });
 });

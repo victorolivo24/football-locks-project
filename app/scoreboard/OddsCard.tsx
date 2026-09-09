@@ -16,6 +16,7 @@ export type OddsRow = {
   evLocks: number;
   edge: number;
   consensusOdds: number;
+  projectedFinish: number;
 };
 
 type OddsPayload = {
@@ -24,6 +25,7 @@ type OddsPayload = {
   remainingWeeks: number;
   avgPicksPerWeek: number;
   evLocks: number;
+  par: number;
   odds: OddsRow[];
 };
 
@@ -87,7 +89,7 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
                 <div className="flex items-center space-x-3 shrink-0">
                   {showDetails && (
                     <span className="text-[11px] text-white/60 hidden sm:inline">
-                      {r.avgPicksPerWeek?.toFixed(1) ?? '3.0'}/wk pace • Max {r.maxCeiling ?? (r.points + data.remainingWeeks * 3)}
+                      {r.avgPicksPerWeek?.toFixed(1) ?? '3.0'}/wk pace • Finishing ~{r.projectedFinish}
                     </span>
                   )}
                   <span className="tabular-nums font-bold text-white text-sm">
@@ -110,7 +112,7 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
               {showDetails && (
                 <div className="flex justify-between text-[10px] text-green-200/60 px-0.5 sm:hidden">
                   <span>Pace: {r.avgPicksPerWeek?.toFixed(1) ?? '3.0'} picks/wk</span>
-                  <span>Max Ceiling: {r.maxCeiling ?? (r.points + data.remainingWeeks * 3)} pts</span>
+                  <span>Finishing ~{r.projectedFinish} pts</span>
                 </div>
               )}
 
@@ -149,7 +151,7 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
 
       <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-green-200/70">
         <span>⚡ Simulated off this week’s closing lines</span>
-        <span>EV peak: {data.evLocks} locks/wk</span>
+        <span>Par: {data.par} pts (2024)</span>
       </div>
     </div>
   );
