@@ -242,8 +242,17 @@ export default function Dashboard() {
               className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-green-900 bg-gradient-to-r from-white to-gray-100 rounded-xl shadow-2xl hover:from-gray-100 hover:to-white transform hover:scale-105 transition-all duration-200 border-2 border-white/50"
             >
               <span className="mr-2 text-2xl">🏆</span>
-              View Scoreboard
+              Scoreboard
               <div className="absolute inset-0 bg-green-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+            </Link>
+
+            <Link
+              href={`/stats?season=${weekInfo.season}`}
+              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl shadow-2xl hover:from-purple-500 hover:to-indigo-500 transform hover:scale-105 transition-all duration-200 border-2 border-purple-400/40"
+            >
+              <span className="mr-2 text-2xl">🤓</span>
+              Nerd Stats
+              <div className="absolute inset-0 bg-white/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             </Link>
 
             <Link
