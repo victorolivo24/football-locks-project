@@ -180,7 +180,7 @@ export default function NerdStatsPage() {
                 <span>Week 1 Slate Parlay Odds</span>
               </h2>
               <span className="text-xs text-green-200/70">
-                Real Vegas moneylines compounded into all-or-nothing parlay payouts ($10 wager)
+                Real Vegas moneylines compounded into all-or-nothing parlay odds
               </span>
             </div>
 
@@ -192,9 +192,9 @@ export default function NerdStatsPage() {
                       <th className="px-5 py-3">Player</th>
                       <th className="px-5 py-3 text-center">Locks</th>
                       <th className="px-5 py-3">Selected Teams & Odds</th>
+                      <th className="px-5 py-3 text-center">Multiplier</th>
                       <th className="px-5 py-3 text-center">American Odds</th>
                       <th className="px-5 py-3 text-center">Implied Win %</th>
-                      <th className="px-5 py-3 text-right">Payout on $10</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
@@ -241,6 +241,9 @@ export default function NerdStatsPage() {
                               })}
                             </div>
                           </td>
+                          <td className="px-5 py-3.5 text-center font-mono text-white/80 whitespace-nowrap text-sm">
+                            {parlay.multiplier}x
+                          </td>
                           <td className="px-5 py-3.5 text-center whitespace-nowrap">
                             <span className={`font-black text-sm px-2.5 py-0.5 rounded ${
                               parlay.americanOdds.startsWith('+') ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-blue-400/20 text-blue-300 border border-blue-400/30'
@@ -250,9 +253,6 @@ export default function NerdStatsPage() {
                           </td>
                           <td className="px-5 py-3.5 text-center font-bold text-white whitespace-nowrap">
                             {parlay.impliedProb}%
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-black text-green-300 whitespace-nowrap text-base">
-                            ${parlay.payoutOn10}
                           </td>
                         </tr>
                       );

@@ -144,7 +144,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                 <span>🎲</span>
                 <span>Week {week} Parlay Board</span>
               </h2>
-              <span className="text-[11px] text-white/60">Combined slate odds ($10 wager)</span>
+              <span className="text-[11px] text-white/60">Compounded Vegas slate odds</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
               {users.map((u) => {
@@ -164,8 +164,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                     <div className="font-bold text-white text-xs truncate">{u.name}</div>
                     <div className="text-[10px] text-white/50">{uPicks.length} {uPicks.length === 1 ? 'lock' : 'locks'}</div>
                     <div className="text-sm font-black text-yellow-300 mt-0.5">{uParlay.americanOdds}</div>
-                    <div className="text-[11px] text-green-300 font-semibold">${uParlay.payoutOn10}</div>
-                    <div className="text-[9px] text-white/40">{uParlay.impliedProb}% chance</div>
+                    <div className="text-[10px] text-green-300/90 font-medium mt-0.5">{uParlay.impliedProb}% chance</div>
                   </div>
                 );
               })}
@@ -237,11 +236,8 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                         }`}>
                           {parlay.americanOdds}
                         </span>
-                        <span className="text-white/80">
-                          ($10 pays <strong className="text-white">${parlay.payoutOn10}</strong>)
-                        </span>
-                        <span className="text-white/40 text-[11px] hidden sm:inline">
-                          • {parlay.impliedProb}% implied
+                        <span className="text-white/60 text-xs">
+                          ({parlay.impliedProb}% implied win)
                         </span>
                       </div>
                     ) : (
