@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { DateTime } from 'luxon';
 import { isSameTeam, normalizeTeam } from './teams';
 import { fairWinProbability, ticketProbability, expectedPoints } from './luck';
+import { pickKey, similarity, sharedCount } from './overlap';
 
 export interface LuckLedger {
   expectedPoints: number; // What the market said the tickets were worth
@@ -58,13 +59,6 @@ export interface PlayerInsights {
   luck: LuckLedger;
 }
 
-export interface SlateBusterTeam {
-  team: string;
-  lossesCaused: number; // Number of player locks on this team that lost
-  victims: string[]; // Names of players who lost with this team
-  pointsRuined: number; // Estimated points lost by tickets containing this team
-}
-
 export interface LeagueSuperlative {
   title: string;
   icon: string;
@@ -73,13 +67,32 @@ export interface LeagueSuperlative {
   description: string;
 }
 
+export interface TeamLedgerRow {
+  team: string;
+  locked: number; // Times this team was locked league-wide
+  hits: number;
+  misses: number;
+  hitRate: number; // Percentage
+  expectedHits: number; // What the closing lines said to expect
+  edge: number; // hits - expectedHits; positive means the team beat its price
+  victims: string[]; // Who it burned
+}
+
+export interface OverlapPair {
+  a: string;
+  b: string;
+  shared: number; // Identical picks
+  similarity: number; // Percentage of their combined picks that match
+}
+
 export interface SeasonInsightsData {
   season: number;
   currentWeek: number;
   remainingWeeks: number;
   players: PlayerInsights[];
   superlatives: LeagueSuperlative[];
-  slateBusters: SlateBusterTeam[];
+  teamLedger: TeamLedgerRow[];
+  overlap: OverlapPair[];
 }
 
 /**
@@ -262,9 +275,6 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     gameMap.set(Number(g.id), g);
   }
 
-  // Slate busters tracker: map team -> losses caused
-  const slateBusterMap = new Map<string, { lossesCaused: number; victims: Set<string>; pointsRuined: number }>();
-
   const playerStatsMap = new Map<number, PlayerInsights>();
 
   for (const user of allUsers) {
@@ -313,17 +323,6 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
           const hit = !!g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam);
           if (hit) {
             correctPicks++;
-          } else {
-            // Pick LOST! Track as slate buster
-            const existingBuster = slateBusterMap.get(normPicked) || {
-              lossesCaused: 0,
-              victims: new Set<string>(),
-              pointsRuined: 0,
-            };
-            existingBuster.lossesCaused++;
-            existingBuster.victims.add(user.name);
-            existingBuster.pointsRuined += (weeklyPicksMap[p.week]?.length || 3);
-            slateBusterMap.set(normPicked, existingBuster);
           }
 
           if (isPrime) {
@@ -406,16 +405,6 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     return b.pickWinPct - a.pickWinPct;
   });
 
-  // Slate Busters ranked
-  const slateBusters: SlateBusterTeam[] = Array.from(slateBusterMap.entries())
-    .map(([team, data]) => ({
-      team,
-      lossesCaused: data.lossesCaused,
-      victims: Array.from(data.victims),
-      pointsRuined: data.pointsRuined,
-    }))
-    .sort((a, b) => b.lossesCaused - a.lossesCaused);
-
   // League Superlatives
   const superlatives: LeagueSuperlative[] = [];
 
@@ -490,12 +479,87 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     });
   }
 
+  // Team ledger: how each locked team actually performed against its price.
+  const teamLedgerMap = new Map<string, {
+    locked: number; hits: number; misses: number; expectedHits: number; victims: Set<string>;
+  }>();
+
+  for (const pick of seasonPicks) {
+    const game = gameMap.get(Number(pick.gameId));
+    if (!game || game.status !== 'final') continue;
+
+    const team = normalizeTeam(pick.pickedTeam);
+    const row = teamLedgerMap.get(team) ?? {
+      locked: 0, hits: 0, misses: 0, expectedHits: 0, victims: new Set<string>(),
+    };
+
+    row.locked++;
+    const hit = !!game.winnerTeam && isSameTeam(game.winnerTeam, pick.pickedTeam);
+    if (hit) {
+      row.hits++;
+    } else {
+      row.misses++;
+      const owner = allUsers.find(u => u.id === pick.userId);
+      if (owner) row.victims.add(owner.name);
+    }
+
+    // Credit the team with the win probability its closing line implied, so a
+    // favourite that holds serve reads as par rather than as a triumph.
+    const line = oddsByGame.get(Number(pick.gameId));
+    if (line?.homeMoneyline != null && line?.awayMoneyline != null) {
+      const pickedHome = isSameTeam(pick.pickedTeam, game.homeTeam);
+      row.expectedHits += fairWinProbability(
+        pickedHome ? line.homeMoneyline : line.awayMoneyline,
+        pickedHome ? line.awayMoneyline : line.homeMoneyline
+      );
+    }
+
+    teamLedgerMap.set(team, row);
+  }
+
+  const teamLedger: TeamLedgerRow[] = Array.from(teamLedgerMap.entries())
+    .map(([team, row]) => ({
+      team,
+      locked: row.locked,
+      hits: row.hits,
+      misses: row.misses,
+      hitRate: row.locked > 0 ? Math.round((row.hits / row.locked) * 100) : 0,
+      expectedHits: Number(row.expectedHits.toFixed(2)),
+      edge: Number((row.hits - row.expectedHits).toFixed(2)),
+      victims: Array.from(row.victims),
+    }))
+    .sort((a, b) => b.edge - a.edge || b.locked - a.locked);
+
+  // Overlap: whose tickets look alike. Identical tickets cannot move the standings.
+  const picksByUser = new Map<number, Set<string>>();
+  for (const user of allUsers) {
+    picksByUser.set(user.id, new Set(seasonPicks.filter(p => p.userId === user.id).map(pickKey)));
+  }
+
+  const overlap: OverlapPair[] = [];
+  for (let i = 0; i < allUsers.length; i++) {
+    for (let j = i + 1; j < allUsers.length; j++) {
+      const a = picksByUser.get(allUsers[i].id)!;
+      const b = picksByUser.get(allUsers[j].id)!;
+      if (a.size === 0 || b.size === 0) continue;
+
+      overlap.push({
+        a: allUsers[i].name,
+        b: allUsers[j].name,
+        shared: sharedCount(a, b),
+        similarity: Math.round(similarity(a, b) * 100),
+      });
+    }
+  }
+  overlap.sort((x, y) => y.similarity - x.similarity);
+
   return {
     season,
     currentWeek,
     remainingWeeks,
     players,
     superlatives,
-    slateBusters,
+    teamLedger,
+    overlap,
   };
 }

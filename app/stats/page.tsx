@@ -487,59 +487,129 @@ export default function NerdStatsPage() {
           </div>
         </div>
 
-        {/* Section 3: The Slate Busters */}
+        {/* Section 4: Team Ledger */}
         <div className="space-y-4 px-4 sm:px-0">
           <div className="glass-card p-6 space-y-4">
             <div className="flex items-center space-x-3">
               <span className="text-3xl">💥</span>
               <div>
-                <h2 className="text-2xl font-bold text-white">The "Slate Busters" (League Nemesis Teams)</h2>
+                <h2 className="text-2xl font-bold text-white">Team Ledger</h2>
                 <p className="text-xs text-green-200/80">
-                  NFL teams that single-handedly betrayed friends by losing when locked
+                  Every team the league has locked, and whether backing them beat the price
                 </p>
               </div>
             </div>
 
-            {insights?.slateBusters && insights.slateBusters.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-                {insights.slateBusters.map((buster, i) => (
-                  <div
-                    key={buster.team}
-                    className="glass-section p-4 flex items-center space-x-4 border-red-500/20 bg-red-950/10"
-                  >
-                    <div className="relative">
-                      <TeamLogo team={buster.team} size="md" />
-                      <span className="absolute -top-1 -left-1 bg-red-600 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
-                        #{i + 1}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-white text-base truncate">{buster.team}</div>
-                      <div className="text-red-300 font-extrabold text-xs">
-                        {buster.lossesCaused} ticket{buster.lossesCaused === 1 ? '' : 's'} busted
-                      </div>
-                      <div className="text-[10px] text-white/60 truncate mt-0.5">
-                        Victims: {buster.victims.join(', ')}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-xs font-extrabold text-yellow-400">
-                        ~{buster.pointsRuined} pts
-                      </span>
-                      <div className="text-[9px] text-white/40">ruined</div>
-                    </div>
-                  </div>
-                ))}
+            {insights?.teamLedger && insights.teamLedger.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-white/5 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
+                      <th className="px-4 py-3">Team</th>
+                      <th className="px-4 py-3 text-center">Locked</th>
+                      <th className="px-4 py-3 text-center">W–L</th>
+                      <th className="px-4 py-3 text-center">Expected W</th>
+                      <th className="px-4 py-3 text-center">Edge</th>
+                      <th className="px-4 py-3">Burned</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {insights.teamLedger.map((row) => (
+                      <tr key={row.team} className="hover:bg-white/5 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <TeamLogo team={row.team} size="sm" />
+                            <span className="font-bold text-white truncate">{row.team}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center text-white/70">{row.locked}</td>
+                        <td className="px-4 py-3 text-center font-semibold text-white">
+                          {row.hits}–{row.misses}
+                        </td>
+                        <td className="px-4 py-3 text-center text-green-200/80">
+                          {row.expectedHits.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <span className={`font-black text-xs px-2 py-0.5 rounded ${
+                            row.edge > 0.25
+                              ? 'bg-green-500/20 text-green-300 border border-green-400/30'
+                              : row.edge < -0.25
+                                ? 'bg-red-500/20 text-red-300 border border-red-400/30'
+                                : 'bg-white/10 text-white/70 border border-white/10'
+                          }`}>
+                            {row.edge > 0 ? '+' : ''}{row.edge.toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-[11px] text-white/50 truncate max-w-[160px]">
+                          {row.victims.length > 0 ? row.victims.join(', ') : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="pt-3 text-[11px] text-green-200/60 leading-snug">
+                  Expected wins come from each team's closing line, so a heavy favourite holding serve
+                  reads as par. Edge is wins above that — positive teams have paid off, negative ones
+                  have cost the league more than their price said they should.
+                </p>
               </div>
             ) : (
               <div className="bg-white/5 p-6 rounded-xl text-center text-sm text-green-200/80">
-                🛡️ No tickets have been busted by final games yet! As games finish, the league's most notorious spoiler teams will appear here.
+                🛡️ Nothing graded yet. Once games go final, every locked team shows up here with its record against the line.
               </div>
             )}
           </div>
         </div>
 
-        {/* Section 5: This Week's Sweet Spot */}
+        {/* Section 5: Overlap Matrix */}
+        {insights?.overlap && insights.overlap.length > 0 && (
+          <div className="space-y-3 px-4 sm:px-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                <span>🔗</span>
+                <span>Who Copies Who</span>
+              </h2>
+              <span className="text-xs text-green-200/70">
+                Hold the leader's exact ticket and you can never gain ground
+              </span>
+            </div>
+
+            <div className="glass-card p-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {insights.overlap.slice(0, 9).map((pair) => {
+                  const tight = pair.similarity >= 60;
+                  const loose = pair.similarity <= 20;
+                  return (
+                    <div
+                      key={`${pair.a}-${pair.b}`}
+                      className={`p-3.5 rounded-xl border ${
+                        tight
+                          ? 'bg-amber-500/10 border-amber-400/40'
+                          : 'bg-white/5 border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-white font-semibold text-sm truncate">
+                          {pair.a} <span className="text-white/40">&</span> {pair.b}
+                        </span>
+                        <span className={`font-black text-base shrink-0 ${
+                          tight ? 'text-amber-300' : loose ? 'text-white/50' : 'text-green-300'
+                        }`}>
+                          {pair.similarity}%
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-green-200/60 mt-0.5">
+                        {pair.shared} identical {pair.shared === 1 ? 'lock' : 'locks'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Section 6: This Week's Sweet Spot */}
         {slateCurve.length > 0 && (
           <div className="space-y-4 px-4 sm:px-0">
             <div className="glass-card p-6 space-y-5">
