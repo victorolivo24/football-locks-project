@@ -93,7 +93,7 @@ for (a 7:00 PM job can run as late as 7:59 PM).
 | Job | Expression | Eastern | Purpose |
 | --- | --- | --- | --- |
 | `/api/cron/fetch-schedule` | `0 13 * * 1` | Mon 9:00 AM | Refresh next week's kickoff times |
-| `/api/cron/fetch-odds` | `0 23 * * 4` | Thu 7:00 PM | Snapshot the week's lines before picks lock at 8:00 PM |
+| `/api/cron/fetch-odds` | `0 23 * * *` | Daily 7:00 PM | Refresh lines for the current and next week |
 | `/api/cron/resolve-results` | `0 8 * * *` | Daily 4:00 AM | Pull results and rescore the week |
 
 All three require `Authorization: Bearer $CRON_SECRET`.
@@ -104,9 +104,14 @@ lands well inside its window.
 ### Odds
 
 One ESPN scoreboard request returns moneyline, spread and total for the whole
-slate, so no betting API key is needed. The Thursday pull is stored as *the*
-line for that week — a single row per game in `gameodds`, overwritten on each
-run rather than kept as history.
+slate, so no betting API key is needed. Lines refresh once a day for the
+current and next week, so the board you see while picking is live.
+
+A game's line stops updating the moment it kicks off. That freeze is the point:
+the last value written before kickoff is the closing line, which is both what
+the analytics want and the sharpest available read on true win probability.
+Without it a later run could overwrite a settled line with in-play numbers.
+One row per game in `gameodds`, overwritten until kickoff, no history kept.
 
 ### Results
 

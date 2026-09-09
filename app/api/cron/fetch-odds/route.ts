@@ -16,13 +16,17 @@ export async function POST(request: NextRequest) {
     }
 
     const { season, week } = (await getCurrentWeekFromSchedule()) ?? getCurrentNFLWeek();
-    const priced = await refreshWeekOdds(season, week);
 
-    console.log(`Stored odds for ${priced} games in Week ${week}`);
+    // Refresh next week too, so lines are already there for anyone picking
+    // early — the live week only rolls over on Tuesday morning.
+    const priced = await refreshWeekOdds(season, week);
+    const nextPriced = week < 18 ? await refreshWeekOdds(season, week + 1).catch(() => 0) : 0;
+
+    console.log(`Refreshed odds: ${priced} games in Week ${week}, ${nextPriced} in Week ${week + 1}`);
 
     return NextResponse.json({
       success: true,
-      message: `Stored odds for ${priced} games in Week ${week}`,
+      message: `Refreshed odds for ${priced} games in Week ${week}, ${nextPriced} in Week ${week + 1}`,
     });
   } catch (error) {
     console.error('Fetch odds cron error:', error);

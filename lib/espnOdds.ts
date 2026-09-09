@@ -13,6 +13,18 @@ export interface WeekOddsRow {
   total: number | null;
 }
 
+/**
+ * True once a game has kicked off, meaning its line is final and must not be
+ * refreshed again. This is what makes a daily pull safe: the last value
+ * written before kickoff is the closing line, and nothing later can overwrite
+ * it with in-play numbers.
+ */
+export function isLineSettled(startTime: Date | string | null | undefined, now: number = Date.now()): boolean {
+  if (!startTime) return false;
+  const kickoff = new Date(startTime).getTime();
+  return Number.isFinite(kickoff) && kickoff <= now;
+}
+
 /** ESPN reports American odds as strings like "+142" / "-166" / "EVEN". */
 function parseAmerican(odds: unknown): number | null {
   if (typeof odds !== 'string') return null;
@@ -28,6 +40,12 @@ function parseAmerican(odds: unknown): number | null {
  * The scoreboard already carries a full odds block per game, so the whole
  * slate costs one request and no API key. We take the closing number and
  * fall back to the opening one when a book has not posted a close yet.
+ *
+ * Games that have already kicked off are skipped, which is what lets this run
+ * daily. A line keeps moving until its game starts and is then frozen at that
+ * last pre-kickoff value — the closing line, and the sharpest read on true win
+ * probability we can get. Without the skip, a later run could overwrite a
+ * settled line with in-play numbers and quietly corrupt the luck ledger.
  */
 export async function fetchWeekOddsFromEspn(season: number, week: number): Promise<WeekOddsRow[]> {
   const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${season}&seasontype=2&week=${week}`;
@@ -40,6 +58,7 @@ export async function fetchWeekOddsFromEspn(season: number, week: number): Promi
   });
 
   const rows: WeekOddsRow[] = [];
+  const now = Date.now();
 
   for (const event of data.events || []) {
     const competition = event.competitions?.[0];
@@ -53,6 +72,9 @@ export async function fetchWeekOddsFromEspn(season: number, week: number): Promi
     // ESPN event ids differ from our seeded game ids, so match on the matchup.
     const game = weekGames.find(g => isSameTeam(g.homeTeam, homeTeam) && isSameTeam(g.awayTeam, awayTeam));
     if (!game) continue;
+
+    // Already under way: its line is settled, leave it alone.
+    if (isLineSettled(game.startTime as any, now)) continue;
 
     const line = (side: 'home' | 'away') =>
       parseAmerican(odds.moneyline?.[side]?.close?.odds) ?? parseAmerican(odds.moneyline?.[side]?.open?.odds);

@@ -17,7 +17,7 @@
     },
     {
       "path": "/api/cron/fetch-odds",
-      "schedule": "0 23 * * 4"
+      "schedule": "0 23 * * *"
     },
     {
       "path": "/api/cron/resolve-results",
