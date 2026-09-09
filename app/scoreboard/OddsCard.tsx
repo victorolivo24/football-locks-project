@@ -12,6 +12,8 @@ export type OddsRow = {
   maxCeiling: number;
   leverageLocks: number;
   evLocks: number;
+  edge: number;
+  consensusOdds: number;
 };
 
 type OddsPayload = {
@@ -114,6 +116,26 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
                 <div className="text-[10px] text-amber-300/90 px-0.5">
                   ⚡ Best play is {r.leverageLocks} locks, not the {r.evLocks} that maximises points —
                   needs the variance to catch up.
+                </div>
+              )}
+
+              {showDetails && data.remainingWeeks > 0 && (
+                <div className="text-[10px] px-0.5">
+                  {Math.abs(r.edge) < 0.5 ? (
+                    <span className="text-white/50">
+                      🪞 Playing the field's ticket — same games as the pack, so this can't gain ground on them.
+                    </span>
+                  ) : r.edge > 0 ? (
+                    <span className="text-green-300/90">
+                      ↗ Breaking from the field is worth <strong>+{r.edge.toFixed(1)}</strong> title points
+                      (vs {r.consensusOdds.toFixed(1)}% copying it).
+                    </span>
+                  ) : (
+                    <span className="text-red-300/80">
+                      ↘ Breaking from the field costs <strong>{r.edge.toFixed(1)}</strong> title points
+                      (copying it would be {r.consensusOdds.toFixed(1)}%).
+                    </span>
+                  )}
                 </div>
               )}
             </div>

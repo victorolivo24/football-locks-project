@@ -1,13 +1,22 @@
 import { getSeasonInsights } from './insights';
 import { getWeekOdds } from './espnOdds';
-import { slateProbabilities, evCurve, bestLockCount } from './luck';
-import { makeRng, titleOdds, bestLeverageLocks, SimPlayer } from './simulate';
+import { fairWinProbability, evCurve, bestLockCount } from './luck';
+import {
+  makeRng,
+  correlatedTitleOdds,
+  edgeOverField,
+  bestLeverageLocks,
+  consensusRanks,
+  SimStrategy,
+} from './simulate';
 import { db } from './db';
-import { games } from './db/schema';
+import { games, picks } from './db/schema';
 import { and, eq } from 'drizzle-orm';
+import { isSameTeam } from './teams';
 
 const RUNS = 20000;
-const SIM_SEED = 20260909; // Fixed so the same standings always report the same odds
+const LEVERAGE_RUNS = 3000;
+const SEED = 20260909; // Fixed so the same standings always report the same odds
 
 export interface PlayerOddsResult {
   userId: number;
@@ -18,58 +27,93 @@ export interface PlayerOddsResult {
   avgPicksPerWeek: number;
   projectedPoints: number;
   maxCeiling: number;
-  leverageLocks: number; // Ticket size that maximises this player's title chance
-  evLocks: number; // Ticket size that maximises points
+  leverageLocks: number; // Consensus size that maximises title chance
+  evLocks: number; // Size that maximises points
+  edge: number; // Title points their deviation from the field is worth
+  consensusOdds: number; // What they would have if they simply copied the field
 }
 
 /**
- * Fair win probability for a ticket of each size, taken from a real slate.
- * Falls back to a flat 65% per lock when the week has no lines stored yet.
+ * Rank the week's board safest-first and record where each player sits on it.
+ *
+ * Ranks are what make correlation work: two players on the same ranks hold the
+ * same games, so they can never finish a week apart.
  */
-async function weeklyCurve(season: number, week: number) {
+async function readBoard(season: number, week: number) {
   const weekGames = await db.query.games.findMany({
     where: and(eq(games.season, season), eq(games.week, week)),
   }).catch(() => []);
 
-  const odds = await getWeekOdds(season, week).catch(() => []);
-  const oddsByGame = new Map(odds.map(o => [Number(o.gameId), o]));
+  const lines = await getWeekOdds(season, week).catch(() => []);
+  const linesByGame = new Map(lines.map(l => [Number(l.gameId), l]));
 
-  const priced = weekGames.map(g => {
-    const line = oddsByGame.get(Number(g.id));
-    return { homeMoneyline: line?.homeMoneyline ?? null, awayMoneyline: line?.awayMoneyline ?? null };
-  });
+  const priced = weekGames
+    .map(game => {
+      const line = linesByGame.get(Number(game.id));
+      if (line?.homeMoneyline == null || line?.awayMoneyline == null) return null;
+      const home = fairWinProbability(line.homeMoneyline, line.awayMoneyline);
+      return {
+        gameId: Number(game.id),
+        favourite: home >= 0.5 ? game.homeTeam : game.awayTeam,
+        probability: Math.max(home, 1 - home),
+      };
+    })
+    .filter((g): g is NonNullable<typeof g> => g !== null)
+    .sort((a, b) => b.probability - a.probability);
 
-  const curve = evCurve(slateProbabilities(priced), 8);
-  if (curve.length > 0) return curve;
+  const rankByGame = new Map<number, number>();
+  priced.forEach((game, index) => rankByGame.set(game.gameId, index));
 
-  return [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
-    n,
-    probability: Number((Math.pow(0.65, n) * 100).toFixed(1)),
-    expected: Number((n * Math.pow(0.65, n)).toFixed(2)),
-  }));
+  const weekPicks = await db.query.picks.findMany({
+    where: and(eq(picks.season, season), eq(picks.week, week)),
+  }).catch(() => []);
+
+  // Only count a pick as taking the board position if they backed the
+  // favourite; siding with a dog is a different bet than that rank represents.
+  const ranksByUser = new Map<number, number[]>();
+  for (const pick of weekPicks) {
+    const rank = rankByGame.get(Number(pick.gameId));
+    if (rank === undefined) continue;
+    const game = priced[rank];
+    if (!isSameTeam(game.favourite, pick.pickedTeam)) continue;
+
+    const existing = ranksByUser.get(pick.userId as number) ?? [];
+    existing.push(rank);
+    ranksByUser.set(pick.userId as number, existing);
+  }
+
+  return {
+    probabilities: priced.map(g => g.probability),
+    ranksByUser,
+  };
 }
 
 export async function computeTitleOdds(season: number, currentWeek: number) {
   const insights = await getSeasonInsights(season, currentWeek);
   const remainingWeeks = Math.max(0, 18 - currentWeek);
-  const curve = await weeklyCurve(season, currentWeek);
+  const board = await readBoard(season, currentWeek);
 
-  const probabilityFor = (locks: number) => {
-    const clamped = Math.max(1, Math.min(curve.length, Math.round(locks)));
-    return (curve[clamped - 1]?.probability ?? 0) / 100;
-  };
+  // No lines stored yet: fall back to a flat board so the card still renders.
+  const probabilities = board.probabilities.length > 0
+    ? board.probabilities
+    : Array.from({ length: 8 }, () => 0.65);
 
-  const simPlayers: SimPlayer[] = insights.players.map(p => ({
-    userId: p.userId,
-    points: p.totalPoints,
-    locks: Math.max(1, Math.round(p.avgPicksPerWeek || 3)),
-    weekWinProb: probabilityFor(p.avgPicksPerWeek || 3),
-  }));
-
-  // Simulate the rest of the season rather than scoring the points gap on a
-  // hand-tuned curve: this knows how many weeks are left to catch up in.
-  const odds = titleOdds(simPlayers, remainingWeeks, RUNS, makeRng(SIM_SEED));
+  const curve = evCurve(probabilities, 8);
   const evLocks = bestLockCount(curve);
+
+  // Everyone is assumed to keep playing the shape of ticket they played this
+  // week: same size, same distance from the chalk.
+  const strategies: SimStrategy[] = insights.players.map(p => {
+    const actual = board.ranksByUser.get(p.userId);
+    const size = Math.max(1, Math.round(p.avgPicksPerWeek || 3));
+    return {
+      userId: p.userId,
+      points: p.totalPoints,
+      ranks: actual && actual.length > 0 ? actual : consensusRanks(size),
+    };
+  });
+
+  const odds = correlatedTitleOdds(strategies, probabilities, remainingWeeks, RUNS, makeRng(SEED));
 
   const rows: PlayerOddsResult[] = insights.players.map((p) => {
     const bestOther = Math.max(
@@ -77,13 +121,16 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
       ...insights.players.filter(r => r.userId !== p.userId).map(r => r.totalPoints)
     );
 
-    const self = simPlayers.find(s => s.userId === p.userId)!;
-    const rivals = simPlayers.filter(s => s.userId !== p.userId);
+    const self = strategies.find(s => s.userId === p.userId)!;
+    const rivals = strategies.filter(s => s.userId !== p.userId);
 
-    // Fewer runs here: this is a per-player search over every ticket size.
+    const edge = remainingWeeks > 0
+      ? edgeOverField(self, rivals, probabilities, remainingWeeks, LEVERAGE_RUNS, SEED + p.userId)
+      : { odds: 0, consensusOdds: 0, edge: 0 };
+
     const leverage = remainingWeeks > 0
-      ? bestLeverageLocks(self, rivals, curve, remainingWeeks, 3000, makeRng(SIM_SEED + p.userId))
-      : { locks: self.locks, titleOdds: 0 };
+      ? bestLeverageLocks(self, rivals, probabilities, 8, remainingWeeks, LEVERAGE_RUNS, SEED + p.userId)
+      : { locks: self.ranks.length, titleOdds: 0 };
 
     return {
       userId: p.userId,
@@ -96,6 +143,8 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
       odds: odds.get(p.userId) ?? 0,
       leverageLocks: leverage.locks,
       evLocks,
+      edge: edge.edge,
+      consensusOdds: edge.consensusOdds,
     };
   });
 

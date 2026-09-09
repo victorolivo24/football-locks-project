@@ -86,27 +86,152 @@ export function titleOdds(
 }
 
 /**
- * The ticket size that maximises this player's title chance.
+ * A player's plan expressed as positions on the board.
+ *
+ * Ranks are indexes into the slate sorted safest-first, so [0,1,2] is "the
+ * three biggest favourites" — the consensus ticket. Two players holding the
+ * same ranks hold the same games.
+ */
+export interface SimStrategy {
+  userId: number;
+  points: number;
+  ranks: number[];
+}
+
+/**
+ * Play the season out drawing each GAME once per week, not each player.
+ *
+ * This is the difference between a league that can separate and one that
+ * cannot. Flipping a coin per player implies two people holding the same
+ * ticket can finish the week differently, which is impossible — they are
+ * betting on the same games. Drawing the board once and scoring every ticket
+ * against it makes identical tickets move together, so the standings only
+ * change when somebody actually picked something different.
+ */
+export function simulateCorrelated(
+  players: SimStrategy[],
+  rankProbabilities: number[],
+  remainingWeeks: number,
+  runs: number,
+  rng: () => number
+): Map<number, number> {
+  const wins = new Map<number, number>();
+  for (const player of players) wins.set(player.userId, 0);
+  if (players.length === 0 || runs <= 0) return wins;
+
+  const totals = new Array(players.length).fill(0);
+  const hit = new Array(rankProbabilities.length).fill(false);
+
+  for (let run = 0; run < runs; run++) {
+    for (let i = 0; i < players.length; i++) totals[i] = players[i].points;
+
+    for (let week = 0; week < remainingWeeks; week++) {
+      // One draw per position on the board, shared by everyone who took it.
+      for (let r = 0; r < rankProbabilities.length; r++) {
+        hit[r] = rng() < rankProbabilities[r];
+      }
+
+      for (let i = 0; i < players.length; i++) {
+        const ranks = players[i].ranks;
+        if (ranks.length === 0) continue;
+
+        let survived = true;
+        for (const rank of ranks) {
+          if (!hit[rank]) { survived = false; break; }
+        }
+        if (survived) totals[i] += ranks.length;
+      }
+    }
+
+    let best = -Infinity;
+    for (let i = 0; i < players.length; i++) if (totals[i] > best) best = totals[i];
+
+    const leaders: number[] = [];
+    for (let i = 0; i < players.length; i++) if (totals[i] === best) leaders.push(i);
+
+    const share = 1 / leaders.length;
+    for (const i of leaders) {
+      wins.set(players[i].userId, (wins.get(players[i].userId) ?? 0) + share);
+    }
+  }
+
+  return wins;
+}
+
+/** Title share per player under correlated draws, as percentages. */
+export function correlatedTitleOdds(
+  players: SimStrategy[],
+  rankProbabilities: number[],
+  remainingWeeks: number,
+  runs: number,
+  rng: () => number
+): Map<number, number> {
+  const wins = simulateCorrelated(players, rankProbabilities, remainingWeeks, runs, rng);
+  const odds = new Map<number, number>();
+  wins.forEach((count, userId) => odds.set(userId, Number(((count / runs) * 100).toFixed(1))));
+  return odds;
+}
+
+/** The consensus ticket of a given size: the n safest games on the board. */
+export function consensusRanks(size: number): number[] {
+  return Array.from({ length: Math.max(0, size) }, (_, i) => i);
+}
+
+/**
+ * What a player's plan is worth against the field, in title probability.
+ *
+ * The EV-best ticket is the n biggest favourites, so if everyone plays it
+ * everyone holds the same games and nobody can pass anybody: correct on
+ * points, worth nothing on winning. This scores a plan against the
+ * alternative of simply copying the field at the same ticket size, which
+ * isolates what the deviation itself buys.
+ */
+export function edgeOverField(
+  player: SimStrategy,
+  rivals: SimStrategy[],
+  rankProbabilities: number[],
+  remainingWeeks: number,
+  runs: number,
+  seed: number
+): { odds: number; consensusOdds: number; edge: number } {
+  const field = [player, ...rivals];
+  const actual = correlatedTitleOdds(field, rankProbabilities, remainingWeeks, runs, makeRng(seed))
+    .get(player.userId) ?? 0;
+
+  const copying: SimStrategy = { ...player, ranks: consensusRanks(player.ranks.length) };
+  const consensus = correlatedTitleOdds([copying, ...rivals], rankProbabilities, remainingWeeks, runs, makeRng(seed))
+    .get(player.userId) ?? 0;
+
+  return {
+    odds: actual,
+    consensusOdds: consensus,
+    edge: Number((actual - consensus).toFixed(1)),
+  };
+}
+
+/**
+ * The consensus ticket size that maximises this player's title chance.
  *
  * Late in a season this is not the size that maximises points. Once someone is
  * far enough behind, the safe ticket that scores best on average is the one
  * that reliably keeps them second — they need the variance instead.
  */
 export function bestLeverageLocks(
-  player: SimPlayer,
-  rivals: SimPlayer[],
-  curve: Array<{ n: number; probability: number }>,
+  player: { userId: number; points: number },
+  rivals: SimStrategy[],
+  rankProbabilities: number[],
+  maxLocks: number,
   remainingWeeks: number,
   runs: number,
-  rng: () => number
+  seed: number
 ): { locks: number; titleOdds: number } {
-  let best = { locks: player.locks, titleOdds: -1 };
+  let best = { locks: 1, titleOdds: -1 };
 
-  for (const tier of curve) {
-    const candidate: SimPlayer = { ...player, locks: tier.n, weekWinProb: tier.probability / 100 };
-    const wins = simulateTitles([candidate, ...rivals], remainingWeeks, runs, rng);
-    const share = ((wins.get(player.userId) ?? 0) / runs) * 100;
-    if (share > best.titleOdds) best = { locks: tier.n, titleOdds: Number(share.toFixed(1)) };
+  for (let n = 1; n <= Math.min(maxLocks, rankProbabilities.length); n++) {
+    const candidate: SimStrategy = { userId: player.userId, points: player.points, ranks: consensusRanks(n) };
+    const share = correlatedTitleOdds([candidate, ...rivals], rankProbabilities, remainingWeeks, runs, makeRng(seed))
+      .get(player.userId) ?? 0;
+    if (share > best.titleOdds) best = { locks: n, titleOdds: share };
   }
 
   return best;
