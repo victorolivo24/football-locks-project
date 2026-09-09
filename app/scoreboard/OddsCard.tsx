@@ -10,6 +10,8 @@ export type OddsRow = {
   avgPicksPerWeek: number;
   projectedPoints: number;
   maxCeiling: number;
+  leverageLocks: number;
+  evLocks: number;
 };
 
 type OddsPayload = {
@@ -17,6 +19,7 @@ type OddsPayload = {
   week: number;
   remainingWeeks: number;
   avgPicksPerWeek: number;
+  evLocks: number;
   odds: OddsRow[];
 };
 
@@ -51,7 +54,7 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
             <h3 className="text-white font-bold text-lg tracking-wide">Championship Odds</h3>
           </div>
           <p className="text-xs text-green-200/80 mt-0.5">
-            Powered by each player’s real lock volume ({data.remainingWeeks} wks left)
+            {data.remainingWeeks} weeks left, simulated 20,000 times
           </p>
         </div>
         <button
@@ -106,14 +109,21 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
                   <span>Max Ceiling: {r.maxCeiling ?? (r.points + data.remainingWeeks * 3)} pts</span>
                 </div>
               )}
+
+              {showDetails && r.leverageLocks > 0 && r.leverageLocks !== r.evLocks && (
+                <div className="text-[10px] text-amber-300/90 px-0.5">
+                  ⚡ Best play is {r.leverageLocks} locks, not the {r.evLocks} that maximises points —
+                  needs the variance to catch up.
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
       <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-green-200/70">
-        <span>⚡ Calibrated with personalized pick rates</span>
-        <span>League Avg: {data.avgPicksPerWeek.toFixed(1)} picks/wk</span>
+        <span>⚡ Simulated off this week’s closing lines</span>
+        <span>EV peak: {data.evLocks} locks/wk</span>
       </div>
     </div>
   );

@@ -1,8 +1,13 @@
 import { getSeasonInsights } from './insights';
+import { getWeekOdds } from './espnOdds';
+import { slateProbabilities, evCurve, bestLockCount } from './luck';
+import { makeRng, titleOdds, bestLeverageLocks, SimPlayer } from './simulate';
+import { db } from './db';
+import { games } from './db/schema';
+import { and, eq } from 'drizzle-orm';
 
-function logistic(x: number): number {
-  return 1 / (1 + Math.exp(-x));
-}
+const RUNS = 20000;
+const SIM_SEED = 20260909; // Fixed so the same standings always report the same odds
 
 export interface PlayerOddsResult {
   userId: number;
@@ -13,84 +18,98 @@ export interface PlayerOddsResult {
   avgPicksPerWeek: number;
   projectedPoints: number;
   maxCeiling: number;
+  leverageLocks: number; // Ticket size that maximises this player's title chance
+  evLocks: number; // Ticket size that maximises points
+}
+
+/**
+ * Fair win probability for a ticket of each size, taken from a real slate.
+ * Falls back to a flat 65% per lock when the week has no lines stored yet.
+ */
+async function weeklyCurve(season: number, week: number) {
+  const weekGames = await db.query.games.findMany({
+    where: and(eq(games.season, season), eq(games.week, week)),
+  }).catch(() => []);
+
+  const odds = await getWeekOdds(season, week).catch(() => []);
+  const oddsByGame = new Map(odds.map(o => [Number(o.gameId), o]));
+
+  const priced = weekGames.map(g => {
+    const line = oddsByGame.get(Number(g.id));
+    return { homeMoneyline: line?.homeMoneyline ?? null, awayMoneyline: line?.awayMoneyline ?? null };
+  });
+
+  const curve = evCurve(slateProbabilities(priced), 8);
+  if (curve.length > 0) return curve;
+
+  return [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+    n,
+    probability: Number((Math.pow(0.65, n) * 100).toFixed(1)),
+    expected: Number((n * Math.pow(0.65, n)).toFixed(2)),
+  }));
 }
 
 export async function computeTitleOdds(season: number, currentWeek: number) {
   const insights = await getSeasonInsights(season, currentWeek);
   const remainingWeeks = Math.max(0, 18 - currentWeek);
-  
-  // Calculate personalized pace for each user from actual data
-  const playerMap = new Map<number, typeof insights.players[0]>();
-  for (const p of insights.players) {
-    playerMap.set(p.userId, p);
-  }
+  const curve = await weeklyCurve(season, currentWeek);
 
-  const leaders = insights.players.map(p => ({
+  const probabilityFor = (locks: number) => {
+    const clamped = Math.max(1, Math.min(curve.length, Math.round(locks)));
+    return (curve[clamped - 1]?.probability ?? 0) / 100;
+  };
+
+  const simPlayers: SimPlayer[] = insights.players.map(p => ({
     userId: p.userId,
-    name: p.name,
     points: p.totalPoints,
-    avgPicks: p.avgPicksPerWeek || 3,
-    projectedPoints: p.projectedPoints,
-    maxCeiling: p.maxCeiling,
-    pickWinPct: p.pickWinPct,
+    locks: Math.max(1, Math.round(p.avgPicksPerWeek || 3)),
+    weekWinProb: probabilityFor(p.avgPicksPerWeek || 3),
   }));
 
-  const maxPoints = Math.max(0, ...leaders.map(l => l.points));
-  
-  // Overall league average for baseline reference
-  const validAvgs = leaders.filter(l => l.avgPicks > 0).map(l => l.avgPicks);
-  const leagueAvgPicks = validAvgs.length > 0
-    ? Number((validAvgs.reduce((a, b) => a + b, 0) / validAvgs.length).toFixed(1))
-    : 3;
+  // Simulate the rest of the season rather than scoring the points gap on a
+  // hand-tuned curve: this knows how many weeks are left to catch up in.
+  const odds = titleOdds(simPlayers, remainingWeeks, RUNS, makeRng(SIM_SEED));
+  const evLocks = bestLockCount(curve);
 
-  // Title odds computed using each person's actual pace and points gap
-  const raw = leaders.map((row) => {
+  const rows: PlayerOddsResult[] = insights.players.map((p) => {
     const bestOther = Math.max(
       0,
-      ...leaders.filter((r) => r.userId !== row.userId).map((r) => r.points)
+      ...insights.players.filter(r => r.userId !== p.userId).map(r => r.totalPoints)
     );
-    const margin = row.points - bestOther;
 
-    // Person's remaining potential points based on their own actual pace
-    const personSwing = Math.max(1, remainingWeeks * row.avgPicks);
+    const self = simPlayers.find(s => s.userId === p.userId)!;
+    const rivals = simPlayers.filter(s => s.userId !== p.userId);
 
-    // Scaling factor: larger swing allows comebacks; smaller personal swing penalizes deficits
-    const K = 3.5;
-    const score = logistic((K * margin) / personSwing);
-
-    // Boost score slightly if player has a higher projected final score
-    const projectedWeight = Math.max(0.1, (row.projectedPoints + 1) / (maxPoints + (remainingWeeks * leagueAvgPicks * 0.3) + 1));
-    const finalScore = score * Math.pow(projectedWeight, 0.5);
+    // Fewer runs here: this is a per-player search over every ticket size.
+    const leverage = remainingWeeks > 0
+      ? bestLeverageLocks(self, rivals, curve, remainingWeeks, 3000, makeRng(SIM_SEED + p.userId))
+      : { locks: self.locks, titleOdds: 0 };
 
     return {
-      userId: row.userId,
-      name: row.name,
-      points: row.points,
-      margin,
-      avgPicksPerWeek: row.avgPicks,
-      projectedPoints: row.projectedPoints,
-      maxCeiling: row.maxCeiling,
-      score: Math.max(0.001, finalScore),
+      userId: p.userId,
+      name: p.name,
+      points: p.totalPoints,
+      margin: p.totalPoints - bestOther,
+      avgPicksPerWeek: p.avgPicksPerWeek,
+      projectedPoints: p.projectedPoints,
+      maxCeiling: p.maxCeiling,
+      odds: odds.get(p.userId) ?? 0,
+      leverageLocks: leverage.locks,
+      evLocks,
     };
   });
 
-  const sum = raw.reduce((a, b) => a + b.score, 0) || 1;
-  const withPct: PlayerOddsResult[] = raw.map((r) => ({
-    userId: r.userId,
-    name: r.name,
-    points: r.points,
-    margin: r.margin,
-    avgPicksPerWeek: r.avgPicksPerWeek,
-    projectedPoints: r.projectedPoints,
-    maxCeiling: r.maxCeiling,
-    odds: Number(((r.score / sum) * 100).toFixed(1)),
-  }));
+  const validAvgs = insights.players.filter(p => p.avgPicksPerWeek > 0).map(p => p.avgPicksPerWeek);
+  const leagueAvgPicks = validAvgs.length > 0
+    ? Number((validAvgs.reduce((a, b) => a + b, 0) / validAvgs.length).toFixed(1))
+    : 3;
 
   return {
     season,
     week: currentWeek,
     remainingWeeks,
     avgPicksPerWeek: leagueAvgPicks,
-    odds: withPct.sort((a, b) => b.odds - a.odds),
+    evLocks,
+    odds: rows.sort((a, b) => b.odds - a.odds),
   };
 }
