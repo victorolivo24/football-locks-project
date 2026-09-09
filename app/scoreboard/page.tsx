@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import OddsCard from './OddsCard';
 import TeamLogo from '@/components/TeamLogo';
-import { PlayerInsights, LeagueSuperlative, SeasonInsightsData } from '@/lib/insights';
+import { PlayerInsights, LeagueSuperlative, SeasonInsightsData, SlateBusterTeam } from '@/lib/insights';
 
 interface WeeklyScore {
   week: number;
@@ -30,8 +30,10 @@ export default function ScoreboardPage() {
   const [insights, setInsights] = useState<SeasonInsightsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<number>(2026);
-  const [activeTab, setActiveTab] = useState<'scoreboard' | 'insights' | 'odds'>('scoreboard');
+  const [activeTab, setActiveTab] = useState<'scoreboard' | 'insights' | 'heartbreak' | 'gametheory'>('scoreboard');
   const [playerFilter, setPlayerFilter] = useState<'all' | 'high-volume' | 'home-biased' | 'primetime'>('all');
+  const [calculatorHitRate, setCalculatorHitRate] = useState<number>(70);
+
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -111,7 +113,6 @@ export default function ScoreboardPage() {
   const maxWeek = getMaxWeek();
   const currentWeekForOdds = Math.max(1, maxWeek || 1);
 
-  // Match player insights with scores
   const getPlayerInsight = (userId: number): PlayerInsights | undefined => {
     return insights?.players.find(p => p.userId === userId);
   };
@@ -134,6 +135,14 @@ export default function ScoreboardPage() {
     if (playerFilter === 'primetime') return p.primeTimePct >= 35;
     return true;
   });
+
+  // Calculate EV curve for interactive calculator
+  const p = calculatorHitRate / 100;
+  const evCurve = [1, 2, 3, 4, 5, 6].map(n => {
+    const ev = n * Math.pow(p, n);
+    return { n, ev: Number(ev.toFixed(2)), prob: Number((Math.pow(p, n) * 100).toFixed(1)) };
+  });
+  const bestCalculatorN = evCurve.reduce((max, curr) => curr.ev > max.ev ? curr : max, evCurve[0]);
 
   return (
     <div className="min-h-screen pb-12">
@@ -163,30 +172,30 @@ export default function ScoreboardPage() {
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-4 sm:px-0 space-y-6">
-          {/* Header Banner */}
+          {/* Header */}
           <div className="text-center space-y-1">
             <h1 className="text-4xl font-extrabold text-white tracking-tight">Scoreboard & Insights</h1>
             <p className="text-green-200 text-sm">
-              Season {season} • All-or-Nothing Scoring & Deep Lock Analytics
+              Season {season} • All-or-Nothing Scoring, Heartbreak Analytics & Game Theory
             </p>
           </div>
 
           {/* League Superlatives Highlight Bar */}
           {insights && insights.superlatives.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {insights.superlatives.map((sup, idx) => (
                 <div
                   key={idx}
-                  className="glass-section p-3.5 flex flex-col justify-between hover:border-yellow-400/40 transition-colors"
+                  className="glass-section p-3 flex flex-col justify-between hover:border-yellow-400/40 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xl">{sup.icon}</span>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
+                    <span className="text-lg">{sup.icon}</span>
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">
                       {sup.title}
                     </span>
                   </div>
                   <div>
-                    <div className="text-white font-bold text-base truncate">{sup.playerName}</div>
+                    <div className="text-white font-bold text-sm truncate">{sup.playerName}</div>
                     <div className="text-green-300 font-extrabold text-xs">{sup.stat}</div>
                     <div className="text-[10px] text-green-200/60 truncate mt-0.5" title={sup.description}>
                       {sup.description}
@@ -197,12 +206,12 @@ export default function ScoreboardPage() {
             </div>
           )}
 
-          {/* Navigation View Switcher */}
+          {/* Navigation Tabs */}
           <div className="flex justify-center">
-            <div className="inline-flex bg-black/40 p-1 rounded-2xl border border-white/10 shadow-xl backdrop-blur-md">
+            <div className="inline-flex bg-black/40 p-1 rounded-2xl border border-white/10 shadow-xl backdrop-blur-md flex-wrap justify-center gap-1">
               <button
                 onClick={() => setActiveTab('scoreboard')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex items-center space-x-2 ${
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 flex items-center space-x-1.5 ${
                   activeTab === 'scoreboard'
                     ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20'
                     : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -213,7 +222,7 @@ export default function ScoreboardPage() {
               </button>
               <button
                 onClick={() => setActiveTab('insights')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex items-center space-x-2 ${
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 flex items-center space-x-1.5 ${
                   activeTab === 'insights'
                     ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20'
                     : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -223,20 +232,31 @@ export default function ScoreboardPage() {
                 <span>Player Insights</span>
               </button>
               <button
-                onClick={() => setActiveTab('odds')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex items-center space-x-2 ${
-                  activeTab === 'odds'
+                onClick={() => setActiveTab('heartbreak')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 flex items-center space-x-1.5 ${
+                  activeTab === 'heartbreak'
                     ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20'
                     : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <span>🏆</span>
-                <span>Championship Odds</span>
+                <span>💔</span>
+                <span>Heartbreak & Busters</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('gametheory')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 flex items-center space-x-1.5 ${
+                  activeTab === 'gametheory'
+                    ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20'
+                    : 'text-white/70 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <span>🧮</span>
+                <span>Game Theory & Odds</span>
               </button>
             </div>
           </div>
 
-          {/* Tab 1: Leaderboard Table */}
+          {/* TAB 1: Classic Leaderboard */}
           {activeTab === 'scoreboard' && (
             <div className="space-y-6">
               <div className="glass-card overflow-hidden">
@@ -254,16 +274,16 @@ export default function ScoreboardPage() {
                           Total Pts
                         </th>
                         <th className="px-5 py-3.5 text-center text-xs font-semibold text-yellow-300 uppercase tracking-wider">
-                          Avg Locks/Wk
+                          Pace (Locks/Wk)
                         </th>
                         <th className="px-5 py-3.5 text-center text-xs font-semibold text-green-200 uppercase tracking-wider">
-                          Lock Record
+                          Optimal Strategy
                         </th>
                         <th className="px-5 py-3.5 text-center text-xs font-semibold text-green-200 uppercase tracking-wider">
-                          Home / Road
+                          Home / Away
                         </th>
                         <th className="px-5 py-3.5 text-center text-xs font-semibold text-green-200 uppercase tracking-wider">
-                          Prime Time
+                          Night Games
                         </th>
                         {Array.from({ length: maxWeek }, (_, i) => i + 1).map((week) => (
                           <th key={week} className="px-4 py-3.5 text-center text-xs font-medium text-green-200 uppercase tracking-wider">
@@ -305,18 +325,23 @@ export default function ScoreboardPage() {
                                 {userScore.totalScore}
                               </td>
                               <td className="px-5 py-4 whitespace-nowrap text-center">
-                                <span className="bg-yellow-400/10 text-yellow-300 border border-yellow-400/30 px-2 py-0.5 rounded-full text-xs font-bold">
+                                <span className="bg-yellow-400/10 text-yellow-300 border border-yellow-400/30 px-2.5 py-0.5 rounded-full text-xs font-bold">
                                   {insight?.avgPicksPerWeek?.toFixed(1) ?? '3.0'} / wk
                                 </span>
                               </td>
-                              <td className="px-5 py-4 whitespace-nowrap text-center text-xs text-white/90">
-                                {insight && insight.completedPicks > 0 ? (
-                                  <span className="font-semibold">
-                                    {insight.correctPicks}-{insight.completedPicks - insight.correctPicks}{' '}
-                                    <span className="text-green-300">({insight.pickWinPct}%)</span>
+                              <td className="px-5 py-4 whitespace-nowrap text-center">
+                                {insight ? (
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                    insight.optimalStrategy.strategyVerdict === 'Optimal'
+                                      ? 'bg-green-600/20 text-green-300 border border-green-500/30'
+                                      : insight.optimalStrategy.strategyVerdict === 'Lottery Hunter'
+                                      ? 'bg-purple-600/20 text-purple-200 border border-purple-500/30'
+                                      : 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
+                                  }`}>
+                                    {insight.optimalStrategy.strategyVerdict} ({insight.optimalStrategy.optimalPicks} opt)
                                   </span>
                                 ) : (
-                                  <span className="text-white/40">{insight?.totalPicks ?? 0} active</span>
+                                  <span className="text-white/40">-</span>
                                 )}
                               </td>
                               <td className="px-5 py-4 whitespace-nowrap text-center text-xs">
@@ -385,10 +410,9 @@ export default function ScoreboardPage() {
             </div>
           )}
 
-          {/* Tab 2: Deep Dive Player Insights */}
+          {/* TAB 2: Player Insights Cards */}
           {activeTab === 'insights' && (
             <div className="space-y-6">
-              {/* Filter pills */}
               <div className="flex flex-wrap gap-2 items-center justify-between">
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -432,181 +456,420 @@ export default function ScoreboardPage() {
                     🌙 Night Game Lovers
                   </button>
                 </div>
-                <span className="text-xs text-green-200/70">
-                  Showing {filteredPlayers.length} of {insights?.players.length || 0} players
-                </span>
               </div>
 
-              {/* Player Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {filteredPlayers.map((player, rankIndex) => {
-                  return (
-                    <div
-                      key={player.userId}
-                      className="glass-card p-5 space-y-4 hover:border-yellow-400/40 transition-all duration-300 flex flex-col justify-between"
-                    >
-                      {/* Card Header */}
-                      <div className="flex items-start justify-between border-b border-white/10 pb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-11 h-11 bg-gradient-to-br from-green-500 to-emerald-700 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-md border border-white/20">
-                            {player.name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <h3 className="text-white font-bold text-lg">{player.name}</h3>
-                              <span className="bg-yellow-400/20 text-yellow-300 text-xs px-2 py-0.5 rounded font-bold">
-                                #{rankIndex + 1}
-                              </span>
-                            </div>
-                            <span className="text-xs text-green-200/70">
-                              {player.totalPoints} total points • {player.activeWeeks} active {player.activeWeeks === 1 ? 'week' : 'weeks'}
+                {filteredPlayers.map((player, rankIndex) => (
+                  <div
+                    key={player.userId}
+                    className="glass-card p-5 space-y-4 hover:border-yellow-400/40 transition-all duration-300 flex flex-col justify-between"
+                  >
+                    <div className="flex items-start justify-between border-b border-white/10 pb-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-11 h-11 bg-gradient-to-br from-green-500 to-emerald-700 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-md border border-white/20">
+                          {player.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h3 className="text-white font-bold text-lg">{player.name}</h3>
+                            <span className="bg-yellow-400/20 text-yellow-300 text-xs px-2 py-0.5 rounded font-bold">
+                              #{rankIndex + 1}
                             </span>
                           </div>
-                        </div>
-
-                        {player.topTeams?.[0] && (
-                          <div className="flex flex-col items-center">
-                            <TeamLogo team={player.topTeams[0].team} size="sm" />
-                            <span className="text-[10px] text-white/60 mt-1 font-semibold">Fav Team</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Stat Tiles Grid */}
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                          <div className="text-[11px] text-white/60 font-medium">Picks / Week</div>
-                          <div className="text-lg font-extrabold text-yellow-300">
-                            {player.avgPicksPerWeek.toFixed(1)}
-                            <span className="text-xs font-normal text-white/60 ml-1">avg</span>
-                          </div>
-                          <div className="text-[10px] text-green-200/60">
-                            {player.totalPicks} total locks chosen
-                          </div>
-                        </div>
-
-                        <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                          <div className="text-[11px] text-white/60 font-medium">Lock Hit Rate</div>
-                          <div className="text-lg font-extrabold text-white">
-                            {player.completedPicks > 0 ? `${player.pickWinPct}%` : 'N/A'}
-                          </div>
-                          <div className="text-[10px] text-green-200/60">
-                            {player.completedPicks > 0
-                              ? `${player.correctPicks}/${player.completedPicks} games hit`
-                              : `${player.totalPicks} pending games`}
-                          </div>
-                        </div>
-
-                        <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                          <div className="text-[11px] text-white/60 font-medium">Prime Time Games</div>
-                          <div className="text-lg font-extrabold text-indigo-300">
-                            {player.primeTimePct}%
-                          </div>
-                          <div className="text-[10px] text-green-200/60">
-                            {player.primeTimePicks} of {player.totalPicks} night locks
-                          </div>
-                        </div>
-
-                        <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                          <div className="text-[11px] text-white/60 font-medium">Perfect Weeks</div>
-                          <div className="text-lg font-extrabold text-green-300">
-                            {player.perfectWeeks}
-                            <span className="text-xs font-normal text-white/60 ml-1">cashed</span>
-                          </div>
-                          <div className="text-[10px] text-green-200/60">
-                            Best week: {player.maxWeekScore} pts
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Home vs Road Tendency Bar */}
-                      <div className="space-y-1.5 bg-black/20 p-3 rounded-xl border border-white/5">
-                        <div className="flex justify-between text-xs font-medium text-white/80">
-                          <span className="flex items-center space-x-1">
-                            <span>🏠 Home:</span>
-                            <span className="text-blue-300 font-bold">{player.homePct}% ({player.homePicks})</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <span>Away:</span>
-                            <span className="text-orange-300 font-bold">{player.awayPct}% ({player.awayPicks})</span>
-                            <span>✈️</span>
+                          <span className="text-xs text-green-200/70">
+                            {player.totalPoints} total points • {player.activeWeeks} active {player.activeWeeks === 1 ? 'week' : 'weeks'}
                           </span>
                         </div>
-                        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden flex">
-                          <div
-                            className="bg-blue-500 h-full rounded-l-full transition-all duration-300"
-                            style={{ width: `${player.homePct}%` }}
-                            title={`Home Picks: ${player.homePct}%`}
-                          />
-                          <div
-                            className="bg-orange-500 h-full rounded-r-full transition-all duration-300"
-                            style={{ width: `${player.awayPct}%` }}
-                            title={`Away Picks: ${player.awayPct}%`}
-                          />
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] text-green-200/60 pt-0.5">
-                          <span>Tendency: <strong className="text-white">{player.homeTendency}</strong></span>
-                          <span>Max Potential: <strong className="text-yellow-300">{player.maxCeiling} pts</strong></span>
-                        </div>
                       </div>
 
-                      {/* Favorite Teams Locked */}
-                      {player.topTeams && player.topTeams.length > 0 && (
-                        <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-                          <span className="text-white/60">Most Locked:</span>
-                          <div className="flex items-center space-x-3">
-                            {player.topTeams.map((t, i) => (
-                              <div key={i} className="flex items-center space-x-1">
-                                <TeamLogo team={t.team} size="sm" className="scale-75" />
-                                <span className="font-semibold text-white">{t.team}</span>
-                                <span className="text-[10px] text-green-200/70">({t.count}x)</span>
-                              </div>
-                            ))}
-                          </div>
+                      {player.topTeams?.[0] && (
+                        <div className="flex flex-col items-center">
+                          <TeamLogo team={player.topTeams[0].team} size="sm" />
+                          <span className="text-[10px] text-white/60 mt-1 font-semibold">Fav Team</span>
                         </div>
                       )}
                     </div>
-                  );
-                })}
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                        <div className="text-[11px] text-white/60 font-medium">Picks / Week</div>
+                        <div className="text-lg font-extrabold text-yellow-300">
+                          {player.avgPicksPerWeek.toFixed(1)}
+                          <span className="text-xs font-normal text-white/60 ml-1">avg</span>
+                        </div>
+                        <div className="text-[10px] text-green-200/60">
+                          {player.totalPicks} total locks chosen
+                        </div>
+                      </div>
+
+                      <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                        <div className="text-[11px] text-white/60 font-medium">Lock Hit Rate</div>
+                        <div className="text-lg font-extrabold text-white">
+                          {player.completedPicks > 0 ? `${player.pickWinPct}%` : 'Pending'}
+                        </div>
+                        <div className="text-[10px] text-green-200/60">
+                          {player.completedPicks > 0
+                            ? `${player.correctPicks}/${player.completedPicks} games hit`
+                            : `${player.totalPicks} games in play`}
+                        </div>
+                      </div>
+
+                      <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                        <div className="text-[11px] text-white/60 font-medium">Prime Time Games</div>
+                        <div className="text-lg font-extrabold text-indigo-300">
+                          {player.primeTimePct}%
+                        </div>
+                        <div className="text-[10px] text-green-200/60">
+                          {player.primeTimePicks} of {player.totalPicks} night locks
+                        </div>
+                      </div>
+
+                      <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                        <div className="text-[11px] text-white/60 font-medium">Perfect Weeks</div>
+                        <div className="text-lg font-extrabold text-green-300">
+                          {player.perfectWeeks}
+                          <span className="text-xs font-normal text-white/60 ml-1">cashed</span>
+                        </div>
+                        <div className="text-[10px] text-green-200/60">
+                          Best week: {player.maxWeekScore} pts
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 bg-black/20 p-3 rounded-xl border border-white/5">
+                      <div className="flex justify-between text-xs font-medium text-white/80">
+                        <span className="flex items-center space-x-1">
+                          <span>🏠 Home:</span>
+                          <span className="text-blue-300 font-bold">{player.homePct}% ({player.homePicks})</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <span>Away:</span>
+                          <span className="text-orange-300 font-bold">{player.awayPct}% ({player.awayPicks})</span>
+                          <span>✈️</span>
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden flex">
+                        <div
+                          className="bg-blue-500 h-full rounded-l-full transition-all duration-300"
+                          style={{ width: `${player.homePct}%` }}
+                        />
+                        <div
+                          className="bg-orange-500 h-full rounded-r-full transition-all duration-300"
+                          style={{ width: `${player.awayPct}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] text-green-200/60 pt-0.5">
+                        <span>Tendency: <strong className="text-white">{player.homeTendency}</strong></span>
+                        <span>Max Potential: <strong className="text-yellow-300">{player.maxCeiling} pts</strong></span>
+                      </div>
+                    </div>
+
+                    {player.topTeams && player.topTeams.length > 0 && (
+                      <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
+                        <span className="text-white/60">Most Locked:</span>
+                        <div className="flex items-center space-x-3">
+                          {player.topTeams.map((t, i) => (
+                            <div key={i} className="flex items-center space-x-1">
+                              <TeamLogo team={t.team} size="sm" className="scale-75" />
+                              <span className="font-semibold text-white">{t.team}</span>
+                              <span className="text-[10px] text-green-200/70">({t.count}x)</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Tab 3: Championship Odds & Projections */}
-          {activeTab === 'odds' && (
-            <div className="grid gap-6 md:grid-cols-2">
-              <OddsCard season={season} week={currentWeekForOdds} />
-
+          {/* TAB 3: Heartbreak & Slate Busters */}
+          {activeTab === 'heartbreak' && (
+            <div className="space-y-6">
+              {/* Slate Busters Banner */}
               <div className="glass-card p-6 space-y-4">
-                <div className="flex items-center space-x-2">
-                  <span className="text-2xl">📈</span>
-                  <h3 className="text-white font-bold text-xl">Pace & Projections Engine</h3>
+                <div className="flex items-center space-x-3">
+                  <span className="text-3xl">💥</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">The "Slate Busters" (League Nemesis Teams)</h2>
+                    <p className="text-xs text-green-200/80">
+                      NFL teams that single-handedly ruined friends' perfect tickets by losing when locked
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm text-green-200/90 leading-relaxed">
-                  Unlike traditional pick'ems with flat predictions, our model uses each player's <strong>actual picking volume</strong> (e.g. David’s 6 picks/wk vs Dakota’s 1 pick/wk) and historical slate hit rate.
-                </p>
 
-                <div className="space-y-3 pt-2">
-                  <div className="bg-white/5 p-3.5 rounded-xl border border-white/10 space-y-1">
-                    <div className="text-sm font-bold text-yellow-300">High Volume Upside</div>
-                    <p className="text-xs text-white/80">
-                      Picking 5–6 games creates explosive point opportunities on perfect weeks (up to 6 points in a single week), but significantly lowers week-to-week cash probability.
+                {insights?.slateBusters && insights.slateBusters.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                    {insights.slateBusters.map((buster, i) => (
+                      <div
+                        key={buster.team}
+                        className="glass-section p-4 flex items-center space-x-4 border-red-500/20 bg-red-950/10"
+                      >
+                        <div className="relative">
+                          <TeamLogo team={buster.team} size="md" />
+                          <span className="absolute -top-1 -left-1 bg-red-600 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
+                            #{i + 1}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-white text-base truncate">{buster.team}</div>
+                          <div className="text-red-300 font-extrabold text-xs">
+                            {buster.lossesCaused} ticket{buster.lossesCaused === 1 ? '' : 's'} busted
+                          </div>
+                          <div className="text-[10px] text-white/60 truncate mt-0.5">
+                            Victims: {buster.victims.join(', ')}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-extrabold text-yellow-400">
+                            ~{buster.pointsRuined} pts
+                          </span>
+                          <div className="text-[9px] text-white/40">ruined</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-white/5 p-6 rounded-xl text-center text-sm text-green-200/80">
+                    🛡️ No tickets have been busted by final games yet! As games finish, the league's most notorious spoiler teams will appear here.
+                  </div>
+                )}
+              </div>
+
+              {/* Heartbreak Index Table */}
+              <div className="glass-card overflow-hidden">
+                <div className="p-5 border-b border-white/10 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-2xl">💔</span>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">The Heartbreak Index (One Pick Away)</h3>
+                      <p className="text-xs text-green-200/80">
+                        Tracks slates where a player was just <strong>1 game away</strong> from cashing a perfect payout
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/5">
+                        <th className="px-5 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
+                          Player
+                        </th>
+                        <th className="px-5 py-3 text-center text-xs font-bold text-red-300 uppercase tracking-wider">
+                          1-Miss Weeks
+                        </th>
+                        <th className="px-5 py-3 text-center text-xs font-bold text-yellow-300 uppercase tracking-wider">
+                          Points Left On Table
+                        </th>
+                        <th className="px-5 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
+                          Toughest Beat
+                        </th>
+                        <th className="px-5 py-3 text-right text-xs font-bold text-green-200 uppercase tracking-wider">
+                          Heartbreak Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {insights?.players.map((p) => {
+                        const hb = p.heartbreak;
+                        const hasHeartbreak = hb.heartbreakWeeks > 0;
+                        return (
+                          <tr key={p.userId} className="hover:bg-white/5 transition-colors">
+                            <td className="px-5 py-4 whitespace-nowrap text-sm font-bold text-white">
+                              {p.name}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-center text-sm font-extrabold text-red-300">
+                              {hb.heartbreakWeeks}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-center text-sm font-extrabold text-yellow-300">
+                              {hb.pointsLostToHeartbreak > 0 ? `-${hb.pointsLostToHeartbreak} pts` : '0 pts'}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-xs text-white/90">
+                              {hb.worstHeartbreak ? (
+                                <span>
+                                  Week {hb.worstHeartbreak.week}: Went {hb.worstHeartbreak.record} (Spoiled by {hb.worstHeartbreak.spoilerTeam})
+                                </span>
+                              ) : (
+                                <span className="text-white/40">Clean slate so far</span>
+                              )}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-right">
+                              {hasHeartbreak ? (
+                                <span className="bg-red-900/30 text-red-200 border border-red-500/30 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                                  💔 Robbed
+                                </span>
+                              ) : (
+                                <span className="bg-green-900/20 text-green-300 border border-green-500/20 text-xs px-2.5 py-0.5 rounded-full font-semibold">
+                                  ✅ Unscathed
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: Game Theory & Optimal Pick Calculator */}
+          {activeTab === 'gametheory' && (
+            <div className="space-y-6">
+              {/* Interactive Sweet Spot Simulator */}
+              <div className="glass-card p-6 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-2xl">🧮</span>
+                      <h2 className="text-2xl font-bold text-white">Mathematically Optimal Pick Calculator</h2>
+                    </div>
+                    <p className="text-xs text-green-200/80 mt-1">
+                      In all-or-nothing scoring, Expected Value is <code className="bg-black/30 px-1 rounded text-yellow-300">EV(N) = N × (hitRate)^N</code>.
+                      See where your theoretical sweet spot lies!
                     </p>
                   </div>
 
-                  <div className="bg-white/5 p-3.5 rounded-xl border border-white/10 space-y-1">
-                    <div className="text-sm font-bold text-blue-300">Conservative Sniper Strategy</div>
-                    <p className="text-xs text-white/80">
-                      Picking 1–2 locks increases the mathematical chance of a clean sheet, providing a steady floor with limited ceiling.
-                    </p>
+                  <div className="bg-white/10 p-3 rounded-xl border border-white/10 flex items-center space-x-3 shrink-0">
+                    <div className="text-right">
+                      <div className="text-[10px] text-white/60 uppercase font-semibold">Simulated Win Rate</div>
+                      <div className="text-xl font-black text-yellow-400">{calculatorHitRate}%</div>
+                    </div>
+                    <input
+                      type="range"
+                      min="50"
+                      max="90"
+                      step="1"
+                      value={calculatorHitRate}
+                      onChange={(e) => setCalculatorHitRate(Number(e.target.value))}
+                      className="w-28 accent-yellow-400 cursor-pointer"
+                    />
                   </div>
+                </div>
 
-                  <div className="bg-white/5 p-3.5 rounded-xl border border-white/10 space-y-1">
-                    <div className="text-sm font-bold text-green-300">Comeback Math</div>
-                    <p className="text-xs text-white/80">
-                      With {Math.max(0, 18 - currentWeekForOdds)} weeks remaining, a 6-pick player has a theoretical ceiling of +{(Math.max(0, 18 - currentWeekForOdds) * 6)} points, keeping title dreams alive late into December.
-                    </p>
-                  </div>
+                {/* EV Curve Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {evCurve.map((tier) => {
+                    const isOptimal = tier.n === bestCalculatorN.n;
+                    return (
+                      <div
+                        key={tier.n}
+                        className={`p-3.5 rounded-xl border text-center transition-all duration-300 ${
+                          isOptimal
+                            ? 'bg-gradient-to-b from-yellow-500/20 to-yellow-600/10 border-yellow-400/60 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                            : 'bg-white/5 border-white/10'
+                        }`}
+                      >
+                        {isOptimal && (
+                          <span className="text-[9px] uppercase font-black tracking-wider bg-yellow-400 text-black px-1.5 py-0.5 rounded-full inline-block mb-1">
+                            Optimal Sweet Spot
+                          </span>
+                        )}
+                        <div className="text-sm font-bold text-white">{tier.n} Locks / Wk</div>
+                        <div className="text-2xl font-black text-yellow-300 my-1">
+                          {tier.ev} <span className="text-xs font-medium text-white/60">EV pts</span>
+                        </div>
+                        <div className="text-[10px] text-green-200/70">
+                          {tier.prob}% cash chance
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-green-200/80 flex items-center space-x-2">
+                  <span>💡</span>
+                  <span>
+                    <strong>Takeaway:</strong> At a <strong>{calculatorHitRate}%</strong> hit rate, choosing <strong>{bestCalculatorN.n} locks</strong> maximizes your expected long-term points ({bestCalculatorN.ev} pts/wk). Choosing more locks gives bigger jackpot weeks, but lowers overall expected season points!
+                  </span>
+                </div>
+              </div>
+
+              {/* Player Game Theory Strategy Table */}
+              <div className="glass-card overflow-hidden">
+                <div className="p-5 border-b border-white/10">
+                  <h3 className="text-xl font-bold text-white">Player Strategy Diagnostics</h3>
+                  <p className="text-xs text-green-200/80">
+                    Comparing each player's actual picking volume vs. their mathematically optimal volume
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/5">
+                        <th className="px-5 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
+                          Player
+                        </th>
+                        <th className="px-5 py-3 text-center text-xs font-bold text-yellow-300 uppercase tracking-wider">
+                          Actual Pace
+                        </th>
+                        <th className="px-5 py-3 text-center text-xs font-bold text-green-200 uppercase tracking-wider">
+                          Game Theory Optimal
+                        </th>
+                        <th className="px-5 py-3 text-center text-xs font-bold text-green-200 uppercase tracking-wider">
+                          Strategy Verdict
+                        </th>
+                        <th className="px-5 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
+                          Game Theory Advice
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {insights?.players.map((p) => {
+                        const strat = p.optimalStrategy;
+                        return (
+                          <tr key={p.userId} className="hover:bg-white/5 transition-colors">
+                            <td className="px-5 py-4 whitespace-nowrap text-sm font-bold text-white">
+                              {p.name}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-center text-sm font-extrabold text-yellow-300">
+                              {p.avgPicksPerWeek.toFixed(1)} locks/wk
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-center text-sm font-extrabold text-green-300">
+                              {strat.optimalPicks} locks/wk ({strat.optimalEV} EV)
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-center">
+                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                                strat.strategyVerdict === 'Optimal'
+                                  ? 'bg-green-600/20 text-green-300 border border-green-500/30'
+                                  : strat.strategyVerdict === 'Lottery Hunter'
+                                  ? 'bg-purple-600/20 text-purple-200 border border-purple-500/30'
+                                  : 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
+                              }`}>
+                                {strat.strategyVerdict === 'Optimal' ? '🎯 Optimal' : strat.strategyVerdict === 'Lottery Hunter' ? '🎰 High Roller' : '🛡️ Conservative'}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4 text-xs text-white/80 max-w-md">
+                              {strat.advice}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Title Odds card side-by-side */}
+              <div className="grid gap-6 md:grid-cols-2">
+                <OddsCard season={season} week={currentWeekForOdds} />
+
+                <div className="glass-card p-5 space-y-3">
+                  <h3 className="text-white font-bold text-lg flex items-center space-x-2">
+                    <span>💡</span>
+                    <span>The All-or-Nothing Paradox</span>
+                  </h3>
+                  <p className="text-sm text-green-200/90 leading-relaxed">
+                    Because picking 6 locks requires 6 consecutive hits ($p^6$), even an elite 75% picker only has a <strong>17.8% chance</strong> of cashing any given week.
+                  </p>
+                  <p className="text-sm text-green-200/90 leading-relaxed">
+                    Meanwhile, picking 3 locks gives that same player a <strong>42.2% chance</strong> to cash 3 points. High volume creates dramatic comeback potential, but conservative locks build championship consistency!
+                  </p>
                 </div>
               </div>
             </div>

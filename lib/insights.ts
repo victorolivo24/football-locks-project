@@ -3,6 +3,27 @@ import { sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { isSameTeam, normalizeTeam } from './teams';
 
+export interface HeartbreakStats {
+  heartbreakWeeks: number; // Number of weeks with exactly 1 loss (and >= 2 picks)
+  pointsLostToHeartbreak: number; // Sum of potential points from those 1-miss weeks
+  worstHeartbreak?: {
+    week: number;
+    record: string; // e.g. "5 of 6"
+    potentialPoints: number;
+    spoilerTeam: string;
+  } | null;
+}
+
+export interface OptimalPicksStats {
+  effectiveHitRate: number; // In percentage (e.g. 72)
+  optimalPicks: number; // Recommended number of picks per week (e.g. 3)
+  optimalEV: number; // Expected points per week if picking optimal number
+  currentEV: number; // Expected points per week at current pace
+  strategyVerdict: 'Optimal' | 'Lottery Hunter' | 'Conservative';
+  evDifference: number; // optimalEV - currentEV
+  advice: string;
+}
+
 export interface PlayerInsights {
   userId: number;
   name: string;
@@ -30,6 +51,15 @@ export interface PlayerInsights {
   projectedPoints: number;
   maxCeiling: number;
   weeklyPicksBreakdown: Record<number, number>;
+  heartbreak: HeartbreakStats;
+  optimalStrategy: OptimalPicksStats;
+}
+
+export interface SlateBusterTeam {
+  team: string;
+  lossesCaused: number; // Number of player locks on this team that lost
+  victims: string[]; // Names of players who lost with this team
+  pointsRuined: number; // Estimated points lost by tickets containing this team
 }
 
 export interface LeagueSuperlative {
@@ -46,6 +76,7 @@ export interface SeasonInsightsData {
   remainingWeeks: number;
   players: PlayerInsights[];
   superlatives: LeagueSuperlative[];
+  slateBusters: SlateBusterTeam[];
 }
 
 /**
@@ -61,36 +92,91 @@ export function isPrimeTimeGame(startTime: Date | string): boolean {
 
   if (!dt.isValid) return false;
 
-  // In America/New_York:
-  // Thursday = 4, Monday = 1, Sunday = 7
-  if (dt.hour >= 19) return true; // Standard 7 PM+ kickoff
+  if (dt.hour >= 19) return true;
   if ((dt.weekday === 4 || dt.weekday === 1) && dt.hour >= 18) return true;
   return false;
 }
 
+/**
+ * Game Theory: Calculate optimal number of locks N in all-or-nothing scoring
+ * EV(N) = N * (p ^ N)
+ */
+export function calculateOptimalPicks(
+  rawHitRate: number,
+  totalCompletedPicks: number,
+  currentAvgPicks: number
+): OptimalPicksStats {
+  // Empirical Bayes smoothing: regress towards 65% baseline if low sample size
+  const priorRate = 0.65;
+  const priorWeight = 6; // Equivalent to 6 previous games of prior
+  const smoothedRate = totalCompletedPicks > 0
+    ? ((rawHitRate / 100) * totalCompletedPicks + priorRate * priorWeight) / (totalCompletedPicks + priorWeight)
+    : priorRate;
+
+  const p = Math.max(0.35, Math.min(0.95, smoothedRate));
+  const hitRatePct = Math.round(p * 100);
+
+  // Evaluate N from 1 to 8
+  let bestN = 1;
+  let maxEV = -1;
+  const evMap: Record<number, number> = {};
+
+  for (let n = 1; n <= 8; n++) {
+    const ev = n * Math.pow(p, n);
+    evMap[n] = ev;
+    if (ev > maxEV) {
+      maxEV = ev;
+      bestN = n;
+    }
+  }
+
+  const roundedCurrentPicks = Math.max(1, Math.min(8, Math.round(currentAvgPicks)));
+  const currentEV = evMap[roundedCurrentPicks] ?? (currentAvgPicks * Math.pow(p, currentAvgPicks));
+  const diff = Number((maxEV - currentEV).toFixed(2));
+
+  let strategyVerdict: 'Optimal' | 'Lottery Hunter' | 'Conservative' = 'Optimal';
+  let advice = `Picking ${bestN} locks per week maximizes your expected weekly points (${maxEV.toFixed(2)} pts/wk).`;
+
+  if (currentAvgPicks >= bestN + 1.2) {
+    strategyVerdict = 'Lottery Hunter';
+    advice = `You're picking ${currentAvgPicks.toFixed(1)} locks/wk, but with a ${hitRatePct}% hit rate, dialling down to ${bestN} locks would increase your expected payout from ${currentEV.toFixed(2)} to ${maxEV.toFixed(2)} pts/wk.`;
+  } else if (currentAvgPicks <= bestN - 1.2) {
+    strategyVerdict = 'Conservative';
+    advice = `You're currently playing it safe at ${currentAvgPicks.toFixed(1)} locks/wk. With your ${hitRatePct}% accuracy, bumping up to ${bestN} locks would maximize your point pace.`;
+  } else {
+    strategyVerdict = 'Optimal';
+    advice = `You are dialed into the mathematical sweet spot! Picking ~${bestN} locks per week maximizes your long-term title equity.`;
+  }
+
+  return {
+    effectiveHitRate: hitRatePct,
+    optimalPicks: bestN,
+    optimalEV: Number(maxEV.toFixed(2)),
+    currentEV: Number(currentEV.toFixed(2)),
+    strategyVerdict,
+    evDifference: Math.max(0, diff),
+    advice,
+  };
+}
+
 export async function getSeasonInsights(season: number, currentWeekOverride?: number): Promise<SeasonInsightsData> {
-  // 1. Fetch all users
   const allUsers = await db.query.users.findMany({
     orderBy: (users, { asc }) => [asc(users.name)],
   });
 
-  // 2. Fetch games for this season
   const seasonGames = await db.query.games.findMany({
     where: (games, { eq }) => eq(games.season, season),
     orderBy: (games, { asc }) => [asc(games.startTime)],
   });
 
-  // 3. Fetch picks for this season
   const seasonPicks = await db.query.picks.findMany({
     where: (picks, { eq }) => eq(picks.season, season),
   });
 
-  // 4. Fetch weekly scores for this season
   const seasonScores = await db.query.weeklyScores.findMany({
     where: (weeklyScores, { eq }) => eq(weeklyScores.season, season),
   });
 
-  // Determine active/max week
   const weeksWithPicks = seasonPicks.map(p => p.week);
   const maxWeekInPicks = weeksWithPicks.length > 0 ? Math.max(...weeksWithPicks) : 1;
   const currentWeek = currentWeekOverride || Math.max(1, maxWeekInPicks);
@@ -101,9 +187,8 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     gameMap.set(Number(g.id), g);
   }
 
-  // Calculate league average picks per active week as baseline fallback
-  let leagueTotalPicks = 0;
-  let leagueTotalActiveWeeks = 0;
+  // Slate busters tracker: map team -> losses caused
+  const slateBusterMap = new Map<string, { lossesCaused: number; victims: Set<string>; pointsRuined: number }>();
 
   const playerStatsMap = new Map<number, PlayerInsights>();
 
@@ -112,15 +197,14 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     const userScores = seasonScores.filter(s => s.userId === user.id);
     const totalPoints = userScores.reduce((sum, s) => sum + s.points, 0);
 
-    const weeklyBreakdown: Record<number, number> = {};
+    const weeklyPicksMap: Record<number, typeof userPicks> = {};
     for (const p of userPicks) {
-      weeklyBreakdown[p.week] = (weeklyBreakdown[p.week] || 0) + 1;
+      if (!weeklyPicksMap[p.week]) weeklyPicksMap[p.week] = [];
+      weeklyPicksMap[p.week].push(p);
     }
 
-    const activeWeeks = Object.keys(weeklyBreakdown).length;
+    const activeWeeks = Object.keys(weeklyPicksMap).length;
     const totalPicks = userPicks.length;
-    leagueTotalPicks += totalPicks;
-    leagueTotalActiveWeeks += activeWeeks;
 
     let homePicks = 0;
     let awayPicks = 0;
@@ -151,7 +235,20 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
         if (g.status === 'final' && g.winnerTeam) {
           completedPicks++;
           const hit = isSameTeam(g.winnerTeam, p.pickedTeam);
-          if (hit) correctPicks++;
+          if (hit) {
+            correctPicks++;
+          } else {
+            // Pick LOST! Track as slate buster
+            const existingBuster = slateBusterMap.get(normPicked) || {
+              lossesCaused: 0,
+              victims: new Set<string>(),
+              pointsRuined: 0,
+            };
+            existingBuster.lossesCaused++;
+            existingBuster.victims.add(user.name);
+            existingBuster.pointsRuined += (weeklyPicksMap[p.week]?.length || 3);
+            slateBusterMap.set(normPicked, existingBuster);
+          }
 
           if (isPrime) {
             primeTimeCompleted++;
@@ -177,21 +274,66 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
 
     const maxWeekScore = userScores.length > 0 ? Math.max(...userScores.map(s => s.points)) : 0;
 
+    // Heartbreak Index Calculation:
+    // Weeks with >= 2 picks where user got EXACTLY 1 pick wrong
+    let heartbreakWeeks = 0;
+    let pointsLostToHeartbreak = 0;
+    let worstHeartbreak: HeartbreakStats['worstHeartbreak'] = null;
+
+    for (const [wStr, picksForWeek] of Object.entries(weeklyPicksMap)) {
+      const weekNum = Number(wStr);
+      if (picksForWeek.length < 2) continue;
+
+      let weekFinals = 0;
+      let weekLosses = 0;
+      let spoilerTeam = '';
+
+      for (const p of picksForWeek) {
+        const g = gameMap.get(Number(p.gameId)) ||
+          seasonGames.find(sg => sg.week === weekNum && (isSameTeam(sg.homeTeam, p.pickedTeam) || isSameTeam(sg.awayTeam, p.pickedTeam)));
+
+        if (g && g.status === 'final' && g.winnerTeam) {
+          weekFinals++;
+          if (!isSameTeam(g.winnerTeam, p.pickedTeam)) {
+            weekLosses++;
+            spoilerTeam = normalizeTeam(p.pickedTeam);
+          }
+        }
+      }
+
+      // If all games are completed and exactly 1 loss
+      if (weekFinals === picksForWeek.length && weekLosses === 1) {
+        heartbreakWeeks++;
+        const ptsLost = picksForWeek.length;
+        pointsLostToHeartbreak += ptsLost;
+
+        if (!worstHeartbreak || ptsLost > worstHeartbreak.potentialPoints) {
+          worstHeartbreak = {
+            week: weekNum,
+            record: `${picksForWeek.length - 1} of ${picksForWeek.length}`,
+            potentialPoints: ptsLost,
+            spoilerTeam: spoilerTeam || 'Unknown',
+          };
+        }
+      }
+    }
+
+    // Optimal Picks Game Theory Engine
+    const optimalStrategy = calculateOptimalPicks(pickWinPct, completedPicks, avgPicksPerWeek);
+
     const sortedTeams = Object.entries(teamCounts)
       .map(([team, count]) => ({ team, count }))
       .sort((a, b) => b.count - a.count);
 
-    // Personalized projections:
-    // Max ceiling = currentPoints + (remainingWeeks * avgPicksPerWeek)
     const maxCeiling = totalPoints + Math.round(remainingWeeks * avgPicksPerWeek);
-
-    // Expected weekly points calculation based on hit rate:
-    // In all-or-nothing: if picking n games with accuracy p, P(all correct) = p^n, expected pts/wk = n * p^n
-    // If no completed picks yet, default to historical baseline p = 0.65
-    const hitRateDec = completedPicks >= 3 ? (correctPicks / completedPicks) : 0.65;
-    const expWinWeekProb = Math.pow(Math.max(0.2, Math.min(0.95, hitRateDec)), avgPicksPerWeek);
+    const expWinWeekProb = Math.pow(optimalStrategy.effectiveHitRate / 100, avgPicksPerWeek);
     const expPtsPerWeek = avgPicksPerWeek * expWinWeekProb;
     const projectedPoints = Number((totalPoints + (remainingWeeks * expPtsPerWeek)).toFixed(1));
+
+    const weeklyCounts: Record<number, number> = {};
+    for (const [w, picks] of Object.entries(weeklyPicksMap)) {
+      weeklyCounts[Number(w)] = picks.length;
+    }
 
     playerStatsMap.set(user.id, {
       userId: user.id,
@@ -219,7 +361,13 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
       topTeams: sortedTeams.slice(0, 3),
       projectedPoints,
       maxCeiling,
-      weeklyPicksBreakdown: weeklyBreakdown,
+      weeklyPicksBreakdown: weeklyCounts,
+      heartbreak: {
+        heartbreakWeeks,
+        pointsLostToHeartbreak,
+        worstHeartbreak,
+      },
+      optimalStrategy,
     });
   }
 
@@ -228,10 +376,20 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     return b.pickWinPct - a.pickWinPct;
   });
 
-  // Calculate League Superlatives
+  // Slate Busters ranked
+  const slateBusters: SlateBusterTeam[] = Array.from(slateBusterMap.entries())
+    .map(([team, data]) => ({
+      team,
+      lossesCaused: data.lossesCaused,
+      victims: Array.from(data.victims),
+      pointsRuined: data.pointsRuined,
+    }))
+    .sort((a, b) => b.lossesCaused - a.lossesCaused);
+
+  // League Superlatives
   const superlatives: LeagueSuperlative[] = [];
 
-  // 1. Most Aggressive Lock Picker (highest avg picks/week, with at least 1 pick)
+  // 1. High Roller
   const pickVolumeLeader = [...players].filter(p => p.totalPicks > 0).sort((a, b) => b.avgPicksPerWeek - a.avgPicksPerWeek)[0];
   if (pickVolumeLeader && pickVolumeLeader.avgPicksPerWeek > 0) {
     superlatives.push({
@@ -243,31 +401,31 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     });
   }
 
-  // 2. Conservative / Surgical Picker (lowest avg picks/week >= 1)
-  const conservativePicker = [...players].filter(p => p.totalPicks > 0).sort((a, b) => a.avgPicksPerWeek - b.avgPicksPerWeek)[0];
-  if (conservativePicker && conservativePicker.userId !== pickVolumeLeader?.userId) {
+  // 2. Heartbreak King (most 1-pick heartbreak weeks or points lost)
+  const heartbreakKing = [...players].sort((a, b) => b.heartbreak.pointsLostToHeartbreak - a.heartbreak.pointsLostToHeartbreak)[0];
+  if (heartbreakKing && heartbreakKing.heartbreak.heartbreakWeeks > 0) {
     superlatives.push({
-      title: 'Sniper',
-      icon: '🎯',
-      playerName: conservativePicker.name,
-      stat: `${conservativePicker.avgPicksPerWeek} picks/wk`,
-      description: 'Ultra-selective, quality-over-quantity approach',
+      title: 'Heartbreak King',
+      icon: '💔',
+      playerName: heartbreakKing.name,
+      stat: `-${heartbreakKing.heartbreak.pointsLostToHeartbreak} pts`,
+      description: `${heartbreakKing.heartbreak.heartbreakWeeks} slate(s) ruined by just 1 wrong lock`,
     });
   }
 
-  // 3. Homefield Believer (highest home %)
-  const homeAdvocate = [...players].filter(p => p.totalPicks >= 2).sort((a, b) => b.homePct - a.homePct)[0];
-  if (homeAdvocate && homeAdvocate.homePct >= 50) {
+  // 3. Mathematical Genius / Optimal Picker
+  const optimalMaster = [...players].filter(p => p.totalPicks > 0).sort((a, b) => a.optimalStrategy.evDifference - b.optimalStrategy.evDifference)[0];
+  if (optimalMaster) {
     superlatives.push({
-      title: 'Home Turf Faithful',
-      icon: '🏠',
-      playerName: homeAdvocate.name,
-      stat: `${homeAdvocate.homePct}% Home`,
-      description: 'Prefers the home crowd advantage',
+      title: 'Game Theorist',
+      icon: '🧮',
+      playerName: optimalMaster.name,
+      stat: `${optimalMaster.avgPicksPerWeek.toFixed(1)} / ${optimalMaster.optimalStrategy.optimalPicks} opt`,
+      description: 'Closest to mathematical EV-maximizing volume',
     });
   }
 
-  // 4. Prime Time Junkie (highest prime time %)
+  // 4. Prime Time Junkie
   const primeTimeLeader = [...players].filter(p => p.totalPicks >= 2).sort((a, b) => b.primeTimePct - a.primeTimePct)[0];
   if (primeTimeLeader && primeTimeLeader.primeTimePct > 0) {
     superlatives.push({
@@ -279,15 +437,15 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     });
   }
 
-  // 5. Most Accurate Locksmith (highest pick win rate with at least 3 completed picks)
-  const accuracyLeader = [...players].filter(p => p.completedPicks >= 2).sort((a, b) => b.pickWinPct - a.pickWinPct)[0];
-  if (accuracyLeader) {
+  // 5. Home Turf Faithful
+  const homeAdvocate = [...players].filter(p => p.totalPicks >= 2).sort((a, b) => b.homePct - a.homePct)[0];
+  if (homeAdvocate && homeAdvocate.homePct >= 50) {
     superlatives.push({
-      title: 'Top Locksmith',
-      icon: '🔒',
-      playerName: accuracyLeader.name,
-      stat: `${accuracyLeader.pickWinPct}% Hits`,
-      description: `${accuracyLeader.correctPicks}/${accuracyLeader.completedPicks} individual locks cashed`,
+      title: 'Home Turf Faithful',
+      icon: '🏠',
+      playerName: homeAdvocate.name,
+      stat: `${homeAdvocate.homePct}% Home`,
+      description: 'Prefers the home crowd advantage',
     });
   }
 
@@ -297,5 +455,6 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     remainingWeeks,
     players,
     superlatives,
+    slateBusters,
   };
 }
