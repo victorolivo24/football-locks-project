@@ -6,6 +6,7 @@ import Link from 'next/link';
 import TeamLogo from '@/components/TeamLogo';
 import { DateTime } from 'luxon';
 import { normalizeTeam, isSameTeam } from '@/lib/teams';
+import { calculateParlay, getTeamMoneyline, getOddsForGame } from '@/lib/gameOdds';
 
 interface Game {
   id: number;
@@ -135,6 +136,43 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
           <h1 className="text-3xl font-bold text-white">Season {season} • Week {week}</h1>
         </div>
 
+        {/* Week Parlay Board */}
+        {users.length > 0 && Object.keys(picksByUser).length > 0 && (
+          <div className="glass-card p-4 mb-6">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-3">
+              <h2 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎲</span>
+                <span>Week {week} Parlay Board</span>
+              </h2>
+              <span className="text-[11px] text-white/60">Combined slate odds ($10 wager)</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              {users.map((u) => {
+                const uPicks = picksByUser[u.name] || [];
+                if (uPicks.length === 0) return null;
+                const uParlay = calculateParlay(
+                  uPicks.map((p) => {
+                    const g = games.find((g) => g.id === p.gameId) ||
+                              games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                    return { pickedTeam: p.pickedTeam, homeTeam: g?.homeTeam, awayTeam: g?.awayTeam };
+                  }),
+                  season,
+                  week
+                );
+                return (
+                  <div key={u.id} className="bg-white/5 border border-white/10 rounded-xl p-2.5 text-center">
+                    <div className="font-bold text-white text-xs truncate">{u.name}</div>
+                    <div className="text-[10px] text-white/50">{uPicks.length} {uPicks.length === 1 ? 'lock' : 'locks'}</div>
+                    <div className="text-sm font-black text-yellow-300 mt-0.5">{uParlay.americanOdds}</div>
+                    <div className="text-[11px] text-green-300 font-semibold">${uParlay.payoutOn10}</div>
+                    <div className="text-[9px] text-white/40">{uParlay.impliedProb}% chance</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {users.length > 0 && (
           <div className="flex justify-center mb-8">
             <div className="inline-flex bg-black/40 p-1 rounded-xl border border-white/10">
@@ -169,10 +207,19 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
               const has = picks.length > 0;
               const busted = isUserBusted(u);
               const perfect = isUserPerfect(u);
+              const parlay = calculateParlay(
+                picks.map((p) => {
+                  const g = games.find((g) => g.id === p.gameId) ||
+                            games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                  return { pickedTeam: p.pickedTeam, homeTeam: g?.homeTeam, awayTeam: g?.awayTeam };
+                }),
+                season,
+                week
+              );
               
               return (
                 <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                     <div className="text-white font-bold text-lg flex items-center gap-3">
                       <span>{u.name}</span>
                       {busted && (
@@ -182,7 +229,24 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                         <span className="text-green-200 text-xs font-semibold bg-green-600/20 border border-green-500/30 px-2 py-1 rounded-full">Perfect</span>
                       )}
                     </div>
-                    {!has && <div className="text-yellow-300 font-semibold">Hasn’t submitted yet</div>}
+                    {has ? (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-white/60">{picks.length} {picks.length === 1 ? 'Lock' : 'Locks'} Parlay:</span>
+                        <span className={`font-black px-2 py-0.5 rounded text-xs ${
+                          parlay.americanOdds.startsWith('+') ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-blue-400/20 text-blue-300 border border-blue-400/30'
+                        }`}>
+                          {parlay.americanOdds}
+                        </span>
+                        <span className="text-white/80">
+                          ($10 pays <strong className="text-white">${parlay.payoutOn10}</strong>)
+                        </span>
+                        <span className="text-white/40 text-[11px] hidden sm:inline">
+                          • {parlay.impliedProb}% implied
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-yellow-300 font-semibold text-sm">Hasn’t submitted yet</div>
+                    )}
                   </div>
                   {has && (
                     <div className={`grid sm:grid-cols-2 gap-3`}>
@@ -194,6 +258,11 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                         const hit = g.status === 'final' && g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam);
                         const pickedHome = isSameTeam(p.pickedTeam, g.homeTeam);
                         const pickedAway = isSameTeam(p.pickedTeam, g.awayTeam);
+                        const ml = (g.awayTeam && g.homeTeam)
+                          ? getTeamMoneyline(p.pickedTeam, g.awayTeam, g.homeTeam, season, week)
+                          : null;
+                        const mlStr = ml !== null ? (ml > 0 ? `+${ml}` : `${ml}`) : '';
+
                         return (
                           <div key={`${u.id}-${p.gameId}`} className={`glass-section p-3 sm:p-4 min-w-0 overflow-hidden ${loss ? 'opacity-70' : ''}`}>
                             <div className="flex items-center justify-between gap-3 min-w-0">
@@ -210,7 +279,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <span className={`bg-yellow-500 text-black px-2.5 py-0.5 rounded-full text-xs font-bold ${loss ? 'line-through bg-red-400 text-black' : ''}`}>
-                                  🔒 {normalizeTeam(p.pickedTeam)}
+                                  🔒 {normalizeTeam(p.pickedTeam)} {mlStr && <span className="opacity-80 font-semibold text-[10px] ml-0.5">({mlStr})</span>}
                                 </span>
                                 {hit && (
                                   <span className="text-green-200 text-[10px] font-bold bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded-full shrink-0">
@@ -294,10 +363,19 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                 return null;
               }
 
+              const gameOdds = getOddsForGame(g.awayTeam, g.homeTeam, season, week);
+
               return (
                 <div key={g.id} className="disco-card p-0 overflow-hidden mb-4">
                   <div className="bg-black/50 px-4 py-3 border-b border-pink-500/30 flex items-center justify-between text-xs font-disco text-cyan-300">
-                    <span className="font-medium tracking-wider">{formatGameTime(g.startTime)}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium tracking-wider">{formatGameTime(g.startTime)}</span>
+                      {gameOdds?.spread && (
+                        <span className="bg-white/10 text-white/90 font-sans px-2 py-0.5 rounded text-[11px] font-semibold border border-white/10">
+                          {gameOdds.spread} {gameOdds.total ? `• O/U ${gameOdds.total}` : ''}
+                        </span>
+                      )}
+                    </div>
                     <span
                       className={`px-2.5 py-0.5 rounded-full font-bold uppercase ${
                         isFinal
@@ -318,7 +396,14 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                         <TeamLogo team={g.awayTeam} size="md" />
                         <div className="min-w-0">
                           <div className="text-[10px] text-cyan-300 font-disco uppercase tracking-widest">Away</div>
-                          <div className="font-bold text-white text-lg truncate font-disco">{normalizeTeam(g.awayTeam)}</div>
+                          <div className="font-bold text-white text-lg truncate font-disco flex items-baseline gap-1.5">
+                            <span>{normalizeTeam(g.awayTeam)}</span>
+                            {gameOdds && (
+                              <span className="text-xs font-sans text-white/60 font-semibold">
+                                ({gameOdds.awayMoneyline > 0 ? `+${gameOdds.awayMoneyline}` : gameOdds.awayMoneyline})
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="space-y-1.5">
@@ -345,7 +430,14 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                         <TeamLogo team={g.homeTeam} size="md" />
                         <div className="min-w-0">
                           <div className="text-[10px] text-pink-300 font-disco uppercase tracking-widest">Home</div>
-                          <div className="font-bold text-white text-lg truncate font-disco">{normalizeTeam(g.homeTeam)}</div>
+                          <div className="font-bold text-white text-lg truncate font-disco flex items-baseline gap-1.5">
+                            <span>{normalizeTeam(g.homeTeam)}</span>
+                            {gameOdds && (
+                              <span className="text-xs font-sans text-white/60 font-semibold">
+                                ({gameOdds.homeMoneyline > 0 ? `+${gameOdds.homeMoneyline}` : gameOdds.homeMoneyline})
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="space-y-1.5">

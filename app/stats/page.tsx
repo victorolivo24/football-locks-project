@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import TeamLogo from '@/components/TeamLogo';
 import { PlayerInsights, SeasonInsightsData } from '@/lib/insights';
+import { isSameTeam } from '@/lib/teams';
+import { calculateParlay, getTeamMoneyline } from '@/lib/gameOdds';
 
 interface User {
   name: string;
@@ -14,6 +16,8 @@ interface User {
 export default function NerdStatsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [insights, setInsights] = useState<SeasonInsightsData | null>(null);
+  const [parlayPicks, setParlayPicks] = useState<{ userName: string; picks: any[] }[]>([]);
+  const [parlayGames, setParlayGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<number>(2026);
   const [playerFilter, setPlayerFilter] = useState<'all' | 'high-volume' | 'home-biased' | 'primetime' | 'heartbreak'>('all');
@@ -61,13 +65,29 @@ export default function NerdStatsPage() {
 
   const fetchInsights = async () => {
     try {
-      const response = await fetch(`/api/insights?season=${season}`);
-      if (response.ok) {
-        const data = await response.json();
+      const [insightsRes, picksRes, schedRes] = await Promise.all([
+        fetch(`/api/insights?season=${season}`),
+        fetch(`/api/picks/all?season=${season}&week=1`),
+        fetch(`/api/schedule?season=${season}&week=1`)
+      ]);
+      if (insightsRes.ok) {
+        const data = await insightsRes.json();
         setInsights(data);
       }
+      if (picksRes.ok && schedRes.ok) {
+        const pData = await picksRes.json();
+        const sData = await schedRes.json();
+        setParlayGames(sData.games || []);
+        const userList = pData.users || [];
+        const pByUser = pData.picksByUser || {};
+        const list = userList.map((u: any) => ({
+          userName: u.name,
+          picks: pByUser[u.name] || [],
+        })).filter((x: any) => x.picks.length > 0);
+        setParlayPicks(list);
+      }
     } catch (error) {
-      console.error('Error fetching insights:', error);
+      console.error('Error fetching insights/picks:', error);
     }
   };
 
@@ -151,34 +171,95 @@ export default function NerdStatsPage() {
           </Link>
         </div>
 
-        {/* Section 1: League Superlatives */}
-        {insights && insights.superlatives.length > 0 && (
+        {/* Section 1: Weekly Slate Parlay Odds */}
+        {parlayPicks.length > 0 && (
           <div className="space-y-3 px-4 sm:px-0">
-            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-              <span>🏅</span>
-              <span>League Superlatives</span>
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {insights.superlatives.map((sup, idx) => (
-                <div
-                  key={idx}
-                  className="glass-card p-4 flex flex-col justify-between hover:border-yellow-400/40 transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-2xl">{sup.icon}</span>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
-                      {sup.title}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="text-white font-bold text-base truncate">{sup.playerName}</div>
-                    <div className="text-green-300 font-extrabold text-sm">{sup.stat}</div>
-                    <div className="text-[11px] text-green-200/70 truncate mt-1" title={sup.description}>
-                      {sup.description}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                <span>🎲</span>
+                <span>Week 1 Slate Parlay Odds</span>
+              </h2>
+              <span className="text-xs text-green-200/70">
+                Real Vegas moneylines compounded into all-or-nothing parlay payouts ($10 wager)
+              </span>
+            </div>
+
+            <div className="glass-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-white/5 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
+                      <th className="px-5 py-3">Player</th>
+                      <th className="px-5 py-3 text-center">Locks</th>
+                      <th className="px-5 py-3">Selected Teams & Odds</th>
+                      <th className="px-5 py-3 text-center">American Odds</th>
+                      <th className="px-5 py-3 text-center">Implied Win %</th>
+                      <th className="px-5 py-3 text-right">Payout on $10</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {parlayPicks.map((row) => {
+                      const parlay = calculateParlay(
+                        row.picks.map((p) => {
+                          const g = parlayGames.find((g) => g.id === p.gameId) ||
+                                    parlayGames.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                          return { pickedTeam: p.pickedTeam, homeTeam: g?.homeTeam, awayTeam: g?.awayTeam };
+                        }),
+                        season,
+                        1
+                      );
+
+                      return (
+                        <tr key={row.userName} className="hover:bg-white/5 transition-colors">
+                          <td className="px-5 py-3.5 font-bold text-white whitespace-nowrap">
+                            {row.userName}
+                          </td>
+                          <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                            <span className="bg-white/10 text-white font-semibold text-xs px-2.5 py-1 rounded-full">
+                              {row.picks.length}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {row.picks.map((p) => {
+                                const g = parlayGames.find((g) => g.id === p.gameId) ||
+                                          parlayGames.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                                const ml = (g?.awayTeam && g?.homeTeam)
+                                  ? getTeamMoneyline(p.pickedTeam, g.awayTeam, g.homeTeam, season, 1)
+                                  : null;
+                                const mlStr = ml !== null ? (ml > 0 ? `+${ml}` : `${ml}`) : '';
+                                return (
+                                  <span
+                                    key={`${row.userName}-${p.pickedTeam}`}
+                                    className="bg-black/30 border border-white/10 px-2 py-0.5 rounded text-xs text-white/90 flex items-center gap-1"
+                                  >
+                                    <TeamLogo team={p.pickedTeam} size="sm" className="scale-75" />
+                                    <span>{p.pickedTeam}</span>
+                                    {mlStr && <span className="text-yellow-300/90 text-[10px] font-bold">({mlStr})</span>}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                            <span className={`font-black text-sm px-2.5 py-0.5 rounded ${
+                              parlay.americanOdds.startsWith('+') ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-blue-400/20 text-blue-300 border border-blue-400/30'
+                            }`}>
+                              {parlay.americanOdds}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 text-center font-bold text-white whitespace-nowrap">
+                            {parlay.impliedProb}%
+                          </td>
+                          <td className="px-5 py-3.5 text-right font-black text-green-300 whitespace-nowrap text-base">
+                            ${parlay.payoutOn10}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
