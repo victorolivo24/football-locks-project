@@ -10,6 +10,7 @@
     "test": "vitest run",
     "db:migrate": "node scripts/init-db.js",
     "db:import-schedule": "node scripts/import-schedule.js",
+    "db:backfill-season": "node scripts/backfill-season.js",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio"
   },
