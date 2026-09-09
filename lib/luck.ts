@@ -43,3 +43,59 @@ export function ticketProbability(legProbabilities: number[]): number {
 export function expectedPoints(legProbabilities: number[]): number {
   return legProbabilities.length * ticketProbability(legProbabilities);
 }
+
+export interface EvTier {
+  n: number;
+  probability: number; // Chance all n locks hit, as a percentage
+  expected: number; // Expected points for that ticket size
+}
+
+/**
+ * Fair probability of the favoured side of each priced game, best first.
+ *
+ * Picking the n likeliest games is the strongest ticket of that length
+ * available on the slate, so this ordering is what the EV curve walks down.
+ */
+export function slateProbabilities(
+  games: Array<{ homeMoneyline?: number | null; awayMoneyline?: number | null }>
+): number[] {
+  const probabilities: number[] = [];
+
+  for (const game of games) {
+    if (game.homeMoneyline == null || game.awayMoneyline == null) continue;
+    const home = fairWinProbability(game.homeMoneyline, game.awayMoneyline);
+    probabilities.push(Math.max(home, 1 - home));
+  }
+
+  return probabilities.sort((a, b) => b - a);
+}
+
+/**
+ * Expected points for every ticket size against a real slate.
+ *
+ * The flat p^n model assumes every lock is equally safe, which is the one
+ * thing that is never true: each lock you add is the worst game left. Walking
+ * the actual sorted probabilities gives a curve that turns over where this
+ * week's board says it should, not where an average would put it.
+ */
+export function evCurve(sortedProbabilities: number[], maxN = 8): EvTier[] {
+  const tiers: EvTier[] = [];
+  let running = 1;
+
+  for (let n = 1; n <= Math.min(maxN, sortedProbabilities.length); n++) {
+    running *= sortedProbabilities[n - 1];
+    tiers.push({
+      n,
+      probability: Number((running * 100).toFixed(1)),
+      expected: Number((n * running).toFixed(2)),
+    });
+  }
+
+  return tiers;
+}
+
+/** Ticket size with the highest expected points. Zero when the slate is unpriced. */
+export function bestLockCount(curve: EvTier[]): number {
+  if (curve.length === 0) return 0;
+  return curve.reduce((best, tier) => (tier.expected > best.expected ? tier : best), curve[0]).n;
+}

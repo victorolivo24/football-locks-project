@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { impliedProbability, fairWinProbability, ticketProbability, expectedPoints } from '../luck';
+import {
+  impliedProbability,
+  fairWinProbability,
+  ticketProbability,
+  expectedPoints,
+  slateProbabilities,
+  evCurve,
+  bestLockCount,
+} from '../luck';
 
 const close = (a: number, b: number, tolerance = 0.001) => expect(Math.abs(a - b)).toBeLessThan(tolerance);
 
@@ -73,5 +81,62 @@ describe('expectedPoints', () => {
 
   it('is zero for an empty ticket', () => {
     expect(expectedPoints([])).toBe(0);
+  });
+});
+
+describe('slateProbabilities', () => {
+  it('returns the favoured side of each game, strongest first', () => {
+    const probs = slateProbabilities([
+      { homeMoneyline: -120, awayMoneyline: 100 },  // near coin flip
+      { homeMoneyline: -500, awayMoneyline: 380 },  // heavy favourite
+    ]);
+    close(probs[0], 0.8);
+    expect(probs[0]).toBeGreaterThan(probs[1]);
+  });
+
+  it('takes the underdog side when the away team is favoured', () => {
+    const probs = slateProbabilities([{ homeMoneyline: 380, awayMoneyline: -500 }]);
+    close(probs[0], 0.8);
+  });
+
+  it('skips games with no line', () => {
+    const probs = slateProbabilities([
+      { homeMoneyline: null, awayMoneyline: null },
+      { homeMoneyline: -500, awayMoneyline: 380 },
+    ]);
+    expect(probs).toHaveLength(1);
+  });
+});
+
+describe('evCurve', () => {
+  const slate = [0.8, 0.75, 0.7, 0.62, 0.55];
+
+  it('compounds down the sorted slate rather than reusing one rate', () => {
+    const curve = evCurve(slate);
+    close(curve[0].expected, 0.8);
+    close(curve[1].expected, 2 * 0.8 * 0.75);
+  });
+
+  it('turns over where the marginal game stops paying', () => {
+    const curve = evCurve(slate);
+    const best = bestLockCount(curve);
+    expect(best).toBeGreaterThan(1);
+    expect(best).toBeLessThan(5);
+    expect(curve[curve.length - 1].expected).toBeLessThan(curve[best - 1].expected);
+  });
+
+  it('never runs past the number of priced games', () => {
+    expect(evCurve([0.8, 0.7], 8)).toHaveLength(2);
+  });
+
+  it('differs from the flat model, which is the point', () => {
+    const real = evCurve(slate)[2].expected;          // 0.8 * 0.75 * 0.7
+    const flat = 3 * Math.pow(0.8, 3);                 // pretends all three are 80%
+    expect(real).toBeLessThan(flat);
+  });
+
+  it('is empty for an unpriced slate', () => {
+    expect(evCurve([])).toHaveLength(0);
+    expect(bestLockCount([])).toBe(0);
   });
 });

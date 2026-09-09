@@ -7,6 +7,7 @@ import TeamLogo from '@/components/TeamLogo';
 import { PlayerInsights, SeasonInsightsData } from '@/lib/insights';
 import { isSameTeam } from '@/lib/teams';
 import { parlayForPicks, moneylineForPick, findGameForPick } from '@/lib/gameOdds';
+import { slateProbabilities, evCurve, bestLockCount } from '@/lib/luck';
 
 interface User {
   name: string;
@@ -21,7 +22,6 @@ export default function NerdStatsPage() {
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<number>(2026);
   const [week, setWeek] = useState<number | null>(null);
-  const [calculatorHitRate, setCalculatorHitRate] = useState<number>(70);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -107,13 +107,12 @@ export default function NerdStatsPage() {
 
   const allPlayers = insights?.players || [];
 
-  // Calculate EV curve for interactive calculator
-  const p = calculatorHitRate / 100;
-  const evCurve = [1, 2, 3, 4, 5, 6].map(n => {
-    const ev = n * Math.pow(p, n);
-    return { n, ev: Number(ev.toFixed(2)), prob: Number((Math.pow(p, n) * 100).toFixed(1)) };
-  });
-  const bestCalculatorN = evCurve.reduce((max, curr) => curr.ev > max.ev ? curr : max, evCurve[0]);
+  // Sweet spot for THIS week's board: walk the real sorted probabilities rather
+  // than assuming every lock is as safe as the first.
+  const slateProbs = slateProbabilities(parlayGames);
+  const slateCurve = evCurve(slateProbs, 6);
+  const bestN = bestLockCount(slateCurve);
+  const marginalProb = slateProbs[bestN] ?? null; // the first lock that misses the cut
 
   return (
     <div className="min-h-screen pb-16">
@@ -540,73 +539,72 @@ export default function NerdStatsPage() {
           </div>
         </div>
 
-        {/* Section 4: Sweet Spot Pick Calculator Widget */}
-        <div className="space-y-4 px-4 sm:px-0">
-          <div className="glass-card p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-2xl">🧮</span>
-                  <h2 className="text-xl font-bold text-white">Optimal Pick Count Calculator</h2>
-                </div>
-                <p className="text-xs text-green-200/80 mt-1">
-                  In all-or-nothing scoring, choosing more locks gives bigger payouts, but reduces week-to-week cash probability. See where your sweet spot lies:
-                </p>
-              </div>
-
-              <div className="bg-white/10 p-2.5 rounded-xl border border-white/10 flex items-center space-x-3 shrink-0">
-                <div className="text-right">
-                  <div className="text-[10px] text-white/60 uppercase font-semibold">Simulate Win Rate</div>
-                  <div className="text-lg font-black text-yellow-400">{calculatorHitRate}%</div>
-                </div>
-                <input
-                  type="range"
-                  min="50"
-                  max="90"
-                  step="1"
-                  value={calculatorHitRate}
-                  onChange={(e) => setCalculatorHitRate(Number(e.target.value))}
-                  className="w-24 accent-yellow-400 cursor-pointer"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {evCurve.map((tier) => {
-                const isOptimal = tier.n === bestCalculatorN.n;
-                return (
-                  <div
-                    key={tier.n}
-                    className={`p-3.5 rounded-xl border text-center transition-all duration-300 ${isOptimal
-                        ? 'bg-yellow-500/20 border-yellow-400/60 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                        : 'bg-white/5 border-white/10'
-                      }`}
-                  >
-                    {isOptimal && (
-                      <span className="text-[9px] uppercase font-black tracking-wider bg-yellow-400 text-black px-2 py-0.5 rounded-full inline-block mb-1">
-                        Sweet Spot
-                      </span>
-                    )}
-                    <div className="text-xs font-bold text-white">{tier.n} Locks / Wk</div>
-                    <div className="text-xl font-black text-yellow-300 my-0.5">
-                      {tier.ev} <span className="text-[10px] font-medium text-white/60">avg pts</span>
-                    </div>
-                    <div className="text-[10px] text-green-200/70">
-                      {tier.prob}% hit chance
-                    </div>
+        {/* Section 5: This Week's Sweet Spot */}
+        {slateCurve.length > 0 && (
+          <div className="space-y-4 px-4 sm:px-0">
+            <div className="glass-card p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-2xl">🧮</span>
+                    <h2 className="text-xl font-bold text-white">Week {week} Sweet Spot</h2>
                   </div>
-                );
-              })}
-            </div>
+                  <p className="text-xs text-green-200/80 mt-1">
+                    Built from this week's actual closing lines, taking the safest games first.
+                    Each lock you add is the worst game left, which is what makes the curve turn over.
+                  </p>
+                </div>
 
-            <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-green-200/90 flex items-center space-x-2">
-              <span>💡</span>
-              <span>
-                At a <strong>{calculatorHitRate}%</strong> win rate, picking <strong>{bestCalculatorN.n} locks/week</strong> produces the highest average points over the course of the season ({bestCalculatorN.ev} pts/wk).
-              </span>
+                <div className="bg-white/10 px-3 py-2 rounded-xl border border-white/10 text-center shrink-0">
+                  <div className="text-[10px] text-white/60 uppercase font-semibold">Best Play</div>
+                  <div className="text-lg font-black text-yellow-400">{bestN} {bestN === 1 ? 'lock' : 'locks'}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {slateCurve.map((tier) => {
+                  const isOptimal = tier.n === bestN;
+                  return (
+                    <div
+                      key={tier.n}
+                      className={`p-3.5 rounded-xl border text-center transition-all duration-300 ${
+                        isOptimal
+                          ? 'bg-yellow-500/20 border-yellow-400/60 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                          : 'bg-white/5 border-white/10'
+                      }`}
+                    >
+                      {isOptimal && (
+                        <span className="text-[9px] uppercase font-black tracking-wider bg-yellow-400 text-black px-2 py-0.5 rounded-full inline-block mb-1">
+                          Sweet Spot
+                        </span>
+                      )}
+                      <div className="text-xs font-bold text-white">{tier.n} {tier.n === 1 ? 'Lock' : 'Locks'}</div>
+                      <div className="text-xl font-black text-yellow-300 my-0.5">
+                        {tier.expected} <span className="text-[10px] font-medium text-white/60">exp pts</span>
+                      </div>
+                      <div className="text-[10px] text-green-200/70">
+                        {tier.probability}% survives
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-green-200/90 flex items-start space-x-2">
+                <span>💡</span>
+                <span>
+                  On this board, <strong>{bestN} {bestN === 1 ? 'lock' : 'locks'}</strong> maximises expected points
+                  at <strong>{slateCurve[bestN - 1]?.expected}</strong> per week.
+                  {marginalProb !== null && (
+                    <> Your next best game is only <strong>{(marginalProb * 100).toFixed(0)}%</strong>, and adding it drops
+                    expectation to {slateCurve[bestN]?.expected}.</>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
       </main>
     </div>
   );
