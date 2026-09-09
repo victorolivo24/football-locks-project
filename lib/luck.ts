@@ -50,24 +50,42 @@ export interface EvTier {
   expected: number; // Expected points for that ticket size
 }
 
+export interface BoardGame<T = unknown> {
+  game: T;
+  homeProbability: number;
+  awayProbability: number;
+  bestProbability: number; // The favoured side, which sets this game's rank
+}
+
 /**
- * Fair probability of the favoured side of each priced game, best first.
+ * Every priced game with both sides' fair probability, safest game first.
  *
- * Picking the n likeliest games is the strongest ticket of that length
- * available on the slate, so this ordering is what the EV curve walks down.
+ * Ordering by the favoured side is what the EV curve walks down: locking the
+ * n likeliest games is the strongest ticket of that length on the board.
  */
+export function rankedBoard<T extends { homeMoneyline?: number | null; awayMoneyline?: number | null }>(
+  games: T[]
+): BoardGame<T>[] {
+  return games
+    .filter(g => g.homeMoneyline != null && g.awayMoneyline != null)
+    .map((game) => {
+      const homeProbability = fairWinProbability(game.homeMoneyline!, game.awayMoneyline!);
+      const awayProbability = 1 - homeProbability;
+      return {
+        game,
+        homeProbability,
+        awayProbability,
+        bestProbability: Math.max(homeProbability, awayProbability),
+      };
+    })
+    .sort((a, b) => b.bestProbability - a.bestProbability);
+}
+
+/** Fair probability of the favoured side of each priced game, best first. */
 export function slateProbabilities(
   games: Array<{ homeMoneyline?: number | null; awayMoneyline?: number | null }>
 ): number[] {
-  const probabilities: number[] = [];
-
-  for (const game of games) {
-    if (game.homeMoneyline == null || game.awayMoneyline == null) continue;
-    const home = fairWinProbability(game.homeMoneyline, game.awayMoneyline);
-    probabilities.push(Math.max(home, 1 - home));
-  }
-
-  return probabilities.sort((a, b) => b - a);
+  return rankedBoard(games).map(entry => entry.bestProbability);
 }
 
 /**

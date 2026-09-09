@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import TeamLogo from '@/components/TeamLogo';
+import TicketBuilder from './TicketBuilder';
 import { PlayerInsights, SeasonInsightsData } from '@/lib/insights';
 import { isSameTeam } from '@/lib/teams';
 import { parlayForPicks, moneylineForPick, findGameForPick } from '@/lib/gameOdds';
@@ -674,6 +675,16 @@ export default function NerdStatsPage() {
             </div>
           </div>
         )}
+
+
+        {/* Section 7: Build a Ticket */}
+        <div className="px-4 sm:px-0">
+          <TicketBuilder
+            games={parlayGames}
+            week={week}
+            myPicks={parlayPicks.find(row => row.userName === user.name)?.picks ?? []}
+          />
+        </div>
 
       </main>
     </div>
