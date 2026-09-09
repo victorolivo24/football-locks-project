@@ -1,56 +1,30 @@
-import { isSameTeam, normalizeTeam } from './teams';
+import { isSameTeam } from './teams';
 
-export interface GameOdds {
-  awayTeam: string;
+/** A game carrying the moneylines stored for it, as /api/schedule returns them. */
+export interface GamePricing {
   homeTeam: string;
-  awayMoneyline: number; // e.g. +150
-  homeMoneyline: number; // e.g. -180
-  spread?: string; // e.g. "SEA -3.5"
-  total?: number; // e.g. 45.5
+  awayTeam: string;
+  homeMoneyline?: number | null;
+  awayMoneyline?: number | null;
+  spread?: string | null;
+  total?: number | null;
 }
 
-// Week 1 Odds provided by user
-export const WEEK_1_ODDS: GameOdds[] = [
-  { awayTeam: 'Patriots', homeTeam: 'Seahawks', awayMoneyline: 150, homeMoneyline: -180, spread: 'SEA -3.5', total: 45.5 },
-  { awayTeam: '49ers', homeTeam: 'Rams', awayMoneyline: 154, homeMoneyline: -185, spread: 'LAR -3.5', total: 48.5 },
-  { awayTeam: 'Buccaneers', homeTeam: 'Bengals', awayMoneyline: 164, homeMoneyline: -198, spread: 'CIN -3.5', total: 51.5 },
-  { awayTeam: 'Saints', homeTeam: 'Lions', awayMoneyline: 235, homeMoneyline: -290, spread: 'DET -6.5', total: 48.5 },
-  { awayTeam: 'Jets', homeTeam: 'Titans', awayMoneyline: 105, homeMoneyline: -125, spread: 'TEN -1.5', total: 39.5 },
-  { awayTeam: 'Ravens', homeTeam: 'Colts', awayMoneyline: -162, homeMoneyline: 136, spread: 'BAL -3.5', total: 48.5 },
-  { awayTeam: 'Falcons', homeTeam: 'Steelers', awayMoneyline: 154, homeMoneyline: -185, spread: 'PIT -3.5', total: 42.5 },
-  { awayTeam: 'Bears', homeTeam: 'Panthers', awayMoneyline: -148, homeMoneyline: 124, spread: 'CHI -3.5', total: 45.5 },
-  { awayTeam: 'Browns', homeTeam: 'Jaguars', awayMoneyline: 300, homeMoneyline: -380, spread: 'JAX -8.5', total: 39.5 },
-  { awayTeam: 'Bills', homeTeam: 'Texans', awayMoneyline: -102, homeMoneyline: -118, spread: 'BUF -1.5', total: 45.5 },
-  { awayTeam: 'Dolphins', homeTeam: 'Raiders', awayMoneyline: 154, homeMoneyline: -185, spread: 'LV -3.5', total: 39.5 },
-  { awayTeam: 'Packers', homeTeam: 'Vikings', awayMoneyline: 102, homeMoneyline: -122, spread: 'MIN -1.5', total: 45.5 },
-  { awayTeam: 'Commanders', homeTeam: 'Eagles', awayMoneyline: 170, homeMoneyline: -205, spread: 'PHI -4.5', total: 46.5 },
-  { awayTeam: 'Cardinals', homeTeam: 'Chargers', awayMoneyline: 455, homeMoneyline: -625, spread: 'LAC -9.5', total: 48.5 },
-  { awayTeam: 'Cowboys', homeTeam: 'Giants', awayMoneyline: -155, homeMoneyline: 130, spread: 'DAL -2.5', total: 48.5 },
-  { awayTeam: 'Broncos', homeTeam: 'Chiefs', awayMoneyline: 130, homeMoneyline: -155, spread: 'KC -2.5', total: 42.5 },
-];
-
-export function getOddsForGame(awayTeam: string, homeTeam: string, season = 2026, week = 1): GameOdds | undefined {
-  if (week === 1) {
-    return WEEK_1_ODDS.find(
-      (o) =>
-        (isSameTeam(o.awayTeam, awayTeam) && isSameTeam(o.homeTeam, homeTeam)) ||
-        (isSameTeam(o.awayTeam, homeTeam) && isSameTeam(o.homeTeam, awayTeam))
-    );
-  }
-  return undefined;
-}
-
-export function getTeamMoneyline(pickedTeam: string, awayTeam: string, homeTeam: string, season = 2026, week = 1): number | null {
-  const game = getOddsForGame(awayTeam, homeTeam, season, week);
+/** The moneyline a pick was taken at, or null when the game was never priced. */
+export function moneylineForPick(pickedTeam: string, game?: GamePricing | null): number | null {
   if (!game) return null;
-
-  if (isSameTeam(pickedTeam, game.homeTeam)) {
-    return game.homeMoneyline;
-  }
-  if (isSameTeam(pickedTeam, game.awayTeam)) {
-    return game.awayMoneyline;
-  }
+  if (isSameTeam(pickedTeam, game.homeTeam)) return game.homeMoneyline ?? null;
+  if (isSameTeam(pickedTeam, game.awayTeam)) return game.awayMoneyline ?? null;
   return null;
+}
+
+/** The game a pick was made on: by id, falling back to the matchup. */
+export function findGameForPick<T extends GamePricing & { id?: number | null }>(
+  pick: { gameId?: number | null; pickedTeam: string },
+  games: T[]
+): T | undefined {
+  return games.find(g => g.id != null && Number(g.id) === Number(pick.gameId))
+    ?? games.find(g => isSameTeam(pick.pickedTeam, g.homeTeam) || isSameTeam(pick.pickedTeam, g.awayTeam));
 }
 
 export function americanToDecimal(american: number): number {
@@ -78,27 +52,19 @@ export interface ParlayResult {
   picksCount: number;
 }
 
-export function calculateParlay(
-  picks: Array<{ pickedTeam: string; homeTeam?: string; awayTeam?: string }>,
-  season = 2026,
-  week = 1
-): ParlayResult {
-  if (picks.length === 0) {
+export function calculateParlay(moneylines: Array<number | null>): ParlayResult {
+  if (moneylines.length === 0) {
     return { multiplier: 1, americanOdds: 'EVEN', impliedProb: 100, payoutOn10: 10, hasAllOdds: true, picksCount: 0 };
   }
 
   let totalMultiplier = 1;
   let hasAllOdds = true;
 
-  for (const pick of picks) {
-    const ml = (pick.homeTeam && pick.awayTeam)
-      ? getTeamMoneyline(pick.pickedTeam, pick.awayTeam, pick.homeTeam, season, week)
-      : null;
-
+  for (const ml of moneylines) {
     if (ml !== null) {
       totalMultiplier *= americanToDecimal(ml);
     } else {
-      // If odds not found for this game, default to standard -150 favorite
+      // Unpriced game: assume a standard favourite so the table still renders.
       totalMultiplier *= americanToDecimal(-150);
       hasAllOdds = false;
     }
@@ -115,6 +81,14 @@ export function calculateParlay(
     impliedProb,
     payoutOn10,
     hasAllOdds,
-    picksCount: picks.length,
+    picksCount: moneylines.length,
   };
+}
+
+/** Price a whole ticket against the week's stored lines. */
+export function parlayForPicks<T extends GamePricing & { id?: number | null }>(
+  picks: Array<{ gameId?: number | null; pickedTeam: string }>,
+  games: T[]
+): ParlayResult {
+  return calculateParlay(picks.map(p => moneylineForPick(p.pickedTeam, findGameForPick(p, games))));
 }

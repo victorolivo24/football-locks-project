@@ -6,7 +6,7 @@ import Link from 'next/link';
 import TeamLogo from '@/components/TeamLogo';
 import { PlayerInsights, SeasonInsightsData } from '@/lib/insights';
 import { isSameTeam } from '@/lib/teams';
-import { calculateParlay, getTeamMoneyline } from '@/lib/gameOdds';
+import { parlayForPicks, moneylineForPick, findGameForPick } from '@/lib/gameOdds';
 
 interface User {
   name: string;
@@ -20,6 +20,7 @@ export default function NerdStatsPage() {
   const [parlayGames, setParlayGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<number>(2026);
+  const [week, setWeek] = useState<number | null>(null);
   const [calculatorHitRate, setCalculatorHitRate] = useState<number>(70);
 
   const router = useRouter();
@@ -28,23 +29,25 @@ export default function NerdStatsPage() {
   useEffect(() => {
     checkAuth();
     const seasonParam = searchParams.get('season');
+    // The slate section always tracks the live week, so the parlay board moves
+    // on with the season instead of staying pinned to Week 1.
+    fetch('/api/week')
+      .then(res => res.json())
+      .then(data => {
+        if (!seasonParam && data.season) setSeason(data.season);
+        if (data.week) setWeek(data.week);
+      })
+      .catch(() => setWeek(1));
     if (seasonParam) {
       setSeason(parseInt(seasonParam));
-    } else {
-      fetch('/api/week')
-        .then(res => res.json())
-        .then(data => {
-          if (data.season) setSeason(data.season);
-        })
-        .catch(() => undefined);
     }
   }, [searchParams]);
 
   useEffect(() => {
-    if (user) {
+    if (user && week !== null) {
       fetchInsights();
     }
-  }, [user, season]);
+  }, [user, season, week]);
 
   const checkAuth = async () => {
     try {
@@ -66,8 +69,8 @@ export default function NerdStatsPage() {
     try {
       const [insightsRes, picksRes, schedRes] = await Promise.all([
         fetch(`/api/insights?season=${season}`),
-        fetch(`/api/picks/all?season=${season}&week=1`),
-        fetch(`/api/schedule?season=${season}&week=1`)
+        fetch(`/api/picks/all?season=${season}&week=${week}`),
+        fetch(`/api/schedule?season=${season}&week=${week}`)
       ]);
       if (insightsRes.ok) {
         const data = await insightsRes.json();
@@ -170,7 +173,7 @@ export default function NerdStatsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <h2 className="text-xl font-bold text-white flex items-center space-x-2">
                 <span>🎲</span>
-                <span>Week 1 Slate Parlay Odds</span>
+                <span>Week {week} Slate Parlay Odds</span>
               </h2>
               <span className="text-xs text-green-200/70">
                 Real Vegas moneylines compounded into all-or-nothing parlay odds
@@ -192,15 +195,7 @@ export default function NerdStatsPage() {
                   </thead>
                   <tbody className="divide-y divide-white/10">
                     {parlayPicks.map((row) => {
-                      const parlay = calculateParlay(
-                        row.picks.map((p) => {
-                          const g = parlayGames.find((g) => g.id === p.gameId) ||
-                            parlayGames.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-                          return { pickedTeam: p.pickedTeam, homeTeam: g?.homeTeam, awayTeam: g?.awayTeam };
-                        }),
-                        season,
-                        1
-                      );
+                      const parlay = parlayForPicks(row.picks, parlayGames);
 
                       return (
                         <tr key={row.userName} className="hover:bg-white/5 transition-colors">
@@ -215,11 +210,7 @@ export default function NerdStatsPage() {
                           <td className="px-5 py-3.5">
                             <div className="flex flex-wrap gap-1.5 items-center">
                               {row.picks.map((p) => {
-                                const g = parlayGames.find((g) => g.id === p.gameId) ||
-                                  parlayGames.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-                                const ml = (g?.awayTeam && g?.homeTeam)
-                                  ? getTeamMoneyline(p.pickedTeam, g.awayTeam, g.homeTeam, season, 1)
-                                  : null;
+                                const ml = moneylineForPick(p.pickedTeam, findGameForPick(p, parlayGames));
                                 const mlStr = ml !== null ? (ml > 0 ? `+${ml}` : `${ml}`) : '';
                                 return (
                                   <span

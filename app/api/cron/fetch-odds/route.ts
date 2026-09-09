@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentNFLWeek, getCurrentWeekFromSchedule, refreshWeekResults } from '@/lib/nfl';
+import { getCurrentNFLWeek, getCurrentWeekFromSchedule } from '@/lib/nfl';
+import { refreshWeekOdds } from '@/lib/espnOdds';
 
 export async function POST(request: NextRequest) {
   try {
     // Verify cron secret
     const authHeader = request.headers.get('authorization');
     const expectedSecret = `Bearer ${process.env.CRON_SECRET}`;
-    
+
     if (authHeader !== expectedSecret) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -15,16 +16,16 @@ export async function POST(request: NextRequest) {
     }
 
     const { season, week } = (await getCurrentWeekFromSchedule()) ?? getCurrentNFLWeek();
+    const priced = await refreshWeekOdds(season, week);
 
-    const updated = await refreshWeekResults(season, week);
-    console.log(`Updated results and recalculated scores for Week ${week} (${updated} games)`);
+    console.log(`Stored odds for ${priced} games in Week ${week}`);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Processed results for Week ${week}` 
+    return NextResponse.json({
+      success: true,
+      message: `Stored odds for ${priced} games in Week ${week}`,
     });
   } catch (error) {
-    console.error('Resolve results cron error:', error);
+    console.error('Fetch odds cron error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

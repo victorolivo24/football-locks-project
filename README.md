@@ -8,7 +8,8 @@ A free, friends-only NFL weekly pick'em application built with Next.js 14, TypeS
 - **Lightweight Authentication**: Name selection + shared league passcode
 - **Weekly Picks**: Submit picks for all NFL games in a week
 - **Time Lock**: Picks lock every Thursday 8:00 PM ET
-- **All-or-Nothing Scoring**: Get points equal to number of picks if all correct, 0 if any wrong
+- **All-or-Nothing Scoring**: Score one point per lock if every lock hits, 0 if any misses
+- **Automated Results & Odds**: Scores and betting lines pull from ESPN without manual entry
 - **Pick Visibility**: See others' picks only after submitting your own
 - **Auto Schedule**: ESPN API integration for automatic game loading
 - **Manual Admin**: Fallback for manual result entry
@@ -83,23 +84,37 @@ Visit `http://localhost:3000` and log in with any of the 6 user names and the le
 npm run db:migrate
 ```
 
-### 3. Cron Jobs Setup
+### 3. Cron Jobs
 
-In Vercel dashboard, add cron jobs:
+Cron jobs are declared in `vercel.json` and deploy automatically. Vercel runs
+them in **UTC**, and Hobby-plan jobs fire within the hour they are scheduled
+for (a 7:00 PM job can run as late as 7:59 PM).
 
-**Fetch Schedule** (Mondays 9:00 AM ET):
-```
-0 9 * * 1
-POST /api/cron/fetch-schedule
-Headers: Authorization: Bearer YOUR_CRON_SECRET
-```
+| Job | Expression | Eastern | Purpose |
+| --- | --- | --- | --- |
+| `/api/cron/fetch-schedule` | `0 13 * * 1` | Mon 9:00 AM | Refresh next week's kickoff times |
+| `/api/cron/fetch-odds` | `0 23 * * 4` | Thu 7:00 PM | Snapshot the week's lines before picks lock at 8:00 PM |
+| `/api/cron/resolve-results` | `0 8 * * *` | Daily 4:00 AM | Pull results and rescore the week |
 
-**Resolve Results** (Daily 3:00 AM ET):
-```
-0 3 * * *
-POST /api/cron/resolve-results
-Headers: Authorization: Bearer YOUR_CRON_SECRET
-```
+All three require `Authorization: Bearer $CRON_SECRET`.
+
+Eastern times shift an hour during standard time (Nov–Mar); every job still
+lands well inside its window.
+
+### Odds
+
+One ESPN scoreboard request returns moneyline, spread and total for the whole
+slate, so no betting API key is needed. The Thursday pull is stored as *the*
+line for that week — a single row per game in `gameodds`, overwritten on each
+run rather than kept as history.
+
+### Results
+
+Results land on their own. The nightly cron is the safety net, and the
+scoreboard also calls `/api/results/refresh` when it loads, which pulls fresh
+scores whenever a game has kicked off but has no result yet. Hobby crons cannot
+run more than once a day, so that on-demand call is what keeps the board
+current mid-slate. The admin page remains as a manual fallback.
 
 ## API Routes
 
@@ -123,8 +138,12 @@ Headers: Authorization: Bearer YOUR_CRON_SECRET
 ### Admin
 - `POST /api/admin/manual-results` - Update game results manually
 
+### Results
+- `POST /api/results/refresh` - Pull fresh results for the live week (used by the scoreboard)
+
 ### Cron Jobs
 - `POST /api/cron/fetch-schedule` - Fetch next week's schedule
+- `POST /api/cron/fetch-odds` - Snapshot this week's betting lines
 - `POST /api/cron/resolve-results` - Update game results and scores
 
 ## Database Schema
@@ -144,12 +163,17 @@ Headers: Authorization: Bearer YOUR_CRON_SECRET
 - Computed weekly scores
 - All-or-nothing scoring system
 
+### Game Odds
+- Moneyline, spread and total per game
+- One row per game, refreshed each Thursday before lock
+
 ## Scoring Rules
 
-1. **All-or-Nothing**: If all picks for a week are correct, get points equal to number of picks
-2. **Zero Points**: If any pick is wrong, get 0 points for that week
-3. **Complete Picks**: Must pick ALL games in a week to be eligible for points
-4. **No Partial Credit**: No points for partial weeks
+1. **All-or-Nothing**: If all your locks for a week hit, you score one point per lock
+2. **Zero Points**: If any lock misses, you score 0 for that week
+3. **Pick However Many You Like**: Lock any subset of the slate — more locks means more upside and more risk
+4. **Ties Lose**: A lock only hits if the picked team wins
+5. **No Partial Credit**: No points for partial weeks
 
 ## Time Management
 

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, bigint, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, bigint, timestamp, boolean, real } from 'drizzle-orm/pg-core';
 
 // Users table - fixed set of 6 friends
 export const users = pgTable('users', {
@@ -41,6 +41,18 @@ export const weeklyScores = pgTable('weeklyscores', {
   pk: { primaryKey: [table.userId, table.season, table.week] },
 }));
 
+// Closing odds for a game, snapshotted once per week before picks lock.
+// One row per game: the Thursday pull is treated as the line for the whole week.
+export const gameOdds = pgTable('gameodds', {
+  gameId: bigint('gameid', { mode: 'number' }).primaryKey().references(() => games.id),
+  season: integer('season').notNull(),
+  week: integer('week').notNull(),
+  awayMoneyline: integer('awaymoneyline'),
+  homeMoneyline: integer('homemoneyline'),
+  spread: text('spread'),
+  total: real('total'),
+});
+
 // Types for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -50,3 +62,5 @@ export type Pick = typeof picks.$inferSelect;
 export type NewPick = typeof picks.$inferInsert;
 export type WeeklyScore = typeof weeklyScores.$inferSelect;
 export type NewWeeklyScore = typeof weeklyScores.$inferInsert;
+export type GameOdds = typeof gameOdds.$inferSelect;
+export type NewGameOdds = typeof gameOdds.$inferInsert;

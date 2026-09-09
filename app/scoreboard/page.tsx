@@ -70,6 +70,11 @@ export default function ScoreboardPage() {
 
   const fetchScores = async () => {
     try {
+      // Pull in any results that have landed since the nightly cron ran, so the
+      // board is current mid-slate without anyone entering scores by hand.
+      // The endpoint no-ops when nothing has kicked off or it ran recently.
+      await fetch('/api/results/refresh', { method: 'POST' }).catch(() => undefined);
+
       const response = await fetch(`/api/scoreboard?season=${season}`);
       if (response.ok) {
         const data = await response.json();

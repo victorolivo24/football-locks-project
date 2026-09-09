@@ -61,6 +61,16 @@ async function main() {
       primary key (userid, season, week)
     )`;
 
+    await sql`create table if not exists gameodds (
+      gameid bigint primary key references games(id),
+      season integer not null,
+      week integer not null,
+      awaymoneyline integer,
+      homemoneyline integer,
+      spread text,
+      total real
+    )`;
+
     const tables = await sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`;
     console.log(`Initialized tables: ${tables.map((row) => row.table_name).join(', ')}`);
   } finally {

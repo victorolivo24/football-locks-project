@@ -6,7 +6,7 @@ import Link from 'next/link';
 import TeamLogo from '@/components/TeamLogo';
 import { DateTime } from 'luxon';
 import { normalizeTeam, isSameTeam } from '@/lib/teams';
-import { calculateParlay, getTeamMoneyline, getOddsForGame } from '@/lib/gameOdds';
+import { parlayForPicks, moneylineForPick, findGameForPick } from '@/lib/gameOdds';
 
 interface Game {
   id: number;
@@ -15,6 +15,11 @@ interface Game {
   startTime: string;
   status: string;
   winnerTeam?: string | null;
+  // Lines stored for the week, attached by /api/schedule.
+  homeMoneyline?: number | null;
+  awayMoneyline?: number | null;
+  spread?: string | null;
+  total?: number | null;
 }
 
 interface PickItem {
@@ -150,15 +155,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
               {users.map((u) => {
                 const uPicks = picksByUser[u.name] || [];
                 if (uPicks.length === 0) return null;
-                const uParlay = calculateParlay(
-                  uPicks.map((p) => {
-                    const g = games.find((g) => g.id === p.gameId) ||
-                              games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-                    return { pickedTeam: p.pickedTeam, homeTeam: g?.homeTeam, awayTeam: g?.awayTeam };
-                  }),
-                  season,
-                  week
-                );
+                const uParlay = parlayForPicks(uPicks, games);
                 return (
                   <div key={u.id} className="bg-white/5 border border-white/10 rounded-xl p-2.5 text-center">
                     <div className="font-bold text-white text-xs truncate">{u.name}</div>
@@ -206,15 +203,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
               const has = picks.length > 0;
               const busted = isUserBusted(u);
               const perfect = isUserPerfect(u);
-              const parlay = calculateParlay(
-                picks.map((p) => {
-                  const g = games.find((g) => g.id === p.gameId) ||
-                            games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-                  return { pickedTeam: p.pickedTeam, homeTeam: g?.homeTeam, awayTeam: g?.awayTeam };
-                }),
-                season,
-                week
-              );
+              const parlay = parlayForPicks(picks, games);
               
               return (
                 <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
@@ -255,7 +244,7 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                         const pickedHome = isSameTeam(p.pickedTeam, g.homeTeam);
                         const pickedAway = isSameTeam(p.pickedTeam, g.awayTeam);
                         const ml = (g.awayTeam && g.homeTeam)
-                          ? getTeamMoneyline(p.pickedTeam, g.awayTeam, g.homeTeam, season, week)
+                          ? moneylineForPick(p.pickedTeam, g)
                           : null;
                         const mlStr = ml !== null ? (ml > 0 ? `+${ml}` : `${ml}`) : '';
 
@@ -359,16 +348,14 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                 return null;
               }
 
-              const gameOdds = getOddsForGame(g.awayTeam, g.homeTeam, season, week);
-
               return (
                 <div key={g.id} className="disco-card p-0 overflow-hidden mb-4">
                   <div className="bg-black/50 px-4 py-3 border-b border-pink-500/30 flex items-center justify-between text-xs font-disco text-cyan-300">
                     <div className="flex items-center gap-3">
                       <span className="font-medium tracking-wider">{formatGameTime(g.startTime)}</span>
-                      {gameOdds?.spread && (
+                      {g.spread && (
                         <span className="bg-white/10 text-white/90 font-sans px-2 py-0.5 rounded text-[11px] font-semibold border border-white/10">
-                          {gameOdds.spread} {gameOdds.total ? `• O/U ${gameOdds.total}` : ''}
+                          {g.spread} {g.total ? `• O/U ${g.total}` : ''}
                         </span>
                       )}
                     </div>
@@ -394,9 +381,9 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                           <div className="text-[10px] text-cyan-300 font-disco uppercase tracking-widest">Away</div>
                           <div className="font-bold text-white text-lg truncate font-disco flex items-baseline gap-1.5">
                             <span>{normalizeTeam(g.awayTeam)}</span>
-                            {gameOdds && (
+                            {g.awayMoneyline != null && (
                               <span className="text-xs font-sans text-white/60 font-semibold">
-                                ({gameOdds.awayMoneyline > 0 ? `+${gameOdds.awayMoneyline}` : gameOdds.awayMoneyline})
+                                ({g.awayMoneyline > 0 ? `+${g.awayMoneyline}` : g.awayMoneyline})
                               </span>
                             )}
                           </div>
@@ -428,9 +415,9 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                           <div className="text-[10px] text-pink-300 font-disco uppercase tracking-widest">Home</div>
                           <div className="font-bold text-white text-lg truncate font-disco flex items-baseline gap-1.5">
                             <span>{normalizeTeam(g.homeTeam)}</span>
-                            {gameOdds && (
+                            {g.homeMoneyline != null && (
                               <span className="text-xs font-sans text-white/60 font-semibold">
-                                ({gameOdds.homeMoneyline > 0 ? `+${gameOdds.homeMoneyline}` : gameOdds.homeMoneyline})
+                                ({g.homeMoneyline > 0 ? `+${g.homeMoneyline}` : g.homeMoneyline})
                               </span>
                             )}
                           </div>
