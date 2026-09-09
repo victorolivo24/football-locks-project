@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TeamLogo from '@/components/TeamLogo';
+import TicketBuilder from '@/components/TicketBuilder';
 import { DateTime } from 'luxon';
 import { normalizeTeam, isSameTeam } from '@/lib/teams';
 import { parlayForPicks, moneylineForPick, findGameForPick } from '@/lib/gameOdds';
@@ -44,14 +45,20 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<'game' | 'player'>('player');
+  const [myName, setMyName] = useState<string>('');
 
   useEffect(() => {
     (async () => {
       try {
-        const [schedRes, picksRes] = await Promise.all([
+        const [schedRes, picksRes, meRes] = await Promise.all([
           fetch(`/api/schedule?season=${season}&week=${week}`),
           fetch(`/api/picks/all?season=${season}&week=${week}`),
+          fetch('/api/me'),
         ]);
+        if (meRes.ok) {
+          const me = await meRes.json();
+          setMyName(me.user?.name ?? '');
+        }
         if (schedRes.ok) {
           const s = await schedRes.json();
           setGames(s.games || []);
@@ -166,6 +173,16 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {myName && (
+          <div className="mb-6">
+            <TicketBuilder
+              games={games}
+              week={week}
+              myPicks={picksByUser[myName] ?? []}
+            />
           </div>
         )}
 

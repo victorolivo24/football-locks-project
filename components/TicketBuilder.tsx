@@ -8,6 +8,7 @@ interface BuilderGame {
   id: number;
   homeTeam: string;
   awayTeam: string;
+  startTime: string;
   homeMoneyline?: number | null;
   awayMoneyline?: number | null;
 }
@@ -56,7 +57,10 @@ export default function TicketBuilder({ games, week, myPicks }: Props) {
   const bestExpected = expectedPoints(bestSameSize);
   const gap = expected - bestExpected;
 
-  if (board.length === 0) return null;
+  // Strictly a look-back. Before the slate starts this would be a cheat sheet
+  // for picks that have not locked yet, so it stays hidden until kickoff.
+  const kickedOff = board.some(entry => new Date(entry.game.startTime).getTime() <= Date.now());
+  if (board.length === 0 || !kickedOff) return null;
 
   return (
     <div className="glass-card p-6 space-y-4">
@@ -67,7 +71,7 @@ export default function TicketBuilder({ games, week, myPicks }: Props) {
             <h2 className="text-xl font-bold text-white">Build a Ticket</h2>
           </div>
           <p className="text-xs text-green-200/80 mt-1">
-            Starts on your Week {week} picks. Swap games to see what a different slate would have been worth.
+            Your Week {week} ticket. Swap games to see what a different slate would have been worth.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
