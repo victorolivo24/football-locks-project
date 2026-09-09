@@ -30,8 +30,8 @@ export default function ScoreboardPage() {
   const [insights, setInsights] = useState<SeasonInsightsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<number>(2026);
-  const [activeTab, setActiveTab] = useState<'scoreboard' | 'insights' | 'heartbreak' | 'gametheory'>('scoreboard');
-  const [playerFilter, setPlayerFilter] = useState<'all' | 'high-volume' | 'home-biased' | 'primetime'>('all');
+  const [activeTab, setActiveTab] = useState<'scoreboard' | 'insights' | 'slatebusters' | 'gametheory'>('scoreboard');
+  const [playerFilter, setPlayerFilter] = useState<'all' | 'high-volume' | 'home-biased' | 'primetime' | 'heartbreak'>('all');
   const [calculatorHitRate, setCalculatorHitRate] = useState<number>(70);
 
   const router = useRouter();
@@ -133,6 +133,7 @@ export default function ScoreboardPage() {
     if (playerFilter === 'high-volume') return p.avgPicksPerWeek >= 4;
     if (playerFilter === 'home-biased') return p.homePct >= 60;
     if (playerFilter === 'primetime') return p.primeTimePct >= 35;
+    if (playerFilter === 'heartbreak') return p.heartbreak.heartbreakWeeks > 0;
     return true;
   });
 
@@ -232,15 +233,15 @@ export default function ScoreboardPage() {
                 <span>Player Insights</span>
               </button>
               <button
-                onClick={() => setActiveTab('heartbreak')}
+                onClick={() => setActiveTab('slatebusters')}
                 className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 flex items-center space-x-1.5 ${
-                  activeTab === 'heartbreak'
+                  activeTab === 'slatebusters'
                     ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20'
                     : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <span>💔</span>
-                <span>Heartbreak & Busters</span>
+                <span>💥</span>
+                <span>Slate Busters</span>
               </button>
               <button
                 onClick={() => setActiveTab('gametheory')}
@@ -455,6 +456,16 @@ export default function ScoreboardPage() {
                   >
                     🌙 Night Game Lovers
                   </button>
+                  <button
+                    onClick={() => setPlayerFilter('heartbreak')}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                      playerFilter === 'heartbreak'
+                        ? 'bg-yellow-400 text-black border-yellow-400'
+                        : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    💔 1-Miss Heartbreaks
+                  </button>
                 </div>
               </div>
 
@@ -536,6 +547,58 @@ export default function ScoreboardPage() {
                       </div>
                     </div>
 
+                    {/* Heartbreak Box on Player Card */}
+                    <div className={`p-3 rounded-xl border ${
+                      player.heartbreak.heartbreakWeeks > 0
+                        ? 'bg-red-950/20 border-red-500/30 text-red-200'
+                        : 'bg-white/5 border-white/10 text-white/80'
+                    }`}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="flex items-center space-x-1 font-bold">
+                          <span>💔 Heartbreak Index:</span>
+                          <span className={player.heartbreak.heartbreakWeeks > 0 ? 'text-red-300 font-extrabold' : 'text-green-300'}>
+                            {player.heartbreak.heartbreakWeeks} {player.heartbreak.heartbreakWeeks === 1 ? 'week' : 'weeks'}
+                          </span>
+                        </span>
+                        {player.heartbreak.pointsLostToHeartbreak > 0 && (
+                          <span className="text-[11px] font-extrabold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
+                            -{player.heartbreak.pointsLostToHeartbreak} pts lost
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] leading-snug">
+                        {player.heartbreak.worstHeartbreak ? (
+                          <span className="text-red-200/90">
+                            Toughest beat: Week {player.heartbreak.worstHeartbreak.week} (went {player.heartbreak.worstHeartbreak.record}, spoiled by {player.heartbreak.worstHeartbreak.spoilerTeam})
+                          </span>
+                        ) : (
+                          <span className="text-green-300/80">
+                            🛡️ No 1-miss heartbreaks yet. Clean record!
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Game Theory Strategy Verdict */}
+                    <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 flex items-center justify-between text-xs">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm">🧮</span>
+                        <div>
+                          <span className="text-white/60 text-[10px] block">Game Theory Optimal</span>
+                          <span className="font-bold text-white">{player.optimalStrategy.optimalPicks} locks/wk</span>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        player.optimalStrategy.strategyVerdict === 'Optimal'
+                          ? 'bg-green-600/20 text-green-300 border border-green-500/30'
+                          : player.optimalStrategy.strategyVerdict === 'Lottery Hunter'
+                          ? 'bg-purple-600/20 text-purple-200 border border-purple-500/30'
+                          : 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
+                      }`}>
+                        {player.optimalStrategy.strategyVerdict === 'Optimal' ? '🎯 Optimal Pace' : player.optimalStrategy.strategyVerdict === 'Lottery Hunter' ? '🎰 High Roller' : '🛡️ Conservative'}
+                      </span>
+                    </div>
+
                     <div className="space-y-1.5 bg-black/20 p-3 rounded-xl border border-white/5">
                       <div className="flex justify-between text-xs font-medium text-white/80">
                         <span className="flex items-center space-x-1">
@@ -584,8 +647,8 @@ export default function ScoreboardPage() {
             </div>
           )}
 
-          {/* TAB 3: Heartbreak & Slate Busters */}
-          {activeTab === 'heartbreak' && (
+          {/* TAB 3: Slate Busters & Heartbreak Standings */}
+          {activeTab === 'slatebusters' && (
             <div className="space-y-6">
               {/* Slate Busters Banner */}
               <div className="glass-card p-6 space-y-4">
