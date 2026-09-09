@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchNFLSchedule, upsertGames, getCurrentNFLWeek } from '@/lib/nfl';
+import { fetchNFLSchedule, upsertGames, getCurrentNFLWeek, getCurrentWeekFromSchedule } from '@/lib/nfl';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get next week's schedule
-    const { season, week } = getCurrentNFLWeek();
+    const { season, week } = (await getCurrentWeekFromSchedule()) ?? getCurrentNFLWeek();
     const nextWeek = week + 1;
     
     // Fetch schedule from ESPN

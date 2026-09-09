@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchNFLSchedule, upsertGames, getCurrentNFLWeek } from '@/lib/nfl';
+import { fetchNFLSchedule, upsertGames, getCurrentNFLWeek, getCurrentWeekFromSchedule } from '@/lib/nfl';
 import { calculateAllWeeklyScores } from '@/lib/scoring';
 
 export async function POST(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { season, week } = getCurrentNFLWeek();
+    const { season, week } = (await getCurrentWeekFromSchedule()) ?? getCurrentNFLWeek();
     
     // Fetch current week's results to update game statuses
     const gamesData = await fetchNFLSchedule(season, week);
