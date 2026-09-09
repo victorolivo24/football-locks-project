@@ -1,37 +1,4 @@
-import { db } from '@/lib/db';
-import { sql } from 'drizzle-orm';
 import { getSeasonInsights } from './insights';
-
-type LeaderRow = { userId: number; name: string; points: number };
-
-export async function getLeaderboardTotals(season: number): Promise<LeaderRow[]> {
-  const rows = await db.execute<LeaderRow>(sql`
-    SELECT u.id AS "userId", u.name AS "name", COALESCE(SUM(ws.points), 0)::int AS "points"
-    FROM users u
-    LEFT JOIN weeklyscores ws
-      ON ws.userid = u.id AND ws.season = ${season}
-    GROUP BY u.id, u.name
-    ORDER BY "points" DESC, u.name ASC
-  `);
-  const list = (rows as any)?.rows || (Array.isArray(rows) ? rows : []);
-  return list;
-}
-
-// Fallback estimation if needed
-export async function getAvgPicksPerWeek(season: number, currentWeek: number): Promise<number> {
-  if (!currentWeek || currentWeek <= 1) return 3;
-  const res = await db.execute<{ total: number; users: number }>(sql`
-    SELECT
-      (SELECT COUNT(*) FROM picks WHERE season = ${season} AND week <= ${currentWeek})::int AS total,
-      (SELECT COUNT(*) FROM users)::int AS users
-  `);
-  const first = (res as any)?.rows?.[0] || (Array.isArray(res) ? res[0] : null);
-  const total = first?.total ?? 0;
-  const users = Math.max(1, first?.users ?? 1);
-  const finishedWeeks = Math.max(1, currentWeek);
-  const avg = total / (users * finishedWeeks);
-  return Math.min(6, Math.max(1, Number.isFinite(avg) ? avg : 3));
-}
 
 function logistic(x: number): number {
   return 1 / (1 + Math.exp(-x));

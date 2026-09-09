@@ -1,7 +1,21 @@
 import { db } from '@/lib/db';
-import { sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { isSameTeam, normalizeTeam } from './teams';
+import { fairWinProbability, ticketProbability, expectedPoints } from './luck';
+
+export interface LuckLedger {
+  expectedPoints: number; // What the market said the tickets were worth
+  actualPoints: number; // What was actually scored over those same weeks
+  delta: number; // actual - expected: positive is running hot
+  gradedWeeks: number; // Weeks counted (fully priced and fully played)
+  weeks: Array<{
+    week: number;
+    locks: number;
+    probability: number; // Chance the ticket survived, as a percentage
+    expected: number;
+    actual: number;
+  }>;
+}
 
 export interface OptimalPicksStats {
   effectiveHitRate: number; // In percentage (e.g. 72)
@@ -41,6 +55,7 @@ export interface PlayerInsights {
   maxCeiling: number;
   weeklyPicksBreakdown: Record<number, number>;
   optimalStrategy: OptimalPicksStats;
+  luck: LuckLedger;
 }
 
 export interface SlateBusterTeam {
@@ -147,6 +162,72 @@ export function calculateOptimalPicks(
   };
 }
 
+/**
+ * Score a player's season against what the market said their tickets were worth.
+ *
+ * Only weeks that are both fully priced and fully played are graded, so the
+ * comparison is like for like: an unpriced leg would understate expectation,
+ * and an unfinished week has no actual score to compare against yet.
+ */
+function buildLuckLedger(
+  weeklyPicksMap: Record<number, Array<{ gameId: number | null; pickedTeam: string }>>,
+  gameMap: Map<number, { homeTeam: string; awayTeam: string; status: string; winnerTeam: string | null }>,
+  oddsByGame: Map<number, { homeMoneyline: number | null; awayMoneyline: number | null }>,
+  userScores: Array<{ week: number; points: number }>
+): LuckLedger {
+  const weeks: LuckLedger['weeks'] = [];
+
+  for (const [weekStr, picksForWeek] of Object.entries(weeklyPicksMap)) {
+    const week = Number(weekStr);
+    const legProbabilities: number[] = [];
+    let gradable = true;
+
+    for (const pick of picksForWeek) {
+      const game = gameMap.get(Number(pick.gameId));
+      const line = oddsByGame.get(Number(pick.gameId));
+
+      if (!game || game.status !== 'final' || !line) {
+        gradable = false;
+        break;
+      }
+
+      const pickedHome = isSameTeam(pick.pickedTeam, game.homeTeam);
+      const pickedOdds = pickedHome ? line.homeMoneyline : line.awayMoneyline;
+      const opponentOdds = pickedHome ? line.awayMoneyline : line.homeMoneyline;
+
+      if (pickedOdds == null || opponentOdds == null) {
+        gradable = false;
+        break;
+      }
+
+      legProbabilities.push(fairWinProbability(pickedOdds, opponentOdds));
+    }
+
+    if (!gradable || legProbabilities.length === 0) continue;
+
+    weeks.push({
+      week,
+      locks: picksForWeek.length,
+      probability: Number((ticketProbability(legProbabilities) * 100).toFixed(1)),
+      expected: Number(expectedPoints(legProbabilities).toFixed(2)),
+      actual: userScores.find(s => s.week === week)?.points ?? 0,
+    });
+  }
+
+  weeks.sort((a, b) => a.week - b.week);
+
+  const expected = weeks.reduce((sum, w) => sum + w.expected, 0);
+  const actual = weeks.reduce((sum, w) => sum + w.actual, 0);
+
+  return {
+    expectedPoints: Number(expected.toFixed(2)),
+    actualPoints: actual,
+    delta: Number((actual - expected).toFixed(2)),
+    gradedWeeks: weeks.length,
+    weeks,
+  };
+}
+
 export async function getSeasonInsights(season: number, currentWeekOverride?: number): Promise<SeasonInsightsData> {
   const allUsers = await db.query.users.findMany({
     orderBy: (users, { asc }) => [asc(users.name)],
@@ -164,6 +245,12 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
   const seasonScores = await db.query.weeklyScores.findMany({
     where: (weeklyScores, { eq }) => eq(weeklyScores.season, season),
   });
+
+  const seasonOdds = await db.query.gameOdds.findMany({
+    where: (gameOdds, { eq }) => eq(gameOdds.season, season),
+  }).catch(() => []);
+
+  const oddsByGame = new Map(seasonOdds.map(o => [Number(o.gameId), o]));
 
   const weeksWithPicks = seasonPicks.map(p => p.week);
   const maxWeekInPicks = weeksWithPicks.length > 0 ? Math.max(...weeksWithPicks) : 1;
@@ -280,6 +367,8 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
       weeklyCounts[Number(w)] = picks.length;
     }
 
+    const luck = buildLuckLedger(weeklyPicksMap, gameMap, oddsByGame, userScores);
+
     playerStatsMap.set(user.id, {
       userId: user.id,
       name: user.name,
@@ -308,6 +397,7 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
       maxCeiling,
       weeklyPicksBreakdown: weeklyCounts,
       optimalStrategy,
+      luck,
     });
   }
 

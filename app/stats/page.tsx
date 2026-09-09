@@ -277,7 +277,74 @@ export default function NerdStatsPage() {
           </div>
         )}
 
-        {/* Section 3: Player Profiles & Tendencies Cards */}
+        {/* Section 3: Luck Ledger */}
+        {(insights?.players || []).some(p => p.luck.gradedWeeks > 0) && (
+          <div className="space-y-3 px-4 sm:px-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                <span>🍀</span>
+                <span>Luck Ledger</span>
+              </h2>
+              <span className="text-xs text-green-200/70">
+                What the closing line said your slates were worth, against what you actually scored
+              </span>
+            </div>
+
+            <div className="glass-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-white/5 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
+                      <th className="px-5 py-3">Player</th>
+                      <th className="px-5 py-3 text-center">Graded Wks</th>
+                      <th className="px-5 py-3 text-center">Expected</th>
+                      <th className="px-5 py-3 text-center">Actual</th>
+                      <th className="px-5 py-3 text-center">Running</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {[...(insights?.players || [])]
+                      .filter(p => p.luck.gradedWeeks > 0)
+                      .sort((a, b) => b.luck.delta - a.luck.delta)
+                      .map((player) => {
+                        const hot = player.luck.delta > 0.5;
+                        const cold = player.luck.delta < -0.5;
+                        return (
+                          <tr key={player.userId} className="hover:bg-white/5 transition-colors">
+                            <td className="px-5 py-3.5 font-bold text-white whitespace-nowrap">{player.name}</td>
+                            <td className="px-5 py-3.5 text-center text-white/70">{player.luck.gradedWeeks}</td>
+                            <td className="px-5 py-3.5 text-center font-semibold text-green-200">
+                              {player.luck.expectedPoints.toFixed(2)}
+                            </td>
+                            <td className="px-5 py-3.5 text-center font-extrabold text-white">
+                              {player.luck.actualPoints}
+                            </td>
+                            <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                              <span className={`font-black text-sm px-2.5 py-0.5 rounded ${
+                                hot
+                                  ? 'bg-green-500/20 text-green-300 border border-green-400/30'
+                                  : cold
+                                    ? 'bg-red-500/20 text-red-300 border border-red-400/30'
+                                    : 'bg-white/10 text-white/70 border border-white/10'
+                              }`}>
+                                {player.luck.delta > 0 ? '+' : ''}{player.luck.delta.toFixed(2)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-5 py-3 border-t border-white/10 text-[11px] text-green-200/60 leading-snug">
+                Expected points are the ticket length times the devigged chance every lock hits.
+                Positive means you have scored more than the market said you should.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Section 4: Player Profiles & Tendencies Cards */}
         <div className="space-y-4 px-4 sm:px-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>

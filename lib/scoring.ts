@@ -91,18 +91,6 @@ export async function calculateAllWeeklyScores(season: number, week: number) {
   }
 }
 
-// Get user's total score for the season
-export async function getUserSeasonScore(userId: number, season: number): Promise<number> {
-  const scores = await db.query.weeklyScores.findMany({
-    where: and(
-      eq(weeklyScores.userId, userId),
-      eq(weeklyScores.season, season)
-    ),
-  });
-
-  return scores.reduce((total, score) => total + score.points, 0);
-}
-
 // Get all users' season scores
 export async function getAllSeasonScores(season: number) {
   const users = await db.query.users.findMany();

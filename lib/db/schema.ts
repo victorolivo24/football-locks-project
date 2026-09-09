@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, bigint, timestamp, boolean, real } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, bigint, timestamp, real } from 'drizzle-orm/pg-core';
 
 // Users table - fixed set of 6 friends
 export const users = pgTable('users', {
