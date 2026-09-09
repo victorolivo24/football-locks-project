@@ -251,8 +251,8 @@ export default function ScoreboardPage() {
                     : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <span>🧮</span>
-                <span>Game Theory & Odds</span>
+                <span>🏆</span>
+                <span>Title Odds & Calculator</span>
               </button>
             </div>
           </div>
@@ -278,7 +278,7 @@ export default function ScoreboardPage() {
                           Pace (Locks/Wk)
                         </th>
                         <th className="px-5 py-3.5 text-center text-xs font-semibold text-green-200 uppercase tracking-wider">
-                          Optimal Strategy
+                          Lock Record
                         </th>
                         <th className="px-5 py-3.5 text-center text-xs font-semibold text-green-200 uppercase tracking-wider">
                           Home / Away
@@ -330,19 +330,14 @@ export default function ScoreboardPage() {
                                   {insight?.avgPicksPerWeek?.toFixed(1) ?? '3.0'} / wk
                                 </span>
                               </td>
-                              <td className="px-5 py-4 whitespace-nowrap text-center">
-                                {insight ? (
-                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                                    insight.optimalStrategy.strategyVerdict === 'Optimal'
-                                      ? 'bg-green-600/20 text-green-300 border border-green-500/30'
-                                      : insight.optimalStrategy.strategyVerdict === 'Lottery Hunter'
-                                      ? 'bg-purple-600/20 text-purple-200 border border-purple-500/30'
-                                      : 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
-                                  }`}>
-                                    {insight.optimalStrategy.strategyVerdict} ({insight.optimalStrategy.optimalPicks} opt)
+                              <td className="px-5 py-4 whitespace-nowrap text-center text-xs text-white/90">
+                                {insight && insight.completedPicks > 0 ? (
+                                  <span className="font-semibold">
+                                    {insight.correctPicks}-{insight.completedPicks - insight.correctPicks}{' '}
+                                    <span className="text-green-300 font-bold">({insight.pickWinPct}%)</span>
                                   </span>
                                 ) : (
-                                  <span className="text-white/40">-</span>
+                                  <span className="text-white/40">{insight?.totalPicks ?? 0} active</span>
                                 )}
                               </td>
                               <td className="px-5 py-4 whitespace-nowrap text-center text-xs">
@@ -579,26 +574,6 @@ export default function ScoreboardPage() {
                       </div>
                     </div>
 
-                    {/* Game Theory Strategy Verdict */}
-                    <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm">🧮</span>
-                        <div>
-                          <span className="text-white/60 text-[10px] block">Game Theory Optimal</span>
-                          <span className="font-bold text-white">{player.optimalStrategy.optimalPicks} locks/wk</span>
-                        </div>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        player.optimalStrategy.strategyVerdict === 'Optimal'
-                          ? 'bg-green-600/20 text-green-300 border border-green-500/30'
-                          : player.optimalStrategy.strategyVerdict === 'Lottery Hunter'
-                          ? 'bg-purple-600/20 text-purple-200 border border-purple-500/30'
-                          : 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
-                      }`}>
-                        {player.optimalStrategy.strategyVerdict === 'Optimal' ? '🎯 Optimal Pace' : player.optimalStrategy.strategyVerdict === 'Lottery Hunter' ? '🎰 High Roller' : '🛡️ Conservative'}
-                      </span>
-                    </div>
-
                     <div className="space-y-1.5 bg-black/20 p-3 rounded-xl border border-white/5">
                       <div className="flex justify-between text-xs font-medium text-white/80">
                         <span className="flex items-center space-x-1">
@@ -780,27 +755,28 @@ export default function ScoreboardPage() {
             </div>
           )}
 
-          {/* TAB 4: Game Theory & Optimal Pick Calculator */}
+          {/* TAB 4: Optimal Picks & Title Odds */}
           {activeTab === 'gametheory' && (
-            <div className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <OddsCard season={season} week={currentWeekForOdds} />
+
               {/* Interactive Sweet Spot Simulator */}
               <div className="glass-card p-6 space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                   <div>
                     <div className="flex items-center space-x-2">
                       <span className="text-2xl">🧮</span>
-                      <h2 className="text-2xl font-bold text-white">Mathematically Optimal Pick Calculator</h2>
+                      <h2 className="text-xl font-bold text-white">Optimal Pick Calculator</h2>
                     </div>
                     <p className="text-xs text-green-200/80 mt-1">
-                      In all-or-nothing scoring, Expected Value is <code className="bg-black/30 px-1 rounded text-yellow-300">EV(N) = N × (hitRate)^N</code>.
-                      See where your theoretical sweet spot lies!
+                      See how your win rate affects the best number of locks to pick each week.
                     </p>
                   </div>
 
-                  <div className="bg-white/10 p-3 rounded-xl border border-white/10 flex items-center space-x-3 shrink-0">
+                  <div className="bg-white/10 p-2.5 rounded-xl border border-white/10 flex items-center space-x-3 shrink-0">
                     <div className="text-right">
-                      <div className="text-[10px] text-white/60 uppercase font-semibold">Simulated Win Rate</div>
-                      <div className="text-xl font-black text-yellow-400">{calculatorHitRate}%</div>
+                      <div className="text-[10px] text-white/60 uppercase font-semibold">Your Win Rate</div>
+                      <div className="text-lg font-black text-yellow-400">{calculatorHitRate}%</div>
                     </div>
                     <input
                       type="range"
@@ -809,130 +785,46 @@ export default function ScoreboardPage() {
                       step="1"
                       value={calculatorHitRate}
                       onChange={(e) => setCalculatorHitRate(Number(e.target.value))}
-                      className="w-28 accent-yellow-400 cursor-pointer"
+                      className="w-24 accent-yellow-400 cursor-pointer"
                     />
                   </div>
                 </div>
 
                 {/* EV Curve Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {evCurve.map((tier) => {
                     const isOptimal = tier.n === bestCalculatorN.n;
                     return (
                       <div
                         key={tier.n}
-                        className={`p-3.5 rounded-xl border text-center transition-all duration-300 ${
+                        className={`p-3 rounded-xl border text-center transition-all duration-300 ${
                           isOptimal
-                            ? 'bg-gradient-to-b from-yellow-500/20 to-yellow-600/10 border-yellow-400/60 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                            ? 'bg-yellow-500/20 border-yellow-400/60 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
                             : 'bg-white/5 border-white/10'
                         }`}
                       >
                         {isOptimal && (
                           <span className="text-[9px] uppercase font-black tracking-wider bg-yellow-400 text-black px-1.5 py-0.5 rounded-full inline-block mb-1">
-                            Optimal Sweet Spot
+                            Sweet Spot
                           </span>
                         )}
-                        <div className="text-sm font-bold text-white">{tier.n} Locks / Wk</div>
-                        <div className="text-2xl font-black text-yellow-300 my-1">
-                          {tier.ev} <span className="text-xs font-medium text-white/60">EV pts</span>
+                        <div className="text-xs font-bold text-white">{tier.n} Locks / Wk</div>
+                        <div className="text-xl font-black text-yellow-300 my-0.5">
+                          {tier.ev} <span className="text-[10px] font-medium text-white/60">avg pts</span>
                         </div>
                         <div className="text-[10px] text-green-200/70">
-                          {tier.prob}% cash chance
+                          {tier.prob}% hit chance
                         </div>
                       </div>
                     );
                   })}
                 </div>
 
-                <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-green-200/80 flex items-center space-x-2">
+                <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-green-200/90 flex items-center space-x-2">
                   <span>💡</span>
                   <span>
-                    <strong>Takeaway:</strong> At a <strong>{calculatorHitRate}%</strong> hit rate, choosing <strong>{bestCalculatorN.n} locks</strong> maximizes your expected long-term points ({bestCalculatorN.ev} pts/wk). Choosing more locks gives bigger jackpot weeks, but lowers overall expected season points!
+                    At a <strong>{calculatorHitRate}%</strong> win rate, picking <strong>{bestCalculatorN.n} locks/week</strong> gives you the highest average points over the season ({bestCalculatorN.ev} pts/wk).
                   </span>
-                </div>
-              </div>
-
-              {/* Player Game Theory Strategy Table */}
-              <div className="glass-card overflow-hidden">
-                <div className="p-5 border-b border-white/10">
-                  <h3 className="text-xl font-bold text-white">Player Strategy Diagnostics</h3>
-                  <p className="text-xs text-green-200/80">
-                    Comparing each player's actual picking volume vs. their mathematically optimal volume
-                  </p>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className="border-b border-white/10 bg-white/5">
-                        <th className="px-5 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
-                          Player
-                        </th>
-                        <th className="px-5 py-3 text-center text-xs font-bold text-yellow-300 uppercase tracking-wider">
-                          Actual Pace
-                        </th>
-                        <th className="px-5 py-3 text-center text-xs font-bold text-green-200 uppercase tracking-wider">
-                          Game Theory Optimal
-                        </th>
-                        <th className="px-5 py-3 text-center text-xs font-bold text-green-200 uppercase tracking-wider">
-                          Strategy Verdict
-                        </th>
-                        <th className="px-5 py-3 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
-                          Game Theory Advice
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {insights?.players.map((p) => {
-                        const strat = p.optimalStrategy;
-                        return (
-                          <tr key={p.userId} className="hover:bg-white/5 transition-colors">
-                            <td className="px-5 py-4 whitespace-nowrap text-sm font-bold text-white">
-                              {p.name}
-                            </td>
-                            <td className="px-5 py-4 whitespace-nowrap text-center text-sm font-extrabold text-yellow-300">
-                              {p.avgPicksPerWeek.toFixed(1)} locks/wk
-                            </td>
-                            <td className="px-5 py-4 whitespace-nowrap text-center text-sm font-extrabold text-green-300">
-                              {strat.optimalPicks} locks/wk ({strat.optimalEV} EV)
-                            </td>
-                            <td className="px-5 py-4 whitespace-nowrap text-center">
-                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                                strat.strategyVerdict === 'Optimal'
-                                  ? 'bg-green-600/20 text-green-300 border border-green-500/30'
-                                  : strat.strategyVerdict === 'Lottery Hunter'
-                                  ? 'bg-purple-600/20 text-purple-200 border border-purple-500/30'
-                                  : 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
-                              }`}>
-                                {strat.strategyVerdict === 'Optimal' ? '🎯 Optimal' : strat.strategyVerdict === 'Lottery Hunter' ? '🎰 High Roller' : '🛡️ Conservative'}
-                              </span>
-                            </td>
-                            <td className="px-5 py-4 text-xs text-white/80 max-w-md">
-                              {strat.advice}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Title Odds card side-by-side */}
-              <div className="grid gap-6 md:grid-cols-2">
-                <OddsCard season={season} week={currentWeekForOdds} />
-
-                <div className="glass-card p-5 space-y-3">
-                  <h3 className="text-white font-bold text-lg flex items-center space-x-2">
-                    <span>💡</span>
-                    <span>The All-or-Nothing Paradox</span>
-                  </h3>
-                  <p className="text-sm text-green-200/90 leading-relaxed">
-                    Because picking 6 locks requires 6 consecutive hits ($p^6$), even an elite 75% picker only has a <strong>17.8% chance</strong> of cashing any given week.
-                  </p>
-                  <p className="text-sm text-green-200/90 leading-relaxed">
-                    Meanwhile, picking 3 locks gives that same player a <strong>42.2% chance</strong> to cash 3 points. High volume creates dramatic comeback potential, but conservative locks build championship consistency!
-                  </p>
                 </div>
               </div>
             </div>
