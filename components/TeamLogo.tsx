@@ -21,40 +21,41 @@ export default function TeamLogo({ team, size = 'md', className = '' }: TeamLogo
   const px = sizePx[size];
   const [errored, setErrored] = useState(false);
 
-  const ringColor = meta?.secondary ?? '#ffffff55';
-  const bg = meta?.primary ?? '#64748b'; // slate-500 fallback
-  const text = meta?.textOnPrimary ?? '#fff';
+  const url = !errored ? getEspnLogoUrl(team, 500) : null;
 
-  const url = !errored ? getEspnLogoUrl(team, 200) : null;
+  // Show the mark itself. The team colours are only used for the fallback
+  // badge, so a logo is never sitting on a clashing block of its own palette.
+  if (url) {
+    return (
+      <Image
+        src={url}
+        alt={`${team} logo`}
+        width={px}
+        height={px}
+        className={className}
+        style={{ width: px, height: px, objectFit: 'contain' }}
+        onError={() => setErrored(true)}
+        title={team}
+        unoptimized
+      />
+    );
+  }
 
   return (
     <div
-      className={`rounded-full flex items-center justify-center shadow-md ring-2 ${className}`}
+      className={`rounded-full flex items-center justify-center shadow-md ${className}`}
       style={{
         width: px,
         height: px,
-        background: bg,
-        color: text,
-        boxShadow: `0 6px 16px ${ringColor}55`,
-        ringColor,
-      } as any}
+        background: meta?.primary ?? '#64748b',
+        color: meta?.textOnPrimary ?? '#fff',
+      }}
       title={team}
       aria-label={team}
     >
-      {url ? (
-        <Image
-          src={url}
-          alt={`${team} logo`}
-          width={Math.floor(px * 0.8)}
-          height={Math.floor(px * 0.8)}
-          style={{ objectFit: 'contain' }}
-          onError={() => setErrored(true)}
-        />
-      ) : (
-        <span className="font-black" style={{ fontSize: px * 0.4 }}>
-          {team?.slice(0, 2).toUpperCase() || '?'}
-        </span>
-      )}
+      <span className="font-black" style={{ fontSize: px * 0.4 }}>
+        {meta ? meta.abbr.toUpperCase() : (team?.slice(0, 2).toUpperCase() || '?')}
+      </span>
     </div>
   );
 }

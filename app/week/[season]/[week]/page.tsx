@@ -15,6 +15,11 @@ interface Game {
   startTime: string;
   status: string;
   winnerTeam?: string | null;
+  // Lines refreshed daily and attached by /api/schedule.
+  homeMoneyline?: number | null;
+  awayMoneyline?: number | null;
+  spread?: string | null;
+  total?: number | null;
 }
 
 interface Pick {
@@ -283,8 +288,15 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                       >
                         {/* Game Header Bar */}
                         <div className="flex items-center justify-between mb-3 text-xs">
-                          <span className="text-green-200 font-medium">
-                            {formatGameTime(game.startTime)}
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className="text-green-200 font-medium">
+                              {formatGameTime(game.startTime)}
+                            </span>
+                            {game.spread && (
+                              <span className="bg-white/10 text-white/90 px-2 py-0.5 rounded text-[11px] font-semibold border border-white/10 whitespace-nowrap">
+                                {game.spread}{game.total ? ` • O/U ${game.total}` : ''}
+                              </span>
+                            )}
                           </span>
                           <span
                             className={`px-2.5 py-0.5 rounded-full font-bold uppercase ${
@@ -316,7 +328,13 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                                 <TeamLogo team={game.awayTeam} size="sm" />
                               </div>
                               <div className="min-w-0 flex-1 overflow-hidden">
-                                <div className="text-[10px] text-green-300 font-semibold uppercase tracking-wider">Away</div>
+                                <div className="text-[10px] text-green-300 font-semibold uppercase tracking-wider">
+                                  Away{game.awayMoneyline != null && (
+                                    <span className="ml-1.5 text-yellow-300/90 font-bold tabular-nums">
+                                      {game.awayMoneyline > 0 ? `+${game.awayMoneyline}` : game.awayMoneyline}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-sm font-bold text-white truncate">
                                   {game.awayTeam}
                                 </div>
@@ -348,7 +366,13 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                                 <TeamLogo team={game.homeTeam} size="sm" />
                               </div>
                               <div className="min-w-0 flex-1 overflow-hidden">
-                                <div className="text-[10px] text-green-300 font-semibold uppercase tracking-wider">Home</div>
+                                <div className="text-[10px] text-green-300 font-semibold uppercase tracking-wider">
+                                  Home{game.homeMoneyline != null && (
+                                    <span className="ml-1.5 text-yellow-300/90 font-bold tabular-nums">
+                                      {game.homeMoneyline > 0 ? `+${game.homeMoneyline}` : game.homeMoneyline}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-sm font-bold text-white truncate">
                                   {game.homeTeam}
                                 </div>
@@ -375,9 +399,19 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                                 <span className={`text-sm font-bold truncate ${isAwayPicked ? 'text-yellow-400' : 'text-white'}`}>
                                   {game.awayTeam}
                                 </span>
+                                {game.awayMoneyline != null && (
+                                  <span className="text-[11px] text-yellow-300/80 font-bold tabular-nums shrink-0">
+                                    {game.awayMoneyline > 0 ? `+${game.awayMoneyline}` : game.awayMoneyline}
+                                  </span>
+                                )}
                               </div>
                               <span className="text-xs font-bold text-green-300 px-2">@</span>
                               <div className="flex items-center gap-3 min-w-0 justify-end">
+                                {game.homeMoneyline != null && (
+                                  <span className="text-[11px] text-yellow-300/80 font-bold tabular-nums shrink-0">
+                                    {game.homeMoneyline > 0 ? `+${game.homeMoneyline}` : game.homeMoneyline}
+                                  </span>
+                                )}
                                 <span className={`text-sm font-bold truncate ${isHomePicked ? 'text-yellow-400' : 'text-white'}`}>
                                   {game.homeTeam}
                                 </span>

@@ -55,9 +55,12 @@ export function getTeamMeta(team: string): TeamMeta | undefined {
 export function getEspnLogoUrl(team: string, size: 100 | 200 | 500 = 500): string | null {
   const meta = getTeamMeta(team);
   if (!meta) return null;
-  // ESPN scoreboard logos (transparent background)
-  // e.g. https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/dal.png
-  return `https://a.espncdn.com/i/teamlogos/nfl/${size}/scoreboard/${meta.abbr}.png`;
+  // Official team marks on a transparent background, e.g.
+  // https://a.espncdn.com/i/teamlogos/nfl/500/dal.png
+  //
+  // Not the /scoreboard/ variant: that path exists only at size 500, so asking
+  // for any smaller size 404s and every logo silently falls back to initials.
+  return `https://a.espncdn.com/i/teamlogos/nfl/${size}/${meta.abbr}.png`;
 }
 
 // Utility: normalize various team name formats to our TeamKey nickname
