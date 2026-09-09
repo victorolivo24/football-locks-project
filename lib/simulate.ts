@@ -210,11 +210,20 @@ export function edgeOverField(
 }
 
 /**
- * The consensus ticket size that maximises this player's title chance.
+ * The ticket size that maximises this player's title chance, assuming everyone
+ * else keeps doing what they are doing.
  *
- * Late in a season this is not the size that maximises points. Once someone is
- * far enough behind, the safe ticket that scores best on average is the one
- * that reliably keeps them second — they need the variance instead.
+ * This is a best response, NOT an equilibrium: it answers "what if I alone
+ * switch", and the whole league cannot act on it at once. If everyone moved
+ * here together they would simply be tied at the new size and the advantage
+ * would vanish. Present it as a unilateral deviation or it reads as nonsense.
+ *
+ * It diverges from the EV-maximising size for two reasons. Once a player is
+ * far enough behind, the ticket that scores best on average is the one that
+ * reliably keeps them second, so they need variance instead. And holding the
+ * field's exact ticket means never finishing ahead of them, so a size that
+ * merely decorrelates — even a subset of their ticket, which cashes precisely
+ * when their marginal leg fails — can be worth more than a higher EV.
  */
 export function bestLeverageLocks(
   player: { userId: number; points: number },

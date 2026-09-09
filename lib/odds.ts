@@ -27,7 +27,9 @@ export interface PlayerOddsResult {
   avgPicksPerWeek: number;
   projectedPoints: number;
   maxCeiling: number;
-  leverageLocks: number; // Consensus size that maximises title chance
+  leverageLocks: number; // Size that maximises title chance IF THIS PLAYER ALONE switches
+  leverageOdds: number; // Their title odds after that unilateral switch
+  currentLocks: number; // The ticket size they are playing now
   evLocks: number; // Size that maximises points
   edge: number; // Title points their deviation from the field is worth
   consensusOdds: number; // What they would have if they simply copied the field
@@ -142,6 +144,8 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
       maxCeiling: p.maxCeiling,
       odds: odds.get(p.userId) ?? 0,
       leverageLocks: leverage.locks,
+      leverageOdds: leverage.titleOdds,
+      currentLocks: self.ranks.length,
       evLocks,
       edge: edge.edge,
       consensusOdds: edge.consensusOdds,

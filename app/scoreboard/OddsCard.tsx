@@ -11,6 +11,8 @@ export type OddsRow = {
   projectedPoints: number;
   maxCeiling: number;
   leverageLocks: number;
+  leverageOdds: number;
+  currentLocks: number;
   evLocks: number;
   edge: number;
   consensusOdds: number;
@@ -112,10 +114,12 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
                 </div>
               )}
 
-              {showDetails && r.leverageLocks > 0 && r.leverageLocks !== r.evLocks && (
+              {showDetails
+                && r.leverageLocks !== r.currentLocks
+                && r.leverageOdds - r.odds >= 2 && (
                 <div className="text-[10px] text-amber-300/90 px-0.5">
-                  ⚡ Best play is {r.leverageLocks} locks, not the {r.evLocks} that maximises points —
-                  needs the variance to catch up.
+                  ⚡ If you alone moved to {r.leverageLocks} locks: {r.leverageOdds.toFixed(1)}%
+                  {' '}(from {r.odds.toFixed(1)}%). Only works while the others stay put.
                 </div>
               )}
 
