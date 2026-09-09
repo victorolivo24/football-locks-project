@@ -28,14 +28,18 @@ export function scoreLocks(outcomes: LockOutcome[]): number {
 
 /**
  * Resolve one pick against the game it was made on.
- * Returns null when the game is missing or has not finished.
+ *
+ * A tie counts as a miss: the lock only hits if the picked team wins, so a
+ * final game with no winner kills the ticket. Returns null only while the
+ * result is genuinely unknown — game missing, or not yet final.
  */
 export function resolveLock(
   pick: { gameId: number | null; pickedTeam: string },
   gamesById: Map<number, { status: string; winnerTeam: string | null }>
 ): LockOutcome {
   const game = gamesById.get(Number(pick.gameId));
-  if (!game || game.status !== 'final' || !game.winnerTeam) return null;
+  if (!game || game.status !== 'final') return null;
+  if (!game.winnerTeam) return false; // tie
   return isSameTeam(game.winnerTeam, pick.pickedTeam);
 }
 

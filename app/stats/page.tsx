@@ -20,7 +20,6 @@ export default function NerdStatsPage() {
   const [parlayGames, setParlayGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<number>(2026);
-  const [playerFilter, setPlayerFilter] = useState<'all' | 'high-volume' | 'home-biased' | 'primetime' | 'heartbreak'>('all');
   const [calculatorHitRate, setCalculatorHitRate] = useState<number>(70);
 
   const router = useRouter();
@@ -103,13 +102,7 @@ export default function NerdStatsPage() {
     return null;
   }
 
-  const filteredPlayers = (insights?.players || []).filter(p => {
-    if (playerFilter === 'high-volume') return p.avgPicksPerWeek >= 4;
-    if (playerFilter === 'home-biased') return p.homePct >= 60;
-    if (playerFilter === 'primetime') return p.primeTimePct >= 35;
-    if (playerFilter === 'heartbreak') return p.heartbreak.heartbreakWeeks > 0;
-    return true;
-  });
+  const allPlayers = insights?.players || [];
 
   // Calculate EV curve for interactive calculator
   const p = calculatorHitRate / 100;
@@ -160,7 +153,7 @@ export default function NerdStatsPage() {
               <h1 className="text-4xl font-extrabold text-white tracking-tight">Nerd Stats & Insights</h1>
             </div>
             <p className="text-green-200 text-sm mt-1">
-              Season {season} • Deep dive into player tendencies, home/road splits, heartbreak slates, and sweet spot math.
+              Season {season} • Deep dive into player tendencies, home/road splits, league superlatives, and sweet spot math.
             </p>
           </div>
           <Link
@@ -202,7 +195,7 @@ export default function NerdStatsPage() {
                       const parlay = calculateParlay(
                         row.picks.map((p) => {
                           const g = parlayGames.find((g) => g.id === p.gameId) ||
-                                    parlayGames.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                            parlayGames.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
                           return { pickedTeam: p.pickedTeam, homeTeam: g?.homeTeam, awayTeam: g?.awayTeam };
                         }),
                         season,
@@ -223,7 +216,7 @@ export default function NerdStatsPage() {
                             <div className="flex flex-wrap gap-1.5 items-center">
                               {row.picks.map((p) => {
                                 const g = parlayGames.find((g) => g.id === p.gameId) ||
-                                          parlayGames.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
+                                  parlayGames.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
                                 const ml = (g?.awayTeam && g?.homeTeam)
                                   ? getTeamMoneyline(p.pickedTeam, g.awayTeam, g.homeTeam, season, 1)
                                   : null;
@@ -245,9 +238,8 @@ export default function NerdStatsPage() {
                             {parlay.multiplier}x
                           </td>
                           <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                            <span className={`font-black text-sm px-2.5 py-0.5 rounded ${
-                              parlay.americanOdds.startsWith('+') ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-blue-400/20 text-blue-300 border border-blue-400/30'
-                            }`}>
+                            <span className={`font-black text-sm px-2.5 py-0.5 rounded ${parlay.americanOdds.startsWith('+') ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-blue-400/20 text-blue-300 border border-blue-400/30'
+                              }`}>
                               {parlay.americanOdds}
                             </span>
                           </td>
@@ -264,7 +256,37 @@ export default function NerdStatsPage() {
           </div>
         )}
 
-        {/* Section 2: Player Insights & Tendencies Cards */}
+        {/* Section 2: League Superlatives */}
+        {(insights?.superlatives.length || 0) > 0 && (
+          <div className="space-y-3 px-4 sm:px-0">
+            <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+              <span>🏅</span>
+              <span>League Superlatives</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {insights?.superlatives.map((s) => (
+                <div
+                  key={s.title}
+                  className="glass-card p-4 space-y-1.5 hover:border-yellow-400/40 transition-all duration-300"
+                >
+                  <div className="flex items-center space-x-2">
+                    <span className="text-2xl">{s.icon}</span>
+                    <span className="text-[11px] uppercase font-black tracking-wider text-yellow-300">
+                      {s.title}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-white font-bold text-lg truncate">{s.playerName}</span>
+                    <span className="text-xs font-extrabold text-green-300 shrink-0">{s.stat}</span>
+                  </div>
+                  <p className="text-[11px] text-green-200/70 leading-snug">{s.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Section 3: Player Profiles & Tendencies Cards */}
         <div className="space-y-4 px-4 sm:px-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -273,67 +295,14 @@ export default function NerdStatsPage() {
                 <span>Player Profiles & Tendencies</span>
               </h2>
               <p className="text-xs text-green-200/70">
-                Picks volume, individual hit rates, prime time preference, and heartbreak records.
+                Picks volume, individual hit rates, prime time preference, and home/road splits.
               </p>
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setPlayerFilter('all')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                  playerFilter === 'all'
-                    ? 'bg-yellow-400 text-black border-yellow-400'
-                    : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                All ({insights?.players.length || 0})
-              </button>
-              <button
-                onClick={() => setPlayerFilter('high-volume')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                  playerFilter === 'high-volume'
-                    ? 'bg-yellow-400 text-black border-yellow-400'
-                    : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                🎰 High Volume
-              </button>
-              <button
-                onClick={() => setPlayerFilter('home-biased')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                  playerFilter === 'home-biased'
-                    ? 'bg-yellow-400 text-black border-yellow-400'
-                    : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                🏠 Home Bias
-              </button>
-              <button
-                onClick={() => setPlayerFilter('primetime')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                  playerFilter === 'primetime'
-                    ? 'bg-yellow-400 text-black border-yellow-400'
-                    : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                🌙 Night Games
-              </button>
-              <button
-                onClick={() => setPlayerFilter('heartbreak')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                  playerFilter === 'heartbreak'
-                    ? 'bg-yellow-400 text-black border-yellow-400'
-                    : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                💔 Heartbreaks
-              </button>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredPlayers.map((player, rankIndex) => (
+            {allPlayers.map((player, rankIndex) => (
               <div
                 key={player.userId}
                 className="glass-card p-5 space-y-4 hover:border-yellow-400/40 transition-all duration-300 flex flex-col justify-between"
@@ -409,38 +378,6 @@ export default function NerdStatsPage() {
                     <div className="text-[10px] text-green-200/60">
                       Best week: {player.maxWeekScore} pts
                     </div>
-                  </div>
-                </div>
-
-                {/* Heartbreak Box on Player Card */}
-                <div className={`p-3 rounded-xl border ${
-                  player.heartbreak.heartbreakWeeks > 0
-                    ? 'bg-red-950/20 border-red-500/30 text-red-200'
-                    : 'bg-white/5 border-white/10 text-white/80'
-                }`}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="flex items-center space-x-1 font-bold">
-                      <span>💔 Heartbreak Index:</span>
-                      <span className={player.heartbreak.heartbreakWeeks > 0 ? 'text-red-300 font-extrabold' : 'text-green-300'}>
-                        {player.heartbreak.heartbreakWeeks} {player.heartbreak.heartbreakWeeks === 1 ? 'week' : 'weeks'}
-                      </span>
-                    </span>
-                    {player.heartbreak.pointsLostToHeartbreak > 0 && (
-                      <span className="text-[11px] font-extrabold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
-                        -{player.heartbreak.pointsLostToHeartbreak} pts lost
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] leading-snug">
-                    {player.heartbreak.worstHeartbreak ? (
-                      <span className="text-red-200/90">
-                        Toughest beat: Week {player.heartbreak.worstHeartbreak.week} (went {player.heartbreak.worstHeartbreak.record}, spoiled by {player.heartbreak.worstHeartbreak.spoilerTeam})
-                      </span>
-                    ) : (
-                      <span className="text-green-300/80">
-                        🛡️ Clean record. No 1-miss heartbreaks!
-                      </span>
-                    )}
                   </div>
                 </div>
 
@@ -582,11 +519,10 @@ export default function NerdStatsPage() {
                 return (
                   <div
                     key={tier.n}
-                    className={`p-3.5 rounded-xl border text-center transition-all duration-300 ${
-                      isOptimal
+                    className={`p-3.5 rounded-xl border text-center transition-all duration-300 ${isOptimal
                         ? 'bg-yellow-500/20 border-yellow-400/60 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
                         : 'bg-white/5 border-white/10'
-                    }`}
+                      }`}
                   >
                     {isOptimal && (
                       <span className="text-[9px] uppercase font-black tracking-wider bg-yellow-400 text-black px-2 py-0.5 rounded-full inline-block mb-1">

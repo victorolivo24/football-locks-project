@@ -3,17 +3,6 @@ import { sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { isSameTeam, normalizeTeam } from './teams';
 
-export interface HeartbreakStats {
-  heartbreakWeeks: number; // Number of weeks with exactly 1 loss (and >= 2 picks)
-  pointsLostToHeartbreak: number; // Sum of potential points from those 1-miss weeks
-  worstHeartbreak?: {
-    week: number;
-    record: string; // e.g. "5 of 6"
-    potentialPoints: number;
-    spoilerTeam: string;
-  } | null;
-}
-
 export interface OptimalPicksStats {
   effectiveHitRate: number; // In percentage (e.g. 72)
   optimalPicks: number; // Recommended number of picks per week (e.g. 3)
@@ -51,7 +40,6 @@ export interface PlayerInsights {
   projectedPoints: number;
   maxCeiling: number;
   weeklyPicksBreakdown: Record<number, number>;
-  heartbreak: HeartbreakStats;
   optimalStrategy: OptimalPicksStats;
 }
 
@@ -232,9 +220,10 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
         const isPrime = isPrimeTimeGame(g.startTime);
         if (isPrime) primeTimePicks++;
 
-        if (g.status === 'final' && g.winnerTeam) {
+        if (g.status === 'final') {
           completedPicks++;
-          const hit = isSameTeam(g.winnerTeam, p.pickedTeam);
+          // A tie is a miss: the lock only hits if the picked team wins.
+          const hit = !!g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam);
           if (hit) {
             correctPicks++;
           } else {
@@ -273,50 +262,6 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     const perfectWeekPct = activeWeeks > 0 ? Math.round((perfectWeeks / activeWeeks) * 100) : 0;
 
     const maxWeekScore = userScores.length > 0 ? Math.max(...userScores.map(s => s.points)) : 0;
-
-    // Heartbreak Index Calculation:
-    // Weeks with >= 2 picks where user got EXACTLY 1 pick wrong
-    let heartbreakWeeks = 0;
-    let pointsLostToHeartbreak = 0;
-    let worstHeartbreak: HeartbreakStats['worstHeartbreak'] = null;
-
-    for (const [wStr, picksForWeek] of Object.entries(weeklyPicksMap)) {
-      const weekNum = Number(wStr);
-      if (picksForWeek.length < 2) continue;
-
-      let weekFinals = 0;
-      let weekLosses = 0;
-      let spoilerTeam = '';
-
-      for (const p of picksForWeek) {
-        const g = gameMap.get(Number(p.gameId)) ||
-          seasonGames.find(sg => sg.week === weekNum && (isSameTeam(sg.homeTeam, p.pickedTeam) || isSameTeam(sg.awayTeam, p.pickedTeam)));
-
-        if (g && g.status === 'final' && g.winnerTeam) {
-          weekFinals++;
-          if (!isSameTeam(g.winnerTeam, p.pickedTeam)) {
-            weekLosses++;
-            spoilerTeam = normalizeTeam(p.pickedTeam);
-          }
-        }
-      }
-
-      // If all games are completed and exactly 1 loss
-      if (weekFinals === picksForWeek.length && weekLosses === 1) {
-        heartbreakWeeks++;
-        const ptsLost = picksForWeek.length;
-        pointsLostToHeartbreak += ptsLost;
-
-        if (!worstHeartbreak || ptsLost > worstHeartbreak.potentialPoints) {
-          worstHeartbreak = {
-            week: weekNum,
-            record: `${picksForWeek.length - 1} of ${picksForWeek.length}`,
-            potentialPoints: ptsLost,
-            spoilerTeam: spoilerTeam || 'Unknown',
-          };
-        }
-      }
-    }
 
     // Optimal Picks Game Theory Engine
     const optimalStrategy = calculateOptimalPicks(pickWinPct, completedPicks, avgPicksPerWeek);
@@ -362,11 +307,6 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
       projectedPoints,
       maxCeiling,
       weeklyPicksBreakdown: weeklyCounts,
-      heartbreak: {
-        heartbreakWeeks,
-        pointsLostToHeartbreak,
-        worstHeartbreak,
-      },
       optimalStrategy,
     });
   }
@@ -401,16 +341,27 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     });
   }
 
-  // 2. Heartbreak King (most 1-pick heartbreak weeks or points lost)
-  const heartbreakKing = [...players].sort((a, b) => b.heartbreak.pointsLostToHeartbreak - a.heartbreak.pointsLostToHeartbreak)[0];
-  if (heartbreakKing && heartbreakKing.heartbreak.heartbreakWeeks > 0) {
+  // 2. The Locksmith (highest hit rate) or Road Warrior
+  const accuracyLeader = [...players].filter(p => p.completedPicks >= 2).sort((a, b) => b.pickWinPct - a.pickWinPct)[0];
+  if (accuracyLeader && accuracyLeader.completedPicks > 0) {
     superlatives.push({
-      title: 'Heartbreak King',
-      icon: '💔',
-      playerName: heartbreakKing.name,
-      stat: `-${heartbreakKing.heartbreak.pointsLostToHeartbreak} pts`,
-      description: `${heartbreakKing.heartbreak.heartbreakWeeks} slate(s) ruined by just 1 wrong lock`,
+      title: 'The Locksmith',
+      icon: '🎯',
+      playerName: accuracyLeader.name,
+      stat: `${accuracyLeader.pickWinPct}% Hits`,
+      description: 'Highest lock accuracy across completed games',
     });
+  } else {
+    const roadLeader = [...players].filter(p => p.totalPicks >= 2).sort((a, b) => b.awayPct - a.awayPct)[0];
+    if (roadLeader && roadLeader.awayPct >= 30) {
+      superlatives.push({
+        title: 'Road Warrior',
+        icon: '✈️',
+        playerName: roadLeader.name,
+        stat: `${roadLeader.awayPct}% Away`,
+        description: 'Never afraid to back road travelers and underdogs',
+      });
+    }
   }
 
   // 3. Mathematical Genius / Optimal Picker

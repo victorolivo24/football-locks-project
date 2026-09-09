@@ -244,7 +244,7 @@ export default function ScoreboardPage() {
               </div>
 
               <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-                <span className="text-xs text-white/60">Curious about pick volumes & heartbreak moments?</span>
+                <span className="text-xs text-white/60">Curious about pick volumes & league superlatives?</span>
                 <Link
                   href={`/stats?season=${season}`}
                   className="text-xs font-bold text-yellow-300 hover:text-yellow-200 underline"

@@ -56,8 +56,9 @@ describe('resolveLock', () => {
     expect(resolveLock({ gameId: 2, pickedTeam: 'Anyone' }, games)).toBe(null);
   });
 
-  it('is unresolved when a final game has no winner recorded', () => {
-    expect(resolveLock({ gameId: 3, pickedTeam: 'Anyone' }, games)).toBe(null);
+  it('counts a tie as a miss', () => {
+    // League rule: if your team does not win, the lock does not hit.
+    expect(resolveLock({ gameId: 3, pickedTeam: 'Anyone' }, games)).toBe(false);
   });
 
   it('is unresolved when the game is missing', () => {
