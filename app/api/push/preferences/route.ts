@@ -45,7 +45,10 @@ export async function POST() {
     title: 'Notifications are on',
     body: "This is what an alert looks like. You're all set.",
     url: '/',
-    tag: 'test',
+    // Unique per send: a fixed tag makes a repeat test silently replace the
+    // first notification instead of alerting again, which reads as nothing
+    // happening when someone presses the button twice.
+    tag: `test:${Date.now()}`,
   }]);
 
   // Report the failure rather than just a zero, so a broken setup is
