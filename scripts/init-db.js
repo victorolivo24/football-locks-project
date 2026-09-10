@@ -87,6 +87,8 @@ async function main() {
       createdat timestamp with time zone not null default now()
     )`;
 
+    await sql`alter table pushsubscriptions add column if not exists lockreminder boolean not null default true`;
+
     const tables = await sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`;
     console.log(`Initialized tables: ${tables.map((row) => row.table_name).join(', ')}`);
   } finally {

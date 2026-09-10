@@ -68,6 +68,7 @@ export const pushSubscriptions = pgTable('pushsubscriptions', {
   gameFinal: boolean('gamefinal').notNull().default(true),
   rivalBust: boolean('rivalbust').notNull().default(true),
   rivalHit: boolean('rivalhit').notNull().default(false),
+  lockReminder: boolean('lockreminder').notNull().default(true),
   createdAt: timestamp('createdat', { withTimezone: true }).notNull().defaultNow(),
 });
 

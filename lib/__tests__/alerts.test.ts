@@ -136,4 +136,89 @@ describe('buildAlerts', () => {
     );
     expect(msgs.every(m => m.url === URL)).toBe(true);
   });
+
+  describe('once a player is out', () => {
+    const other = (over: Partial<GameState> = {}): GameState => ({
+      id: 20,
+      homeTeam: 'Detroit Lions',
+      awayTeam: 'New Orleans Saints',
+      status: 'scheduled',
+      winnerTeam: null,
+      homeScore: null,
+      awayScore: null,
+      ...over,
+    });
+
+    // Victor already lost game 10; game 20 is his second lock.
+    const dead = game({ status: 'final', winnerTeam: 'New England Patriots' });
+    const twoLocks: PickRow[] = [
+      { userId: 1, gameId: 10, pickedTeam: 'Seattle Seahawks' },
+      { userId: 1, gameId: 20, pickedTeam: 'Detroit Lions' },
+    ];
+
+    it('stops telling them their later locks kicked off', () => {
+      const msgs = buildAlerts(
+        [dead, other()],
+        [dead, other({ status: 'in_progress' })],
+        twoLocks, players, URL
+      );
+      expect(msgs).toEqual([]);
+    });
+
+    it('stops telling them their later locks landed', () => {
+      const msgs = buildAlerts(
+        [dead, other({ status: 'in_progress' })],
+        [dead, other({ status: 'final', winnerTeam: 'Detroit Lions' })],
+        twoLocks, players, URL
+      );
+      expect(msgs.filter(m => m.userId === 1)).toEqual([]);
+    });
+
+    it('stops telling everyone else about their later locks', () => {
+      // Jihoo's second lock hitting is meaningless once his week is dead.
+      const msgs = buildAlerts(
+        [dead, other({ status: 'in_progress' })],
+        [dead, other({ status: 'final', winnerTeam: 'Detroit Lions' })],
+        twoLocks, players, URL
+      );
+      expect(msgs).toEqual([]);
+    });
+
+    it('still announces the bust that eliminated them', () => {
+      const msgs = buildAlerts(
+        [game({ status: 'in_progress' })],
+        [game({ status: 'final', winnerTeam: 'New England Patriots' })],
+        [{ userId: 1, gameId: 10, pickedTeam: 'Seattle Seahawks' }], players, URL
+      );
+      expect(kinds(msgs)).toEqual(['1:gameFinal', '2:rivalBust', '3:rivalBust']);
+    });
+
+    it('goes quiet within the same refresh that killed them', () => {
+      // Both games settle in one pass: the bust is announced, the later lock
+      // is not, even though neither was final beforehand.
+      const msgs = buildAlerts(
+        [game({ status: 'in_progress' }), other({ status: 'in_progress' })],
+        [
+          game({ status: 'final', winnerTeam: 'New England Patriots' }),
+          other({ status: 'final', winnerTeam: 'Detroit Lions' }),
+        ],
+        twoLocks, players, URL
+      );
+      expect(kinds(msgs)).toEqual(['1:gameFinal', '2:rivalBust', '3:rivalBust']);
+    });
+
+    it('leaves players who are still alive alone', () => {
+      const mixed: PickRow[] = [
+        { userId: 1, gameId: 10, pickedTeam: 'Seattle Seahawks' },
+        { userId: 2, gameId: 20, pickedTeam: 'Detroit Lions' },
+      ];
+      const msgs = buildAlerts(
+        [dead, other({ status: 'in_progress' })],
+        [dead, other({ status: 'final', winnerTeam: 'Detroit Lions' })],
+        mixed, players, URL
+      );
+      // Ryan is untouched by Victor's elimination.
+      expect(kinds(msgs)).toContain('2:gameFinal');
+    });
+  });
 });

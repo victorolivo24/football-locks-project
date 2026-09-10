@@ -7,15 +7,17 @@ type Prefs = {
   gameFinal: boolean;
   rivalBust: boolean;
   rivalHit: boolean;
+  lockReminder: boolean;
 };
 
-const DEFAULTS: Prefs = { gameStart: true, gameFinal: true, rivalBust: true, rivalHit: false };
+const DEFAULTS: Prefs = { gameStart: true, gameFinal: true, rivalBust: true, rivalHit: false, lockReminder: true };
 
-const ALERTS: Array<{ key: keyof Prefs; label: string; detail: string }> = [
-  { key: 'gameStart', label: 'A game I locked kicks off', detail: 'Only games you actually picked' },
-  { key: 'gameFinal', label: 'A game I locked finishes', detail: 'Whether your lock hit or lost' },
-  { key: 'rivalBust', label: 'Someone else busts', detail: 'The moment a rival loses a lock' },
-  { key: 'rivalHit', label: "Someone else's lock hits", detail: 'Chatty — one per rival, per game' },
+const ALERTS: Array<{ key: keyof Prefs; label: string }> = [
+  { key: 'lockReminder', label: 'Picks are about to lock' },
+  { key: 'gameStart', label: 'A game I locked kicks off' },
+  { key: 'gameFinal', label: 'A game I locked finishes' },
+  { key: 'rivalBust', label: 'Someone else busts' },
+  { key: 'rivalHit', label: "Someone else's lock hits" },
 ];
 
 /** base64url VAPID key to the ArrayBuffer the Push API wants. */
@@ -25,6 +27,27 @@ function decodeKey(base64: string): ArrayBuffer {
   const bytes = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   return bytes.buffer;
+}
+
+/**
+ * Get an active service worker, or throw saying why not.
+ *
+ * navigator.serviceWorker.ready never rejects: with no registration it simply
+ * waits forever, so awaiting it directly turns any failure into a button stuck
+ * on "Enabling..." with nothing logged.
+ */
+async function activeWorker(): Promise<ServiceWorkerRegistration> {
+  const registration =
+    (await navigator.serviceWorker.getRegistration('/sw.js')) ??
+    (await navigator.serviceWorker.register('/sw.js'));
+
+  if (registration.active) return registration;
+
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('The notification worker did not start. Reload the page and try again.')), 10000)
+  );
+  await Promise.race([navigator.serviceWorker.ready, timeout]);
+  return registration;
 }
 
 /** iOS only allows web push once the site is installed to the Home Screen. */
@@ -55,7 +78,8 @@ export default function NotificationSetup() {
 
     (async () => {
       const registration = await navigator.serviceWorker.register('/sw.js').catch(() => null);
-      const existing = await registration?.pushManager.getSubscription();
+      if (!registration) return;
+      const existing = await registration.pushManager.getSubscription().catch(() => null);
       if (!existing) return;
 
       const res = await fetch(`/api/push/preferences?endpoint=${encodeURIComponent(existing.endpoint)}`);
@@ -69,13 +93,16 @@ export default function NotificationSetup() {
   }, []);
 
   const save = async (next: Prefs) => {
-    const registration = await navigator.serviceWorker.ready;
+    const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!key) throw new Error('This deployment has no notification key configured.');
+
+    const registration = await activeWorker();
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: decodeKey(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''),
+        applicationServerKey: decodeKey(key),
       });
     }
 
@@ -84,7 +111,11 @@ export default function NotificationSetup() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription, preferences: next }),
     });
-    return res.ok;
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}));
+      throw new Error(detail.error || `Server refused the subscription (${res.status}).`);
+    }
+    return true;
   };
 
   const enable = async () => {
@@ -100,13 +131,16 @@ export default function NotificationSetup() {
         );
         return;
       }
-      if (await save(prefs)) {
-        setSubscribed(true);
-        setNote('Done. Sending a test alert now.');
-        await fetch('/api/push/preferences', { method: 'POST' });
-      } else {
-        setNote('Could not save. Try again.');
-      }
+      await save(prefs);
+      setSubscribed(true);
+
+      const test = await fetch('/api/push/preferences', { method: 'POST' });
+      const result = await test.json().catch(() => ({ sent: 0 }));
+      setNote(
+        result.sent > 0
+          ? 'You should see a test alert now.'
+          : 'Saved, but the test alert did not send. Tell Victor.'
+      );
     } catch (error: any) {
       setNote(error?.message ?? 'Something went wrong enabling notifications.');
     } finally {
@@ -117,7 +151,7 @@ export default function NotificationSetup() {
   const disable = async () => {
     setBusy(true);
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await activeWorker();
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
         await fetch('/api/push/subscribe', {
@@ -185,7 +219,7 @@ export default function NotificationSetup() {
           )}
 
           <div className="space-y-2">
-            {ALERTS.map(({ key, label, detail }) => (
+            {ALERTS.map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => toggle(key)}
@@ -195,10 +229,7 @@ export default function NotificationSetup() {
                     : 'bg-white/5 border-white/10 hover:bg-white/10'
                 }`}
               >
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-white truncate">{label}</span>
-                  <span className="block text-[11px] text-green-200/70">{detail}</span>
-                </span>
+                <span className="text-sm font-semibold text-white min-w-0 truncate">{label}</span>
                 <span
                   className={`shrink-0 w-10 h-6 rounded-full flex items-center px-0.5 transition-colors ${
                     prefs[key] ? 'bg-yellow-400 justify-end' : 'bg-white/20 justify-start'

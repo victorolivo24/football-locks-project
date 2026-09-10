@@ -47,6 +47,20 @@ export function buildAlerts(
   const nameOf = new Map(players.map(p => [p.id, p.name]));
   const messages: PushMessage[] = [];
 
+  // All or nothing: one miss kills the week, so anyone already carrying a loss
+  // is out and nothing further about their locks is worth sending — not to
+  // them, not to anyone else. Seeded from the state before this refresh and
+  // extended as busts land, so a bust still announces itself once.
+  const out = new Set<number>();
+  for (const pick of picks) {
+    const settled = previous.get(Number(pick.gameId));
+    if (!settled || settled.status !== 'final') continue;
+    // A tie counts as a miss, matching how the week is scored.
+    if (!settled.winnerTeam || !isSameTeam(settled.winnerTeam, pick.pickedTeam)) {
+      out.add(pick.userId);
+    }
+  }
+
   const add = (userId: number, kind: AlertKind, title: string, body: string, tag: string) =>
     messages.push({ userId, kind, title, body, url, tag });
 
@@ -61,6 +75,7 @@ export function buildAlerts(
     // Kickoff: only the people with something riding on it.
     if (was.status === 'scheduled' && game.status !== 'scheduled') {
       for (const pick of backers) {
+        if (out.has(pick.userId)) continue;
         add(
           pick.userId,
           'gameStart',
@@ -82,6 +97,8 @@ export function buildAlerts(
       const busts: number[] = [];
 
       for (const pick of backers) {
+        if (out.has(pick.userId)) continue;
+
         const hit = isSameTeam(game.winnerTeam, pick.pickedTeam);
         (hit ? hits : busts).push(pick.userId);
 
@@ -93,6 +110,9 @@ export function buildAlerts(
           `final:${gameId}:${pick.userId}`
         );
       }
+
+      // Their week ends here, so later games say nothing about them.
+      for (const userId of busts) out.add(userId);
 
       // One message per person per game, naming everyone it applies to.
       // Sending one per rival pick instead would mean a game six people

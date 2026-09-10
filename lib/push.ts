@@ -4,7 +4,7 @@ import { pushSubscriptions } from './db/schema';
 import { eq, inArray } from 'drizzle-orm';
 
 /** Which alert a message belongs to, matching the per-device preferences. */
-export type AlertKind = 'gameStart' | 'gameFinal' | 'rivalBust' | 'rivalHit';
+export type AlertKind = 'gameStart' | 'gameFinal' | 'rivalBust' | 'rivalHit' | 'lockReminder';
 
 export interface PushMessage {
   userId: number;

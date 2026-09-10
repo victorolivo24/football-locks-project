@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       gameFinal: prefs.gameFinal ?? true,
       rivalBust: prefs.rivalBust ?? true,
       rivalHit: prefs.rivalHit ?? false,
+      lockReminder: prefs.lockReminder ?? true,
     };
 
     // The endpoint is the device's identity, so re-subscribing updates in

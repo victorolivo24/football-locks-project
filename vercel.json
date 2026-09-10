@@ -8,6 +8,9 @@
     },
     "app/api/cron/fetch-odds/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/cron/lock-reminder/route.ts": {
+      "maxDuration": 30
     }
   },
   "crons": [
@@ -22,6 +25,10 @@
     {
       "path": "/api/cron/resolve-results",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/lock-reminder",
+      "schedule": "0 21 * * *"
     }
   ]
 }

@@ -95,6 +95,7 @@ for (a 7:00 PM job can run as late as 7:59 PM).
 | `/api/cron/fetch-schedule` | `0 13 * * 1` | Mon 9:00 AM | Refresh next week's kickoff times |
 | `/api/cron/fetch-odds` | `0 23 * * *` | Daily 7:00 PM | Refresh lines for the current and next week |
 | `/api/cron/resolve-results` | `0 8 * * *` | Daily 4:00 AM | Pull results and rescore the week |
+| `/api/cron/lock-reminder` | `0 21 * * *` | Daily 5:00 PM | Nudge anyone without picks in, if kickoff is close |
 
 All three require `Authorization: Bearer $CRON_SECRET`, which Vercel sends
 automatically when `CRON_SECRET` is set on the project.
@@ -149,6 +150,12 @@ state, so a result announces itself exactly once however often the refresh
 runs. Rival alerts are grouped per game rather than per pick — this league
 picks alike, and one message per pick would mean a game six people locked fires
 thirty notifications for a single result.
+
+Scoring is all or nothing, so a player carrying a loss is out for the week and
+nothing further about their locks is sent: not to them, not to anyone else.
+The bust that eliminated them still goes out. A fifth alert reminds anyone who
+has not submitted, anchored on the week's real first kickoff rather than a
+fixed weekday — week 1 of 2026 opens on a Wednesday.
 
 **iOS requires the site to be installed to the Home Screen first.** Android and
 desktop do not. The setup card walks through the Safari steps when it detects
