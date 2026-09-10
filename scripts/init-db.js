@@ -74,6 +74,19 @@ async function main() {
       total real
     )`;
 
+    await sql`create table if not exists pushsubscriptions (
+      id serial primary key,
+      userid integer not null references users(id),
+      endpoint text not null unique,
+      p256dh text not null,
+      auth text not null,
+      gamestart boolean not null default true,
+      gamefinal boolean not null default true,
+      rivalbust boolean not null default true,
+      rivalhit boolean not null default false,
+      createdat timestamp with time zone not null default now()
+    )`;
+
     const tables = await sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`;
     console.log(`Initialized tables: ${tables.map((row) => row.table_name).join(', ')}`);
   } finally {

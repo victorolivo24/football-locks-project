@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentNFLWeek, getCurrentWeekFromSchedule, refreshWeekResults } from '@/lib/nfl';
+import { getCurrentNFLWeek, getCurrentWeekFromSchedule } from '@/lib/nfl';
+import { refreshWeekResults } from '@/lib/results';
 
 async function handler(request: NextRequest) {
   try {

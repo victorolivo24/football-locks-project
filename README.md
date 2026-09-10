@@ -129,6 +129,31 @@ polls every 30 seconds. A shorter cooldown on the refresh endpoint means a room
 full of viewers still costs one upstream fetch per cycle. The admin page
 remains as a manual fallback.
 
+## Notifications
+
+Web Push, so alerts land on a phone's lock screen with no SMS provider and no
+cost. Generate a VAPID pair once and set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`:
+
+```bash
+node -e "console.log(require('web-push').generateVAPIDKeys())"
+```
+
+Preferences are per device, not per player, so someone can take bust alerts on
+their phone and nothing on their laptop. Four kinds: a locked game kicking off,
+a locked game finishing, a rival busting, a rival hitting. Tapping any of them
+opens that week's live gameday screen.
+
+Alerts fire from state transitions during a results refresh, never from current
+state, so a result announces itself exactly once however often the refresh
+runs. Rival alerts are grouped per game rather than per pick — this league
+picks alike, and one message per pick would mean a game six people locked fires
+thirty notifications for a single result.
+
+**iOS requires the site to be installed to the Home Screen first.** Android and
+desktop do not. The setup card walks through the Safari steps when it detects
+an iPhone that has not installed yet.
+
 ## API Routes
 
 ### Authentication
@@ -153,6 +178,12 @@ remains as a manual fallback.
 
 ### Results
 - `POST /api/results/refresh` - Pull fresh results for the live week (used by the scoreboard)
+
+### Notifications
+- `POST /api/push/subscribe` - Register this browser, or update its preferences
+- `DELETE /api/push/subscribe` - Turn alerts off for this browser
+- `GET /api/push/preferences` - What this browser is signed up for
+- `POST /api/push/preferences` - Send a test alert
 
 ### Cron Jobs
 - `POST /api/cron/fetch-schedule` - Fetch next week's schedule

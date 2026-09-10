@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import NotificationSetup from '@/components/NotificationSetup';
 import { DateTime } from 'luxon';
 import { getLockTime, isPicksLocked } from '@/lib/nfl';
 
@@ -272,6 +273,10 @@ export default function Dashboard() {
               Admin
               <div className="absolute inset-0 bg-white/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             </Link>
+          </div>
+
+          <div className="mt-10 max-w-xl mx-auto text-left">
+            <NotificationSetup />
           </div>
         </div>
       </main>

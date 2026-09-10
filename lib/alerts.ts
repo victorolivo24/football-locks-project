@@ -1,0 +1,132 @@
+import { isSameTeam, normalizeTeam } from './teams';
+import type { AlertKind, PushMessage } from './push';
+
+export interface GameState {
+  id: number;
+  homeTeam: string;
+  awayTeam: string;
+  status: string;
+  winnerTeam: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+}
+
+export interface PickRow {
+  userId: number;
+  gameId: number | null;
+  pickedTeam: string;
+}
+
+export interface Player {
+  id: number;
+  name: string;
+}
+
+/**
+ * Turn a change in the board into the alerts it should produce.
+ *
+ * Driven by transitions rather than current state, so a result only ever
+ * announces itself once no matter how often the refresh runs. Callers pass the
+ * games as they were before the refresh and as they are after.
+ */
+/** "Ryan", "Ryan and David", "Ryan, David and Chris" */
+function listNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+export function buildAlerts(
+  before: GameState[],
+  after: GameState[],
+  picks: PickRow[],
+  players: Player[],
+  url: string
+): PushMessage[] {
+  const previous = new Map(before.map(g => [Number(g.id), g]));
+  const nameOf = new Map(players.map(p => [p.id, p.name]));
+  const messages: PushMessage[] = [];
+
+  const add = (userId: number, kind: AlertKind, title: string, body: string, tag: string) =>
+    messages.push({ userId, kind, title, body, url, tag });
+
+  for (const game of after) {
+    const gameId = Number(game.id);
+    const was = previous.get(gameId);
+    if (!was) continue;
+
+    const matchup = `${normalizeTeam(game.awayTeam)} @ ${normalizeTeam(game.homeTeam)}`;
+    const backers = picks.filter(p => Number(p.gameId) === gameId);
+
+    // Kickoff: only the people with something riding on it.
+    if (was.status === 'scheduled' && game.status !== 'scheduled') {
+      for (const pick of backers) {
+        add(
+          pick.userId,
+          'gameStart',
+          'Your lock is underway',
+          `${matchup} just kicked off. You have ${normalizeTeam(pick.pickedTeam)}.`,
+          `start:${gameId}`
+        );
+      }
+    }
+
+    // Final: tell the backers how theirs went, and everyone else how the
+    // others' went — that is the part worth reading on a Sunday.
+    if (was.status !== 'final' && game.status === 'final' && game.winnerTeam) {
+      const score = game.awayScore != null && game.homeScore != null
+        ? ` ${normalizeTeam(game.awayTeam)} ${game.awayScore}–${normalizeTeam(game.homeTeam)} ${game.homeScore}.`
+        : '';
+
+      const hits: number[] = [];
+      const busts: number[] = [];
+
+      for (const pick of backers) {
+        const hit = isSameTeam(game.winnerTeam, pick.pickedTeam);
+        (hit ? hits : busts).push(pick.userId);
+
+        add(
+          pick.userId,
+          'gameFinal',
+          hit ? 'Lock hit' : 'Lock lost',
+          `${normalizeTeam(pick.pickedTeam)} ${hit ? 'won' : 'lost'}.${score}`,
+          `final:${gameId}:${pick.userId}`
+        );
+      }
+
+      // One message per person per game, naming everyone it applies to.
+      // Sending one per rival pick instead would mean a game six people
+      // locked fires thirty notifications, and this league picks alike.
+      const rivalNote = (
+        affected: number[],
+        kind: AlertKind,
+        title: (who: string) => string,
+        body: (who: string) => string
+      ) => {
+        for (const player of players) {
+          const others = affected.filter(id => id !== player.id);
+          if (others.length === 0) continue;
+
+          const who = listNames(others.map(id => nameOf.get(id)).filter(Boolean) as string[]);
+          add(player.id, kind, title(who), body(who), `${kind}:${gameId}:${player.id}`);
+        }
+      };
+
+      rivalNote(
+        hits,
+        'rivalHit',
+        who => `${who} cashed`,
+        who => `${normalizeTeam(game.winnerTeam!)} won.${score} ${who} had it.`
+      );
+
+      rivalNote(
+        busts,
+        'rivalBust',
+        who => `${who} out`,
+        who => `${normalizeTeam(game.winnerTeam!)} won.${score} ${who} lost that lock.`
+      );
+    }
+  }
+
+  return messages;
+}

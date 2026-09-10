@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, bigint, timestamp, real } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, bigint, timestamp, real, boolean } from 'drizzle-orm/pg-core';
 
 // Users table - fixed set of 6 friends
 export const users = pgTable('users', {
@@ -55,6 +55,22 @@ export const gameOdds = pgTable('gameodds', {
   total: real('total'),
 });
 
+// One row per browser/device a player has enabled alerts on, with that
+// device's own preferences. Someone can want bust alerts on their phone and
+// nothing on their laptop.
+export const pushSubscriptions = pgTable('pushsubscriptions', {
+  id: serial('id').primaryKey(),
+  userId: integer('userid').notNull().references(() => users.id),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  gameStart: boolean('gamestart').notNull().default(true),
+  gameFinal: boolean('gamefinal').notNull().default(true),
+  rivalBust: boolean('rivalbust').notNull().default(true),
+  rivalHit: boolean('rivalhit').notNull().default(false),
+  createdAt: timestamp('createdat', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Types for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -66,3 +82,5 @@ export type WeeklyScore = typeof weeklyScores.$inferSelect;
 export type NewWeeklyScore = typeof weeklyScores.$inferInsert;
 export type GameOdds = typeof gameOdds.$inferSelect;
 export type NewGameOdds = typeof gameOdds.$inferInsert;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;

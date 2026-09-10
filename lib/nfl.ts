@@ -4,7 +4,6 @@ import { games } from './db/schema';
 import { eq, and, desc, asc } from 'drizzle-orm';
 import { users, picks, weeklyScores } from './db/schema';
 import { isSameTeam } from './teams';
-import { calculateAllWeeklyScores } from './scoring';
 
 import { sql } from 'drizzle-orm';
 
@@ -146,7 +145,7 @@ export function isPicksLocked(season: number, week: number): boolean {
   const now = DateTime.now().setZone('America/New_York');
   return now >= lockTime;
 }
-export { calculateAllWeeklyScores };
+export { calculateAllWeeklyScores } from './scoring';
 
 // Fetch NFL schedule from ESPN API
 export async function fetchNFLSchedule(season: number, week: number): Promise<any[]> {
@@ -240,21 +239,6 @@ export async function upsertGames(gamesData: any[]) {
         }
       });
   }
-}
-
-/**
- * Pull the latest results for a week and rescore it.
- *
- * Used by the nightly cron and by the on-demand refresh the scoreboard fires,
- * so results land without anyone opening the admin page.
- */
-export async function refreshWeekResults(season: number, week: number): Promise<number> {
-  const gamesData = await fetchNFLSchedule(season, week);
-  if (gamesData.length === 0) return 0;
-
-  await upsertGames(gamesData);
-  await calculateAllWeeklyScores(season, week);
-  return gamesData.length;
 }
 
 /**

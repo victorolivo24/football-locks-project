@@ -4,8 +4,8 @@ import {
   getCurrentNFLWeek,
   getCurrentWeekFromSchedule,
   hasUnresolvedGames,
-  refreshWeekResults,
 } from '@/lib/nfl';
+import { refreshWeekResults } from '@/lib/results';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
