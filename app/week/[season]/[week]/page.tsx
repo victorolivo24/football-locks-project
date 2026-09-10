@@ -15,6 +15,8 @@ interface Game {
   startTime: string;
   status: string;
   winnerTeam?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
   // Lines refreshed daily and attached by /api/schedule.
   homeMoneyline?: number | null;
   awayMoneyline?: number | null;
@@ -67,6 +69,26 @@ export default function WeekPage({ params }: { params: { season: string; week: s
       router.push('/login');
     }
   };
+
+  const anyLive = games.some((g) => g.status === 'in_progress');
+
+  // Cron cannot run more than once a day, so live scores are driven by the
+  // page: while a game is in progress, pull fresh results on a timer.
+  useEffect(() => {
+    if (!anyLive) return;
+
+    const tick = async () => {
+      await fetch('/api/results/refresh', { method: 'POST' }).catch(() => undefined);
+      const res = await fetch(`/api/schedule?season=${season}&week=${week}`).catch(() => null);
+      if (res?.ok) {
+        const data = await res.json();
+        setGames(data.games || []);
+      }
+    };
+
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [anyLive, season, week]);
 
   const fetchData = async () => {
     try {
@@ -279,6 +301,8 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                     const currentPick = getPickedTeam(game.id);
                     const isAwayPicked = isSameTeam(currentPick, game.awayTeam);
                     const isHomePicked = isSameTeam(currentPick, game.homeTeam);
+                    const isAwayWinner = !!game.winnerTeam && isSameTeam(game.winnerTeam, game.awayTeam);
+                    const isHomeWinner = !!game.winnerTeam && isSameTeam(game.winnerTeam, game.homeTeam);
                     const isFinal = game.status === 'final';
 
                     return (
@@ -431,9 +455,28 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                           </div>
                         )}
 
+                        {/* Score, live or final */}
+                        {game.awayScore != null && game.homeScore != null && game.status !== 'scheduled' && (
+                          <div className={`mt-3 flex items-center justify-center gap-4 py-2 px-3 rounded-lg border text-sm font-bold ${
+                            game.status === 'in_progress'
+                              ? 'bg-yellow-500/15 border-yellow-400/40 text-yellow-100'
+                              : 'bg-white/5 border-white/10 text-white'
+                          }`}>
+                            <span className={`tabular-nums ${isAwayWinner ? 'text-green-300' : 'text-white/60'}`}>
+                              {normalizeTeam(game.awayTeam)} {game.awayScore}
+                            </span>
+                            <span className="text-[10px] uppercase tracking-wider text-white/50">
+                              {game.status === 'in_progress' ? '● Live' : 'Final'}
+                            </span>
+                            <span className={`tabular-nums ${isHomeWinner ? 'text-green-300' : 'text-white/60'}`}>
+                              {normalizeTeam(game.homeTeam)} {game.homeScore}
+                            </span>
+                          </div>
+                        )}
+
                         {/* Winner Banner if final */}
                         {game.winnerTeam && (
-                          <div className="mt-3 flex items-center justify-center py-2 px-3 bg-green-600/20 border border-green-500/30 rounded-lg text-xs font-bold text-green-200">
+                          <div className="mt-2 flex items-center justify-center py-2 px-3 bg-green-600/20 border border-green-500/30 rounded-lg text-xs font-bold text-green-200">
                             🏆 Winner: {game.winnerTeam}
                           </div>
                         )}

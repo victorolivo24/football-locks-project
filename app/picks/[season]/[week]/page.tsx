@@ -289,6 +289,20 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
 
                         return (
                           <div key={`${u.id}-${p.gameId}`} className={`glass-section p-3 sm:p-4 min-w-0 overflow-hidden ${loss ? 'opacity-70' : ''}`}>
+                            {g && g.awayScore != null && g.homeScore != null && g.status !== 'scheduled' && (
+                              <div className="flex items-center gap-2 mb-1.5 text-[11px] font-bold">
+                                <span className="text-white/70 tabular-nums">
+                                  {normalizeTeam(g.awayTeam)} {g.awayScore} – {normalizeTeam(g.homeTeam)} {g.homeScore}
+                                </span>
+                                <span className={`uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded ${
+                                  g.status === 'in_progress'
+                                    ? 'bg-yellow-500/20 text-yellow-200 border border-yellow-400/30'
+                                    : 'bg-white/10 text-white/50'
+                                }`}>
+                                  {g.status === 'in_progress' ? '● Live' : 'Final'}
+                                </span>
+                              </div>
+                            )}
                             <div className="flex items-center justify-between gap-3 min-w-0">
                               <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
                                 <div className={`flex items-center gap-1.5 min-w-0 ${pickedAway ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
