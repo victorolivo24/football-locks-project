@@ -61,6 +61,9 @@ async function main() {
       primary key (userid, season, week)
     )`;
 
+    await sql`alter table games add column if not exists homescore integer`;
+    await sql`alter table games add column if not exists awayscore integer`;
+
     await sql`create table if not exists gameodds (
       gameid bigint primary key references games(id),
       season integer not null,

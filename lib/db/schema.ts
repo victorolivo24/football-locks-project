@@ -17,6 +17,8 @@ export const games = pgTable('games', {
   awayTeam: text('awayteam').notNull(),                                 // 👈 awayteam
   winnerTeam: text('winnerteam'),                                       // 👈 winnerteam
   status: text('status').notNull().default('scheduled'),
+  homeScore: integer('homescore'),
+  awayScore: integer('awayscore'),
 });
 // Picks table - one row per user per game
 export const picks = pgTable('picks', {

@@ -96,7 +96,11 @@ for (a 7:00 PM job can run as late as 7:59 PM).
 | `/api/cron/fetch-odds` | `0 23 * * *` | Daily 7:00 PM | Refresh lines for the current and next week |
 | `/api/cron/resolve-results` | `0 8 * * *` | Daily 4:00 AM | Pull results and rescore the week |
 
-All three require `Authorization: Bearer $CRON_SECRET`.
+All three require `Authorization: Bearer $CRON_SECRET`, which Vercel sends
+automatically when `CRON_SECRET` is set on the project.
+
+**Vercel triggers cron jobs with a GET request**, so each route exports `GET`.
+A route exporting only `POST` returns 405 and the job silently never runs.
 
 Eastern times shift an hour during standard time (Nov–Mar); every job still
 lands well inside its window.
@@ -115,11 +119,15 @@ One row per game in `gameodds`, overwritten until kickoff, no history kept.
 
 ### Results
 
-Results land on their own. The nightly cron is the safety net, and the
-scoreboard also calls `/api/results/refresh` when it loads, which pulls fresh
-scores whenever a game has kicked off but has no result yet. Hobby crons cannot
-run more than once a day, so that on-demand call is what keeps the board
-current mid-slate. The admin page remains as a manual fallback.
+Results land on their own. The nightly cron is the safety net, and the pages
+call `/api/results/refresh` themselves, which pulls fresh results whenever a
+game has kicked off but has no result yet. Hobby crons cannot run more than
+once a day, so that on-demand call is what keeps things current mid-slate.
+
+Live scores work the same way: while any game is in progress the gameday view
+polls every 30 seconds. A shorter cooldown on the refresh endpoint means a room
+full of viewers still costs one upstream fetch per cycle. The admin page
+remains as a manual fallback.
 
 ## API Routes
 

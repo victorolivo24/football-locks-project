@@ -28,6 +28,7 @@ interface ESPNGame {
       };
       homeAway: 'home' | 'away';
       winner?: boolean;
+      score?: string;
     }>;
   }>;
 }
@@ -169,6 +170,11 @@ export async function fetchNFLSchedule(season: number, week: number): Promise<an
       const away = competitors.find(c => c.homeAway === 'away');
       const winner = competitors.find(c => c.winner === true);
 
+      const toScore = (value: unknown) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+      };
+
       return {
         id: parseInt(event.id),
         season,
@@ -177,6 +183,8 @@ export async function fetchNFLSchedule(season: number, week: number): Promise<an
         homeTeam: home?.team.name || '',
         awayTeam: away?.team.name || '',
         winnerTeam: winner?.team.name || null,
+        homeScore: toScore(home?.score),
+        awayScore: toScore(away?.score),
         status: event.status.type.state === 'post' ? 'final' :
           event.status.type.state === 'in' ? 'in_progress' : 'scheduled'
       };
@@ -213,6 +221,8 @@ export async function upsertGames(gamesData: any[]) {
           // Never clear a winner we already have: ESPN reports none until the
           // game is final, and results may have been entered manually.
           winnerTeam: gameData.winnerTeam ?? existing.winnerTeam,
+          homeScore: gameData.homeScore ?? existing.homeScore,
+          awayScore: gameData.awayScore ?? existing.awayScore,
         })
         .where(eq(games.id, existing.id));
       continue;

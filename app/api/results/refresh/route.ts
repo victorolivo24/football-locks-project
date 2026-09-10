@@ -11,9 +11,11 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // Vercel's Hobby plan caps cron jobs at one run per day, so the nightly sweep
-// cannot deliver scores mid-slate. The scoreboard calls this instead, which
-// keeps results current on Sunday afternoon without anyone touching admin.
-const COOLDOWN_MS = 2 * 60 * 1000;
+// cannot deliver scores mid-slate. The pages call this instead, which keeps
+// results and live scores current on Sunday afternoon without anyone touching
+// admin. The cooldown sits just under the gameday view's polling interval, so
+// a room full of viewers still costs one upstream fetch per cycle.
+const COOLDOWN_MS = 25 * 1000;
 let lastRefreshAt = 0;
 
 export async function POST() {

@@ -16,6 +16,8 @@ interface Game {
   startTime: string;
   status: string;
   winnerTeam?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
   // Lines stored for the week, attached by /api/schedule.
   homeMoneyline?: number | null;
   awayMoneyline?: number | null;
@@ -80,6 +82,26 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
       }
     })();
   }, [season, week]);
+
+  const anyLive = games.some((g) => g.status === 'in_progress');
+
+  // Cron jobs can only run once a day, so live scores come from the page
+  // itself: while a game is in progress, pull fresh results on a timer.
+  useEffect(() => {
+    if (!anyLive) return;
+
+    const tick = async () => {
+      await fetch('/api/results/refresh', { method: 'POST' }).catch(() => undefined);
+      const res = await fetch(`/api/schedule?season=${season}&week=${week}`).catch(() => null);
+      if (res?.ok) {
+        const data = await res.json();
+        setGames(data.games || []);
+      }
+    };
+
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [anyLive, season, week]);
 
   const formatGameTime = (iso: string) =>
     DateTime.fromISO(iso).setZone('America/New_York').toFormat('EEE, MMM d, h:mm a');
@@ -385,9 +407,23 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                           : 'bg-cyan-600/30 text-cyan-100 border border-cyan-500/50'
                       }`}
                     >
-                      {g.status}
+                      {g.status === 'in_progress' ? 'live' : g.status}
                     </span>
                   </div>
+
+                  {(g.awayScore != null && g.homeScore != null && g.status !== 'scheduled') && (
+                    <div className="flex items-center justify-center gap-3 py-2 border-b border-white/5 bg-black/20">
+                      <span className={`text-2xl font-black tabular-nums ${awayWon ? 'text-green-300' : 'text-white/70'}`}>
+                        {g.awayScore}
+                      </span>
+                      <span className="text-xs text-white/40 font-bold">
+                        {g.status === 'in_progress' ? 'LIVE' : 'FINAL'}
+                      </span>
+                      <span className={`text-2xl font-black tabular-nums ${homeWon ? 'text-green-300' : 'text-white/70'}`}>
+                        {g.homeScore}
+                      </span>
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-2 divide-x divide-white/5">
                     {/* Away Team Side */}

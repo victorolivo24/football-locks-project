@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentNFLWeek, getCurrentWeekFromSchedule } from '@/lib/nfl';
 import { refreshWeekOdds } from '@/lib/espnOdds';
 
-export async function POST(request: NextRequest) {
+async function handler(request: NextRequest) {
   try {
     // Verify cron secret
     const authHeader = request.headers.get('authorization');
@@ -36,3 +36,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Vercel Cron invokes the endpoint with GET, so that is the verb that matters
+// in production; POST is kept for triggering a run by hand.
+export const GET = handler;
+export const POST = handler;
