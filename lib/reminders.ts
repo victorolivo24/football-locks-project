@@ -45,7 +45,7 @@ export async function sendLockReminders(season: number, week: number): Promise<n
     .setZone('America/New_York')
     .toFormat("EEEE 'at' h:mm a");
 
-  return sendAlerts(missing.map(user => ({
+  const result = await sendAlerts(missing.map(user => ({
     userId: user.id,
     kind: 'lockReminder' as const,
     title: 'You have no locks in',
@@ -54,4 +54,6 @@ export async function sendLockReminders(season: number, week: number): Promise<n
     // One per user per week, so repeated runs replace rather than stack.
     tag: `reminder:${season}:${week}:${user.id}`,
   })));
+
+  return result.sent;
 }

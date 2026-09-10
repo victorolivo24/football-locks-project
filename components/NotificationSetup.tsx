@@ -139,7 +139,7 @@ export default function NotificationSetup() {
       setNote(
         result.sent > 0
           ? 'You should see a test alert now.'
-          : 'Saved, but the test alert did not send. Tell Victor.'
+          : `Saved, but the test alert failed — ${result.error ?? 'no reason given'}`
       );
     } catch (error: any) {
       setNote(error?.message ?? 'Something went wrong enabling notifications.');
@@ -261,7 +261,15 @@ export default function NotificationSetup() {
             )}
             {subscribed && (
               <button
-                onClick={() => fetch('/api/push/preferences', { method: 'POST' })}
+                onClick={async () => {
+                  const res = await fetch('/api/push/preferences', { method: 'POST' });
+                  const result = await res.json().catch(() => ({ sent: 0 }));
+                  setNote(
+                    result.sent > 0
+                      ? 'Test alert sent.'
+                      : `Test failed — ${result.error ?? 'no reason given'}`
+                  );
+                }}
                 className="text-xs font-semibold text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg"
               >
                 Send test

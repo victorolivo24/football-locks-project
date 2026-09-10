@@ -42,16 +42,37 @@ function configure(): boolean {
  * someone's phone and not their laptop. Subscriptions the browser has
  * abandoned come back as 404/410 and are deleted rather than retried forever.
  */
-export async function sendAlerts(messages: PushMessage[]): Promise<number> {
-  if (messages.length === 0 || !configure()) return 0;
+export interface SendResult {
+  sent: number;
+  /** Why deliveries failed, so a test send can say something useful. */
+  errors: Array<{ status?: number; detail: string }>;
+  configured: boolean;
+}
+
+export async function sendAlerts(messages: PushMessage[]): Promise<SendResult> {
+  if (messages.length === 0) return { sent: 0, errors: [], configured: true };
+  if (!configure()) {
+    return {
+      sent: 0,
+      errors: [{ detail: 'Server is missing VAPID keys, so nothing can be sent.' }],
+      configured: false,
+    };
+  }
 
   const userIds = Array.from(new Set(messages.map(m => m.userId)));
   const subscriptions = await db.query.pushSubscriptions.findMany({
     where: inArray(pushSubscriptions.userId, userIds),
   });
-  if (subscriptions.length === 0) return 0;
+  if (subscriptions.length === 0) {
+    return {
+      sent: 0,
+      errors: [{ detail: 'No device is registered for this account.' }],
+      configured: true,
+    };
+  }
 
   const stale: string[] = [];
+  const errors: SendResult['errors'] = [];
   let delivered = 0;
 
   await Promise.all(subscriptions.flatMap((subscription) =>
@@ -74,17 +95,24 @@ export async function sendAlerts(messages: PushMessage[]): Promise<number> {
           delivered++;
         } catch (error: any) {
           const status = error?.statusCode;
+          const detail = String(error?.body ?? error?.message ?? 'unknown').slice(0, 200);
+
+          // A subscription the browser has abandoned is worth dropping, but say
+          // so — silently deleting made a broken setup look like a no-op.
           if (status === 404 || status === 410) stale.push(subscription.endpoint);
-          else console.error('Push send failed:', status, error?.body ?? error?.message);
+
+          errors.push({ status, detail });
+          console.error('Push send failed:', status, detail);
         }
       })
   ));
 
   if (stale.length > 0) {
+    console.error(`Dropping ${stale.length} expired push subscription(s).`);
     await db.delete(pushSubscriptions).where(inArray(pushSubscriptions.endpoint, stale));
   }
 
-  return delivered;
+  return { sent: delivered, errors, configured: true };
 }
 
 export async function removeSubscription(endpoint: string) {

@@ -39,7 +39,7 @@ export async function POST() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const sent = await sendAlerts([{
+  const result = await sendAlerts([{
     userId: user.userId,
     kind: 'gameFinal',
     title: 'Notifications are on',
@@ -48,5 +48,12 @@ export async function POST() {
     tag: 'test',
   }]);
 
-  return NextResponse.json({ sent });
+  // Report the failure rather than just a zero, so a broken setup is
+  // diagnosable from the page instead of from the server logs.
+  return NextResponse.json({
+    sent: result.sent,
+    error: result.errors[0]
+      ? `${result.errors[0].status ?? 'error'}: ${result.errors[0].detail}`
+      : undefined,
+  });
 }
