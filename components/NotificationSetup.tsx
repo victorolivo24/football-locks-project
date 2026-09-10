@@ -207,11 +207,15 @@ export default function NotificationSetup() {
                 Apple only allows notifications once the site is on your Home Screen. Takes about ten seconds:
               </p>
               <ol className="text-xs text-white/85 space-y-1.5 list-decimal list-inside">
-                <li>Tap the <strong>Share</strong> button at the bottom of Safari (the square with an arrow)</li>
-                <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
+                <li><strong>Touch and hold the address bar</strong> at the bottom of Safari, then tap <strong>Share</strong></li>
+                <li>Scroll down the list and tap <strong>Add to Home Screen</strong></li>
                 <li>Tap <strong>Add</strong> in the top right</li>
                 <li>Open <strong>NFL Locks</strong> from your Home Screen and come back here</li>
               </ol>
+              <p className="text-[11px] text-green-200/60">
+                If a Share icon is already visible in the toolbar (a square with an arrow pointing up),
+                tapping that works too — it is often hidden until you scroll up.
+              </p>
               <p className="text-[11px] text-white/50">
                 Must be Safari — Chrome on iPhone cannot do this.
               </p>
