@@ -46,6 +46,11 @@ export async function sendLockReminders(season: number, week: number): Promise<n
     .setZone('America/New_York')
     .toFormat("EEEE 'at' h:mm a");
 
+  // Two reminders go out in a normal week: one the day before, one a few hours
+  // out. Dating the tag keeps them separate — sharing one meant the second,
+  // more urgent nudge silently replaced the first instead of alerting.
+  const today = DateTime.now().setZone('America/New_York').toFormat('yyyy-LL-dd');
+
   const result = await sendAlerts(missing.map(user => ({
     userId: user.id,
     kind: 'lockReminder' as const,
@@ -53,7 +58,7 @@ export async function sendLockReminders(season: number, week: number): Promise<n
     body: `Week ${week} starts ${closes}. Get your picks in before kickoff.`,
     url: `/week/${season}/${week}`,
     // One per user per week, so repeated runs replace rather than stack.
-    tag: `reminder:${season}:${week}:${user.id}`,
+    tag: `reminder:${season}:${week}:${user.id}:${today}`,
   })));
 
   return result.sent;

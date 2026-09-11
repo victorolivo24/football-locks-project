@@ -552,7 +552,7 @@ const REMINDERS: string[] = [
   'The slate starts soon and your ticket is empty',
   'No picks, no points',
   'You are currently locked in for zero',
-  'This is your reminder. There is not another one',
+  'Consider yourself reminded',
   'Everyone else is deciding. You are not',
   'Kickoff is coming whether you pick or not',
   'An empty ticket scores exactly nothing',
