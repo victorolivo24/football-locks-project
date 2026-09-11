@@ -83,12 +83,17 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
     })();
   }, [season, week]);
 
-  const anyLive = games.some((g) => g.status === 'in_progress');
+  // Poll whenever a game SHOULD have a result, not when the database already
+  // says one is live. Status only becomes in_progress because a refresh wrote
+  // it, so gating on that meant polling could never start: the page waited for
+  // a change that only polling could produce.
+  const needsPolling = games.some(
+    (g) => g.status !== 'final' && new Date(g.startTime).getTime() <= Date.now()
+  );
 
-  // Cron jobs can only run once a day, so live scores come from the page
-  // itself: while a game is in progress, pull fresh results on a timer.
+  // Cron jobs can only run once a day, so live scores come from the page.
   useEffect(() => {
-    if (!anyLive) return;
+    if (!needsPolling) return;
 
     const tick = async () => {
       await fetch('/api/results/refresh', { method: 'POST' }).catch(() => undefined);
@@ -99,9 +104,10 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
       }
     };
 
+    tick();
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
-  }, [anyLive, season, week]);
+  }, [needsPolling, season, week]);
 
   const formatGameTime = (iso: string) =>
     DateTime.fromISO(iso).setZone('America/New_York').toFormat('EEE, MMM d, h:mm a');

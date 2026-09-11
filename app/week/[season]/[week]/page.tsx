@@ -70,12 +70,17 @@ export default function WeekPage({ params }: { params: { season: string; week: s
     }
   };
 
-  const anyLive = games.some((g) => g.status === 'in_progress');
+  // Poll whenever a game SHOULD have a result, not when the database already
+  // says one is live. Status only becomes in_progress because a refresh wrote
+  // it, so gating on that meant polling could never start: the page waited for
+  // a change that only polling could produce.
+  const needsPolling = games.some(
+    (g) => g.status !== 'final' && new Date(g.startTime).getTime() <= Date.now()
+  );
 
-  // Cron cannot run more than once a day, so live scores are driven by the
-  // page: while a game is in progress, pull fresh results on a timer.
+  // Cron cannot run more than once a day, so live scores are driven by the page.
   useEffect(() => {
-    if (!anyLive) return;
+    if (!needsPolling) return;
 
     const tick = async () => {
       await fetch('/api/results/refresh', { method: 'POST' }).catch(() => undefined);
@@ -86,9 +91,10 @@ export default function WeekPage({ params }: { params: { season: string; week: s
       }
     };
 
+    tick();
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
-  }, [anyLive, season, week]);
+  }, [needsPolling, season, week]);
 
   const fetchData = async () => {
     try {
