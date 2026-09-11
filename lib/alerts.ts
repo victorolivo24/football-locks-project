@@ -109,8 +109,18 @@ export function buildAlerts(
         : 0;
       const earlyWeek = weekday === 4 || weekday === 5;
 
-      const context = (who: string, plural: boolean, team: string, seed: string): QuipContext =>
-        ({ who, plural, team: normalizeTeam(team), margin, earlyWeek, seed });
+      const context = (
+        who: string,
+        plural: boolean,
+        team: string,
+        seed: string,
+        lockCount: number | null = null,
+        survivors: number | null = null
+      ): QuipContext =>
+        ({ who, plural, team: normalizeTeam(team), margin, earlyWeek, lockCount, survivors, seed });
+
+      /** How many locks one player put up this week. */
+      const locksFor = (userId: number) => picks.filter(p => p.userId === userId).length;
 
       for (const pick of backers) {
         if (out.has(pick.userId)) continue;
@@ -121,7 +131,10 @@ export function buildAlerts(
         add(
           pick.userId,
           'gameFinal',
-          ownQuip(context('you', false, pick.pickedTeam, `own:${gameId}:${pick.userId}`), hit),
+          ownQuip(
+            context('you', false, pick.pickedTeam, `own:${gameId}:${pick.userId}`, locksFor(pick.userId)),
+            hit
+          ),
           `${normalizeTeam(pick.pickedTeam)} ${hit ? 'won' : 'lost'}.${score}`,
           `final:${gameId}:${pick.userId}`
         );
@@ -129,6 +142,10 @@ export function buildAlerts(
 
       // Their week ends here, so later games say nothing about them.
       for (const userId of busts) out.add(userId);
+
+      // Anyone who submitted and is not yet eliminated.
+      const survivors = Array.from(new Set(picks.map(p => p.userId)))
+        .filter(id => !out.has(id)).length;
 
       // One message per person per game, naming everyone it applies to.
       // Sending one per rival pick instead would mean a game six people
@@ -147,8 +164,16 @@ export function buildAlerts(
           const who = listNames(names);
           const team = picks.find(p => p.userId === others[0] && Number(p.gameId) === gameId)?.pickedTeam ?? '';
           const seed = `${kind}:${gameId}:${player.id}`;
+          // Lock counts only describe one person, so leave them out of a group line.
+          const lockCount = others.length === 1 ? locksFor(others[0]) : null;
 
-          add(player.id, kind, line(context(who, names.length > 1, team, seed)), detail(who), seed);
+          add(
+            player.id,
+            kind,
+            line(context(who, names.length > 1, team, seed, lockCount, survivors)),
+            detail(who),
+            seed
+          );
         }
       };
 

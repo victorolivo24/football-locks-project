@@ -18,6 +18,10 @@ export interface QuipContext {
   margin: number | null;
   /** Thursday or Friday: out before the week really began. */
   earlyWeek: boolean;
+  /** How many locks they put up this week, when it is one person. */
+  lockCount: number | null;
+  /** How many players are still alive after this result. */
+  survivors: number | null;
   /** Stable per event, so the same result always picks the same line. */
   seed: string;
 }
@@ -89,6 +93,56 @@ const GENERIC_BUSTS: Array<(c: QuipContext) => string> = [
   c => `${c.who} ${c.plural ? 'were' : 'was'} this close. ${c.plural ? 'They' : 'Not'} close enough`,
 ];
 
+/**
+ * Non-sequiturs. The body carries the facts, so the title is free to be
+ * nonsense — and a lock screen that says "not every chicken lays eggs" is
+ * funnier than one that says "Ryan out".
+ */
+const ABSURD: string[] = [
+  "You can't smother yourself in honey and expect the bear to respect your personal space",
+  'The Home Depot showers are for display only, not for use',
+  'Who taught you how to shovel!?',
+  'Not every chicken lays eggs',
+  'A ladder is just a staircase that gave up',
+  'You do not bring a canoe to a thunderstorm',
+  'Some doors are just walls with ambition',
+  'Never trust a man who irons his socks',
+  'The vending machine does not negotiate',
+  'You cannot sharpen a spoon and call it a plan',
+  'This is why they print instructions on shampoo',
+  'The escalator was fine until you looked at it',
+  'Nobody has ever won an argument with a goose',
+  'Two umbrellas do not make a roof',
+  'The microwave clock has never once been correct',
+  'You brought a fork to a soup',
+  'Wet cement remembers everything',
+  'The bees were never on your side',
+  'Salt is not a personality',
+  'Nobody asked the ostrich',
+  'A map is not the territory and neither is your ticket',
+  'You cannot fold a fitted sheet either',
+  'Every barn is a house for something',
+  'The lawn does not care that you tried',
+];
+
+/** Lines that actually describe what happened, for a single player. */
+const NARRATIVE: Array<(c: QuipContext) => string | null> = [
+  c => (c.lockCount === 1 ? `${c.who} had exactly one lock, and lost exactly one lock` : null),
+  c => (c.lockCount === 1 ? `${c.who} played it safe with one pick and still went out` : null),
+  c => (c.lockCount !== null && c.lockCount >= 5
+    ? `${c.who} stacked ${c.lockCount} locks and never got past this one`
+    : null),
+  c => (c.lockCount !== null && c.lockCount >= 2
+    ? `${c.who} needed ${c.lockCount} games to go right. Got fewer`
+    : null),
+  c => (c.lockCount !== null ? `${c.who} is out with ${c.lockCount} on the ticket` : null),
+  c => (c.survivors === 1 ? `${c.who} is gone. One player left standing` : null),
+  c => (c.survivors !== null && c.survivors > 1
+    ? `${c.who} out. ${c.survivors} still alive`
+    : null),
+  c => (c.survivors === 0 ? `${c.who} out, and that is everybody. Nobody survived` : null),
+];
+
 const EARLY_WEEK_BUSTS: Array<(c: QuipContext) => string> = [
   c => `Out before the week even started, ${c.who}`,
   c => `${c.who} ${c.plural ? 'are' : 'is'} done and it's still Thursday`,
@@ -113,29 +167,57 @@ const NAILBITER_BUSTS: Array<(c: QuipContext) => string> = [
 ];
 
 /**
- * A line for someone whose week just ended.
+ * The pools a bust line can come from, with the weight each carries.
  *
- * Weighted toward the situational jokes when a situation exists: a three point
- * loss on a Thursday is funnier than a generic farewell, so those pools are
- * offered first and the generic set is the fallback.
+ * Weighted rather than pooled flat: there is one joke for the team that let
+ * someone down and two dozen non-sequiturs, so a flat pick would bury the
+ * specific line under the generic ones. Every applicable pool gets a roughly
+ * even share instead, which keeps the situational jokes landing as often as
+ * the filler.
  */
-export function bustQuip(context: QuipContext): string {
-  const candidates: string[] = [];
+export function bustPools(context: QuipContext): Array<{ weight: number; lines: string[] }> {
+  const pools: Array<{ weight: number; lines: string[] }> = [];
 
   const teamJoke = TEAM_JOKES[context.team];
-  if (teamJoke) candidates.push(teamJoke(context));
+  if (teamJoke) pools.push({ weight: 3, lines: [teamJoke(context)] });
 
-  if (context.earlyWeek) candidates.push(...EARLY_WEEK_BUSTS.map(fn => fn(context)));
+  if (context.earlyWeek) {
+    pools.push({ weight: 3, lines: EARLY_WEEK_BUSTS.map(fn => fn(context)) });
+  }
   if (context.margin !== null && context.margin >= 17) {
-    candidates.push(...BLOWOUT_BUSTS.map(fn => fn(context)));
+    pools.push({ weight: 2, lines: BLOWOUT_BUSTS.map(fn => fn(context)) });
   }
   if (context.margin !== null && context.margin <= 3) {
-    candidates.push(...NAILBITER_BUSTS.map(fn => fn(context)));
+    pools.push({ weight: 2, lines: NAILBITER_BUSTS.map(fn => fn(context)) });
   }
 
-  candidates.push(...GENERIC_BUSTS.map(fn => fn(context)));
+  if (!context.plural) {
+    // Lock counts and survivor counts describe one person, not a group.
+    const narrative = NARRATIVE.map(fn => fn(context)).filter((l): l is string => l !== null);
+    if (narrative.length > 0) pools.push({ weight: 3, lines: narrative });
+  }
 
-  return pick(candidates, context.seed);
+  pools.push({ weight: 3, lines: GENERIC_BUSTS.map(fn => fn(context)) });
+  pools.push({ weight: 3, lines: ABSURD });
+
+  return pools;
+}
+
+/** A line for someone whose week just ended. */
+export function bustQuip(context: QuipContext): string {
+  const pools = bustPools(context);
+  const total = pools.reduce((sum, pool) => sum + pool.weight, 0);
+
+  let choice = hash(context.seed) % total;
+  for (const pool of pools) {
+    if (choice < pool.weight) {
+      // A second hash so the line within a pool is not tied to the pool draw.
+      return pool.lines[hash(context.seed + '#') % pool.lines.length];
+    }
+    choice -= pool.weight;
+  }
+
+  return pools[pools.length - 1].lines[0];
 }
 
 const HITS: Array<(c: QuipContext) => string> = [

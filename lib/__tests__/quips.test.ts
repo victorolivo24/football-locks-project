@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bustQuip, hitQuip, ownQuip, QuipContext } from '../quips';
+import { bustQuip, bustPools, hitQuip, ownQuip, QuipContext } from '../quips';
 
 const ctx = (over: Partial<QuipContext> = {}): QuipContext => ({
   who: 'David',
@@ -7,6 +7,8 @@ const ctx = (over: Partial<QuipContext> = {}): QuipContext => ({
   team: 'Bills',
   margin: 10,
   earlyWeek: false,
+  lockCount: 3,
+  survivors: 2,
   seed: 'seed-1',
   ...over,
 });
@@ -23,19 +25,27 @@ describe('bustQuip', () => {
     expect(distinct.length).toBeGreaterThan(8);
   });
 
-  it('always names who it happened to', () => {
-    for (let i = 0; i < 40; i++) {
-      expect(bustQuip(ctx({ seed: `s${i}` }))).toContain('David');
-    }
+  it('mostly names who it happened to, the non-sequiturs aside', () => {
+    // Absurd lines deliberately carry no name; the body always does.
+    const lines = Array.from({ length: 60 }, (_, i) => bustQuip(ctx({ seed: `s${i}` })));
+    const named = lines.filter(l => l.includes('David')).length;
+    expect(named).toBeGreaterThan(lines.length / 2);
   });
 
-  it('can reach a team joke for the team they backed', () => {
-    const lines = Array.from({ length: 60 }, (_, i) => bustQuip(ctx({ team: 'Ravens', seed: `r${i}` })));
+  it('offers a team joke for the team they backed', () => {
+    const lines = bustPools(ctx({ team: 'Ravens' })).flatMap(pool => pool.lines);
     expect(lines.some(l => l.includes('nevermore'))).toBe(true);
   });
 
-  it('can reach an early-week line on a Thursday', () => {
-    const lines = Array.from({ length: 60 }, (_, i) => bustQuip(ctx({ earlyWeek: true, seed: `t${i}` })));
+  it('weights the team joke so it is not buried under the filler', () => {
+    const pools = bustPools(ctx({ team: 'Ravens' }));
+    const teamPool = pools.find(p => p.lines.some(l => l.includes('nevermore')));
+    const total = pools.reduce((sum, p) => sum + p.weight, 0);
+    expect(teamPool!.weight / total).toBeGreaterThan(0.1);
+  });
+
+  it('offers an early-week line on a Thursday', () => {
+    const lines = bustPools(ctx({ earlyWeek: true })).flatMap(pool => pool.lines);
     expect(lines.some(l => /Thursday|weekend|started|speedran|casualty/.test(l))).toBe(true);
   });
 
@@ -46,7 +56,7 @@ describe('bustQuip', () => {
   });
 
   it('reaches blowout lines only when it was a blowout', () => {
-    const blowout = Array.from({ length: 60 }, (_, i) => bustQuip(ctx({ margin: 28, seed: `b${i}` })));
+    const blowout = bustPools(ctx({ margin: 28 })).flatMap(p => p.lines);
     expect(blowout.some(l => /fourth quarter|halftime|wasn't close/.test(l))).toBe(true);
 
     for (let i = 0; i < 60; i++) {
@@ -55,7 +65,7 @@ describe('bustQuip', () => {
   });
 
   it('reaches a one-score line only on a one-score game', () => {
-    const close = Array.from({ length: 60 }, (_, i) => bustQuip(ctx({ margin: 3, seed: `n${i}` })));
+    const close = bustPools(ctx({ margin: 3 })).flatMap(p => p.lines);
     expect(close.some(l => /sting|So close|missed kick|One score/.test(l))).toBe(true);
   });
 
@@ -99,5 +109,63 @@ describe('ownQuip', () => {
 
   it('differs between a hit and a loss', () => {
     expect(ownQuip(ctx(), true)).not.toBe(ownQuip(ctx(), false));
+  });
+});
+
+describe('absurd and narrative lines', () => {
+  const sample = (over: Partial<QuipContext>) =>
+    bustPools(ctx(over)).flatMap(pool => pool.lines);
+
+  it('reaches the non-sequiturs', () => {
+    const lines = sample({});
+    expect(lines.some(l => /chicken|honey|shovel|Home Depot|goose|ostrich/.test(l))).toBe(true);
+  });
+
+  it('keeps non-sequiturs free of names, so the body does the explaining', () => {
+    const absurd = sample({}).filter(l => /chicken lays eggs|Home Depot|Who taught you/.test(l));
+    expect(absurd.length).toBeGreaterThan(0);
+    expect(absurd.every(l => !l.includes('David'))).toBe(true);
+  });
+
+  it('tells the story of a single lock going down', () => {
+    const lines = sample({ lockCount: 1 });
+    expect(lines.some(l => /exactly one lock|played it safe with one pick/.test(l))).toBe(true);
+  });
+
+  it('calls out a big stack that died early', () => {
+    const lines = sample({ lockCount: 6 });
+    expect(lines.some(l => l.includes('stacked 6 locks'))).toBe(true);
+  });
+
+  it('never claims a stack when they only had one', () => {
+    const lines = sample({ lockCount: 1 });
+    expect(lines.every(l => !l.includes('stacked'))).toBe(true);
+  });
+
+  it('counts who is left', () => {
+    const lines = sample({ survivors: 3 });
+    expect(lines.some(l => l.includes('3 still alive'))).toBe(true);
+  });
+
+  it('marks the last player standing', () => {
+    const lines = sample({ survivors: 1 });
+    expect(lines.some(l => l.includes('One player left standing'))).toBe(true);
+  });
+
+  it('handles a total wipeout', () => {
+    const lines = sample({ survivors: 0 });
+    expect(lines.some(l => l.includes('Nobody survived'))).toBe(true);
+  });
+
+  it('keeps narrative lines away from group busts, which have no single count', () => {
+    const lines = sample({ who: 'Ryan and Chris', plural: true, lockCount: 4 });
+    expect(lines.every(l => !l.includes('on the ticket'))).toBe(true);
+    expect(lines.every(l => !l.includes('stacked'))).toBe(true);
+  });
+
+  it('still works when nothing contextual is known', () => {
+    const lines = sample({ lockCount: null, survivors: null, margin: null });
+    expect(lines.every(l => l.length > 0)).toBe(true);
+    expect(lines.every(l => !l.includes('null'))).toBe(true);
   });
 });
