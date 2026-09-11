@@ -22,6 +22,8 @@ export interface QuipContext {
   lockCount: number | null;
   /** How many players are still alive after this result. */
   survivors: number | null;
+  /** How many of their locks have landed so far this week. */
+  locksHit: number | null;
   /** Stable per event, so the same result always picks the same line. */
   seed: string;
 }
@@ -293,7 +295,72 @@ const HITS: Array<(c: QuipContext) => string> = [
   c => `One down for ${c.who}. Plenty left to go wrong`,
   c => `${c.who} got away with one`,
   c => `Chalk one up for ${c.who}`,
+  c => `${c.who} picked the favorite and the favorite won. Incredible scenes`,
+  c => `${c.who} is telling everyone about this`,
+  c => `${c.who} has never been more insufferable`,
+  c => `Chalk held. ${c.who} is taking full credit`,
+  c => `${c.who} will bring this up unprompted`,
+  c => `${c.who} is already drafting the group chat message`,
+  c => `Nothing happened, and ${c.who} is thrilled`,
+  c => `${c.who} did the bare minimum and it worked`,
+  c => `${c.who} is describing this as a read`,
+  c => `${c.who} called it, apparently`,
+  c => `${c.who} is acting like that was hard`,
+  c => `Somewhere ${c.who} is nodding slowly`,
+  c => `${c.who} is pretending they were never worried`,
+  c => `The favorite won. ${c.who} is a genius now`,
+  c => `${c.who} is updating their personal brand`,
 ];
+
+/**
+ * Running-total lines, for a lock that landed but has not finished the job.
+ *
+ * The interesting part of a hit is rarely the hit — it is how close someone
+ * now is, which is what makes a Sunday tense.
+ */
+const PROGRESS: Array<(c: QuipContext) => string | null> = [
+  c => (c.locksHit !== null && c.lockCount !== null && c.lockCount - c.locksHit === 1
+    ? `${c.who} needs one more`
+    : null),
+  c => (c.locksHit !== null && c.lockCount !== null && c.lockCount > c.locksHit
+    ? `${c.locksHit} down, ${c.lockCount - c.locksHit} to go for ${c.who}`
+    : null),
+  c => (c.locksHit !== null && c.lockCount !== null
+    ? `That's ${c.locksHit} of ${c.lockCount} for ${c.who}`
+    : null),
+  c => (c.locksHit !== null && c.lockCount !== null && c.lockCount - c.locksHit === 1
+    ? `${c.who} is one game from cashing`
+    : null),
+  c => (c.locksHit !== null && c.lockCount === c.locksHit
+    ? `${c.who} is done. Full ticket, cashed`
+    : null),
+  c => (c.locksHit !== null && c.lockCount !== null && c.lockCount - c.locksHit >= 3
+    ? `${c.who} has ${c.lockCount - c.locksHit} left and plenty of time to ruin it`
+    : null),
+];
+
+/**
+ * Jokes tied to a specific player.
+ *
+ * Keyed on the name as stored, and only used when a line is about one person.
+ * An unknown name simply has no entry and falls through to the general pools.
+ */
+const PLAYER_HITS: Record<string, string[]> = {
+  Jihoo: [
+    'Unc still got it',
+    'Reigning champ for a reason',
+    'Unc does not miss',
+    'Respect your elders',
+    'Unc has been doing this since before the rest of you could read a spread',
+    'The old man is not done yet',
+  ],
+  Chris: [
+    'Chris is looking in the mirror hyping himself up right now',
+    'Chris is telling himself he is the man',
+    'Chris has entered his own highlight reel',
+    'Somebody take the mirror away from Chris',
+  ],
+};
 
 /**
  * Non-sequiturs for a lock that landed.
@@ -307,14 +374,40 @@ const ABSURD_HITS: string[] = [
   'The favorite was favored for a reason',
   'The line knew. The line always knows',
   'Math was right there the whole time',
+  'The safe pick was safe. Thrilling',
+  'Water found its way downhill again',
+  'The heavy thing fell down. Astonishing',
+  'Nothing surprising happened to anybody',
 ];
+
+/**
+ * The pools a hit line can come from.
+ *
+ * Player-specific jokes get the heaviest weight when one exists, because a
+ * line written for that person is always better than a generic one — and only
+ * when the line is about a single player, since "Unc still got it" makes no
+ * sense aimed at a pair.
+ */
+export function hitPools(context: QuipContext): Array<{ weight: number; lines: string[] }> {
+  const pools: Array<{ weight: number; lines: string[] }> = [];
+
+  if (!context.plural) {
+    const personal = PLAYER_HITS[context.who];
+    if (personal) pools.push({ weight: 4, lines: personal });
+
+    const progress = PROGRESS.map(fn => fn(context)).filter((l): l is string => l !== null);
+    if (progress.length > 0) pools.push({ weight: 4, lines: progress });
+  }
+
+  pools.push({ weight: 3, lines: HITS.map(fn => fn(context)) });
+  pools.push({ weight: 2, lines: ABSURD_HITS });
+
+  return pools;
+}
 
 /** A line for a rival who is still standing. */
 export function hitQuip(context: QuipContext): string {
-  const pools = [
-    { weight: 3, lines: HITS.map(fn => fn(context)) },
-    { weight: 2, lines: ABSURD_HITS },
-  ];
+  const pools = hitPools(context);
   const total = pools.reduce((sum, pool) => sum + pool.weight, 0);
 
   let choice = hash(context.seed) % total;

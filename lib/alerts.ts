@@ -47,6 +47,7 @@ export function buildAlerts(
   url: string
 ): PushMessage[] {
   const previous = new Map(before.map(g => [Number(g.id), g]));
+  const current = new Map(after.map(g => [Number(g.id), g]));
   const nameOf = new Map(players.map(p => [p.id, p.name]));
   const messages: PushMessage[] = [];
 
@@ -115,12 +116,21 @@ export function buildAlerts(
         team: string,
         seed: string,
         lockCount: number | null = null,
-        survivors: number | null = null
+        survivors: number | null = null,
+        locksHit: number | null = null
       ): QuipContext =>
-        ({ who, plural, team: normalizeTeam(team), margin, earlyWeek, lockCount, survivors, seed });
+        ({ who, plural, team: normalizeTeam(team), margin, earlyWeek, lockCount, survivors, locksHit, seed });
 
       /** How many locks one player put up this week. */
       const locksFor = (userId: number) => picks.filter(p => p.userId === userId).length;
+
+      /** How many of their locks have landed so far, counting this result. */
+      const hitsFor = (userId: number) => picks.filter(p => {
+        if (p.userId !== userId) return false;
+        const settled = current.get(Number(p.gameId));
+        return !!settled && settled.status === 'final' && !!settled.winnerTeam
+          && isSameTeam(settled.winnerTeam, p.pickedTeam);
+      }).length;
 
       for (const pick of backers) {
         if (out.has(pick.userId)) continue;
@@ -166,11 +176,12 @@ export function buildAlerts(
           const seed = `${kind}:${gameId}:${player.id}`;
           // Lock counts only describe one person, so leave them out of a group line.
           const lockCount = others.length === 1 ? locksFor(others[0]) : null;
+          const locksHit = others.length === 1 ? hitsFor(others[0]) : null;
 
           add(
             player.id,
             kind,
-            line(context(who, names.length > 1, team, seed, lockCount, survivors)),
+            line(context(who, names.length > 1, team, seed, lockCount, survivors, locksHit)),
             detail(who),
             seed
           );

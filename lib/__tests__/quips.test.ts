@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bustQuip, bustPools, hitQuip, ownQuip, QuipContext } from '../quips';
+import { bustQuip, bustPools, hitQuip, hitPools, ownQuip, QuipContext } from '../quips';
 
 const ctx = (over: Partial<QuipContext> = {}): QuipContext => ({
   who: 'David',
@@ -9,6 +9,7 @@ const ctx = (over: Partial<QuipContext> = {}): QuipContext => ({
   earlyWeek: false,
   lockCount: 3,
   survivors: 2,
+  locksHit: 1,
   seed: 'seed-1',
   ...over,
 });
@@ -187,5 +188,63 @@ describe('hit lines versus bust lines', () => {
   it('still names the survivor most of the time', () => {
     const hits = Array.from({ length: 60 }, (_, i) => hitQuip(ctx({ seed: `hn${i}` })));
     expect(hits.filter(l => l.includes('David')).length).toBeGreaterThan(hits.length / 2);
+  });
+});
+
+describe('hit lines with context', () => {
+  const hitLines = (over: Partial<QuipContext>) =>
+    hitPools(ctx(over)).flatMap(pool => pool.lines);
+
+  it('counts down how many locks are left', () => {
+    const lines = hitLines({ who: 'Mihir', lockCount: 4, locksHit: 3 });
+    expect(lines).toContain('3 down, 1 to go for Mihir');
+    expect(lines).toContain('Mihir needs one more');
+  });
+
+  it('calls a completed ticket done', () => {
+    const lines = hitLines({ who: 'Mihir', lockCount: 3, locksHit: 3 });
+    expect(lines.some(l => l.includes('Full ticket, cashed'))).toBe(true);
+    expect(lines.every(l => !l.includes('to go for'))).toBe(true);
+  });
+
+  it('does not say "one more" when several remain', () => {
+    const lines = hitLines({ who: 'Ryan', lockCount: 5, locksHit: 1 });
+    expect(lines.every(l => !l.includes('needs one more'))).toBe(true);
+  });
+
+  it('gives Jihoo his own material', () => {
+    const lines = hitLines({ who: 'Jihoo' });
+    expect(lines.some(l => l.includes('Unc still got it'))).toBe(true);
+    expect(lines.some(l => l.includes('Reigning champ'))).toBe(true);
+  });
+
+  it('gives Chris his', () => {
+    const lines = hitLines({ who: 'Chris' });
+    expect(lines.some(l => l.includes('mirror'))).toBe(true);
+  });
+
+  it('weights a personal joke above the generic pools', () => {
+    const pools = hitPools(ctx({ who: 'Jihoo' }));
+    const personal = pools.find(p => p.lines.some(l => l.includes('Unc still got it')))!;
+    const generic = pools.find(p => p.lines.some(l => l.includes('survives')))!;
+    expect(personal.weight).toBeGreaterThan(generic.weight);
+  });
+
+  it('keeps personal jokes off other players', () => {
+    const lines = hitLines({ who: 'Ryan' });
+    expect(lines.every(l => !l.includes('Unc'))).toBe(true);
+    expect(lines.every(l => !l.includes('mirror'))).toBe(true);
+  });
+
+  it('keeps personal jokes off a pair, where they make no sense', () => {
+    const lines = hitLines({ who: 'Jihoo and Chris', plural: true });
+    expect(lines.every(l => !l.includes('Unc'))).toBe(true);
+    expect(lines.every(l => !l.includes('to go for'))).toBe(true);
+  });
+
+  it('falls back cleanly when no counts are known', () => {
+    const lines = hitLines({ lockCount: null, locksHit: null });
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every(l => !l.includes('null'))).toBe(true);
   });
 });
