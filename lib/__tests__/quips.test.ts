@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bustQuip, bustPools, hitQuip, hitPools, ownQuip, QuipContext } from '../quips';
+import { bustQuip, bustPools, hitQuip, hitPools, ownQuip, startQuip, reminderQuip, QuipContext } from '../quips';
 
 const ctx = (over: Partial<QuipContext> = {}): QuipContext => ({
   who: 'David',
@@ -71,9 +71,7 @@ describe('bustQuip', () => {
   });
 
   it('agrees with itself grammatically for a pair', () => {
-    const lines = Array.from({ length: 40 }, (_, i) =>
-      bustQuip(ctx({ who: 'Ryan and Chris', plural: true, seed: `p${i}` }))
-    );
+    const lines = bustPools(ctx({ who: 'Ryan and Chris', plural: true })).flatMap(p => p.lines);
     expect(lines.some(l => l.includes('have left the building'))).toBe(true);
     expect(lines.every(l => !l.includes('has left the building'))).toBe(true);
   });
@@ -296,5 +294,52 @@ describe('player-specific bust lines', () => {
   it("gives David beginner's luck on a hit", () => {
     const lines = hitPools(ctx({ who: 'David' })).flatMap(p => p.lines);
     expect(lines.some(l => l.includes("Beginner's luck"))).toBe(true);
+  });
+});
+
+describe('group, start and reminder lines', () => {
+  it('has material for a group that cashed together', () => {
+    const lines = hitPools(ctx({ who: 'Chris and Victor', plural: true })).flatMap(p => p.lines);
+    expect(lines.some(l => l.includes('made the same pick and it worked'))).toBe(true);
+    expect(lines.some(l => l.includes('indistinguishable'))).toBe(true);
+  });
+
+  it('has material for a group that died together', () => {
+    const lines = bustPools(ctx({ who: 'Chris and Victor', plural: true })).flatMap(p => p.lines);
+    expect(lines.some(l => l.includes('go down together'))).toBe(true);
+    expect(lines.some(l => l.includes('copying each other'))).toBe(true);
+  });
+
+  it('weights group lines above the generic pools', () => {
+    const pools = hitPools(ctx({ who: 'Chris and Victor', plural: true }));
+    const group = pools.find(p => p.lines.some(l => l.includes('all cashed that one')))!;
+    const generic = pools.find(p => p.lines.some(l => l.includes('survives')))!;
+    expect(group.weight).toBeGreaterThan(generic.weight);
+  });
+
+  it('keeps group lines away from a single player', () => {
+    const lines = bustPools(ctx({ who: 'Ryan' })).flatMap(p => p.lines);
+    expect(lines.every(l => !l.includes('go down together'))).toBe(true);
+  });
+
+  it('varies the kickoff line', () => {
+    const lines = Array.from({ length: 40 }, (_, i) => startQuip(ctx({ seed: `k${i}` })));
+    const distinct = lines.filter((l, i) => lines.indexOf(l) === i);
+    expect(distinct.length).toBeGreaterThan(4);
+  });
+
+  it('speaks to the player at kickoff rather than about them', () => {
+    const lines = Array.from({ length: 40 }, (_, i) => startQuip(ctx({ who: 'you', seed: `k${i}` })));
+    expect(lines.every(l => !l.includes('David'))).toBe(true);
+  });
+
+  it('varies the reminder', () => {
+    const lines = Array.from({ length: 40 }, (_, i) => reminderQuip(`r${i}`));
+    const distinct = lines.filter((l, i) => lines.indexOf(l) === i);
+    expect(distinct.length).toBeGreaterThan(4);
+  });
+
+  it('is stable per reminder, so a repeat run reads the same', () => {
+    expect(reminderQuip('same')).toBe(reminderQuip('same'));
   });
 });

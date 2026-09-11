@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { getGamesForWeek } from './nfl';
 import { sendAlerts } from './push';
+import { reminderQuip } from './quips';
 
 /** How close to the first kickoff a reminder is still worth sending. */
 export const REMINDER_WINDOW_HOURS = 30;
@@ -48,7 +49,7 @@ export async function sendLockReminders(season: number, week: number): Promise<n
   const result = await sendAlerts(missing.map(user => ({
     userId: user.id,
     kind: 'lockReminder' as const,
-    title: 'You have no locks in',
+    title: reminderQuip(`reminder:${season}:${week}:${user.id}`),
     body: `Week ${week} starts ${closes}. Get your picks in before kickoff.`,
     url: `/week/${season}/${week}`,
     // One per user per week, so repeated runs replace rather than stack.

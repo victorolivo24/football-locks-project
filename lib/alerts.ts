@@ -1,6 +1,6 @@
 import { isSameTeam, normalizeTeam } from './teams';
 import type { AlertKind, PushMessage } from './push';
-import { bustQuip, hitQuip, ownQuip, QuipContext } from './quips';
+import { bustQuip, hitQuip, ownQuip, startQuip, QuipContext } from './quips';
 import { DateTime } from 'luxon';
 
 export interface GameState {
@@ -85,7 +85,17 @@ export function buildAlerts(
         add(
           pick.userId,
           'gameStart',
-          'Your lock is underway',
+          startQuip({
+            who: 'you',
+            plural: false,
+            team: normalizeTeam(pick.pickedTeam),
+            margin: null,
+            earlyWeek: false,
+            lockCount: null,
+            survivors: null,
+            locksHit: null,
+            seed: `start:${gameId}:${pick.userId}`,
+          }),
           `${matchup} just kicked off. You have ${normalizeTeam(pick.pickedTeam)}.`,
           `start:${gameId}`
         );

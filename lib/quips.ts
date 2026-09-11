@@ -238,7 +238,9 @@ const NAILBITER_BUSTS: Array<(c: QuipContext) => string> = [
 export function bustPools(context: QuipContext): Array<{ weight: number; lines: string[] }> {
   const pools: Array<{ weight: number; lines: string[] }> = [];
 
-  if (!context.plural) {
+  if (context.plural) {
+    pools.push({ weight: 5, lines: GROUP_BUSTS.map(fn => fn(context)) });
+  } else {
     // A line written for that person beats any generic one.
     const personal = PLAYER_BUSTS[playerKey(context.who)];
     if (personal) pools.push({ weight: 4, lines: personal });
@@ -438,7 +440,9 @@ const ABSURD_HITS: string[] = [
 export function hitPools(context: QuipContext): Array<{ weight: number; lines: string[] }> {
   const pools: Array<{ weight: number; lines: string[] }> = [];
 
-  if (!context.plural) {
+  if (context.plural) {
+    pools.push({ weight: 5, lines: GROUP_HITS.map(fn => fn(context)) });
+  } else {
     const personal = PLAYER_HITS[playerKey(context.who)];
     if (personal) pools.push({ weight: 4, lines: personal });
 
@@ -488,6 +492,77 @@ const OWN_HITS: Array<(c: QuipContext) => string> = [
   c => 'Ticket still alive',
   c => `Nice hold from the ${c.team}`,
 ];
+
+/**
+ * Lines for a group that landed or died together.
+ *
+ * These groups are always people who took the same side of the same game, so
+ * "same pick, same fate" is literally true rather than a guess — and in this
+ * league, where three players routinely run identical tickets, it is the joke
+ * that writes itself.
+ */
+const GROUP_HITS: Array<(c: QuipContext) => string> = [
+  c => `${c.who} all cashed that one`,
+  c => `Everyone holding the ${c.team} is fine`,
+  c => `${c.who} are all still alive. Annoying`,
+  c => `A good day for ${c.who}`,
+  c => `${c.who} made the same pick and it worked`,
+  c => `${c.who} are becoming indistinguishable`,
+  c => `The chalk held for ${c.who}`,
+  c => `${c.who} celebrating together. Grim`,
+  c => `Same ticket, same result, ${c.who}`,
+];
+
+const GROUP_BUSTS: Array<(c: QuipContext) => string> = [
+  c => `${c.who} go down together`,
+  c => `Same pick, same fate: ${c.who}`,
+  c => `${c.who} are out. Collectively`,
+  c => `The ${c.team} took ${c.who} with them`,
+  c => `A group effort from ${c.who}`,
+  c => `${c.who} all had the ${c.team}. ${c.who} are all done`,
+  c => `Turns out copying each other has a downside, ${c.who}`,
+  c => `One game, multiple casualties: ${c.who}`,
+];
+
+/** Lines for a game a player locked getting under way. */
+const STARTS: Array<(c: QuipContext) => string> = [
+  c => `Your ${c.team} are live`,
+  c => `Kickoff. The ${c.team} are on`,
+  c => `Here we go. ${c.team} are playing`,
+  c => 'No going back now',
+  c => 'This is the part where you sweat',
+  c => `You picked the ${c.team}. Now watch them`,
+  c => `The ${c.team} are on the clock`,
+  c => 'Your week is officially in progress',
+  c => `${c.team} kickoff. Try to stay calm`,
+  c => 'It has begun',
+  c => `Everything is fine until the ${c.team} touch the ball`,
+  c => 'Sit down. It is starting',
+];
+
+/** A line for a locked game kicking off. */
+export function startQuip(context: QuipContext): string {
+  return pick(STARTS.map(fn => fn(context)), context.seed);
+}
+
+/** Lines nudging someone who has not submitted. */
+const REMINDERS: string[] = [
+  'You have no locks in',
+  'Still nothing from you',
+  'The slate starts soon and your ticket is empty',
+  'No picks, no points',
+  'You are currently locked in for zero',
+  'This is your reminder. There is not another one',
+  'Everyone else is deciding. You are not',
+  'Kickoff is coming whether you pick or not',
+  'An empty ticket scores exactly nothing',
+  'Still time to have an opinion',
+];
+
+/** A line for the pre-lock nudge. */
+export function reminderQuip(seed: string): string {
+  return pick(REMINDERS, seed);
+}
 
 /** Lines for the player's own result. */
 export function ownQuip(context: QuipContext, hit: boolean): string {
