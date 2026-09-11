@@ -88,8 +88,7 @@ describe('bustQuip', () => {
 });
 
 describe('hitQuip', () => {
-  it('names the survivor and stays stable', () => {
-    expect(hitQuip(ctx())).toContain('David');
+  it('stays stable for the same event', () => {
     expect(hitQuip(ctx())).toBe(hitQuip(ctx()));
   });
 
@@ -167,5 +166,26 @@ describe('absurd and narrative lines', () => {
     const lines = sample({ lockCount: null, survivors: null, margin: null });
     expect(lines.every(l => l.length > 0)).toBe(true);
     expect(lines.every(l => !l.includes('null'))).toBe(true);
+  });
+});
+
+describe('hit lines versus bust lines', () => {
+  it('keeps line-was-right jokes off busts', () => {
+    // This league backs favorites, so a bust means the favorite LOST.
+    // "The line knew" would be factually backwards there.
+    const busts = bustPools(ctx()).flatMap(p => p.lines);
+    expect(busts.every(l => !l.includes('The line knew'))).toBe(true);
+    expect(busts.every(l => !l.includes('was favored for a reason'))).toBe(true);
+    expect(busts.every(l => !l.includes('Math was right there'))).toBe(true);
+  });
+
+  it('puts them on hits instead', () => {
+    const hits = Array.from({ length: 60 }, (_, i) => hitQuip(ctx({ seed: `hq${i}` })));
+    expect(hits.some(l => /The line knew|favored for a reason|Math was right there/.test(l))).toBe(true);
+  });
+
+  it('still names the survivor most of the time', () => {
+    const hits = Array.from({ length: 60 }, (_, i) => hitQuip(ctx({ seed: `hn${i}` })));
+    expect(hits.filter(l => l.includes('David')).length).toBeGreaterThan(hits.length / 2);
   });
 });

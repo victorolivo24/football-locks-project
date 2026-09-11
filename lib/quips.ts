@@ -156,6 +156,31 @@ const ABSURD: string[] = [
   "Nobody's second bowl of cereal is as good as the first",
   'You put the ketchup in the fridge, did you not',
   'The soup was never going to be that hot',
+  'The line moved. You did not',
+  'Vegas has a building. You had a feeling',
+  'Somebody in Nevada is having a lovely evening',
+  'Your ticket is now a receipt for nothing',
+  'A parlay is just a rumor with extra steps',
+  'You were one team away from being insufferable',
+  'The scoreboard does not accept feedback',
+  'Your ticket had one job and did not show up',
+  'You cannot hedge a feeling',
+  'A stump is a tree that quit',
+  'You cannot sand a hole shut',
+  'No fence has ever kept out weather',
+  'Every bucket leaks eventually',
+  'You cannot stack water',
+  'The nail sticking up was the honest one',
+  'A closed umbrella is just a stick with hope',
+  'Rust was always going to win',
+  'Everyone is improvising. Some louder than others',
+  'The plan was fine. The universe had notes',
+  'You were always going to find out this way',
+  'Somewhere a man is doing this correctly',
+  'We are all just waiting for the microwave',
+  'Certainty is the cheapest thing you can buy',
+  'The graph goes down sometimes. That is a graph',
+  'Nobody is coming to fix it',
 ];
 
 /** Lines that actually describe what happened, for a single player. */
@@ -270,9 +295,36 @@ const HITS: Array<(c: QuipContext) => string> = [
   c => `Chalk one up for ${c.who}`,
 ];
 
+/**
+ * Non-sequiturs for a lock that landed.
+ *
+ * Kept separate from the bust pool because the two are not interchangeable.
+ * This league backs favorites, so a bust means the favorite lost — "the line
+ * knew" and "math was right there" describe a hit, and would be plain wrong
+ * attached to a loss.
+ */
+const ABSURD_HITS: string[] = [
+  'The favorite was favored for a reason',
+  'The line knew. The line always knows',
+  'Math was right there the whole time',
+];
+
 /** A line for a rival who is still standing. */
 export function hitQuip(context: QuipContext): string {
-  return pick(HITS.map(fn => fn(context)), context.seed);
+  const pools = [
+    { weight: 3, lines: HITS.map(fn => fn(context)) },
+    { weight: 2, lines: ABSURD_HITS },
+  ];
+  const total = pools.reduce((sum, pool) => sum + pool.weight, 0);
+
+  let choice = hash(context.seed) % total;
+  for (const pool of pools) {
+    if (choice < pool.weight) {
+      return pool.lines[hash(context.seed + '#') % pool.lines.length];
+    }
+    choice -= pool.weight;
+  }
+  return pools[0].lines[0];
 }
 
 const OWN_LOSSES: Array<(c: QuipContext) => string> = [
