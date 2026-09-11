@@ -1,8 +1,11 @@
 import { isSameTeam, normalizeTeam } from './teams';
 import type { AlertKind, PushMessage } from './push';
+import { bustQuip, hitQuip, ownQuip, QuipContext } from './quips';
+import { DateTime } from 'luxon';
 
 export interface GameState {
   id: number;
+  startTime?: Date | string | null;
   homeTeam: string;
   awayTeam: string;
   status: string;
@@ -96,6 +99,19 @@ export function buildAlerts(
       const hits: number[] = [];
       const busts: number[] = [];
 
+      const margin = game.awayScore != null && game.homeScore != null
+        ? Math.abs(game.awayScore - game.homeScore)
+        : null;
+
+      // Thursday and Friday games end the week before it really begins.
+      const weekday = game.startTime
+        ? DateTime.fromJSDate(new Date(game.startTime)).setZone('America/New_York').weekday
+        : 0;
+      const earlyWeek = weekday === 4 || weekday === 5;
+
+      const context = (who: string, plural: boolean, team: string, seed: string): QuipContext =>
+        ({ who, plural, team: normalizeTeam(team), margin, earlyWeek, seed });
+
       for (const pick of backers) {
         if (out.has(pick.userId)) continue;
 
@@ -105,7 +121,7 @@ export function buildAlerts(
         add(
           pick.userId,
           'gameFinal',
-          hit ? 'Lock hit' : 'Lock lost',
+          ownQuip(context('you', false, pick.pickedTeam, `own:${gameId}:${pick.userId}`), hit),
           `${normalizeTeam(pick.pickedTeam)} ${hit ? 'won' : 'lost'}.${score}`,
           `final:${gameId}:${pick.userId}`
         );
@@ -120,29 +136,33 @@ export function buildAlerts(
       const rivalNote = (
         affected: number[],
         kind: AlertKind,
-        title: (who: string) => string,
-        body: (who: string) => string
+        line: (c: QuipContext) => string,
+        detail: (who: string) => string
       ) => {
         for (const player of players) {
           const others = affected.filter(id => id !== player.id);
           if (others.length === 0) continue;
 
-          const who = listNames(others.map(id => nameOf.get(id)).filter(Boolean) as string[]);
-          add(player.id, kind, title(who), body(who), `${kind}:${gameId}:${player.id}`);
+          const names = others.map(id => nameOf.get(id)).filter(Boolean) as string[];
+          const who = listNames(names);
+          const team = picks.find(p => p.userId === others[0] && Number(p.gameId) === gameId)?.pickedTeam ?? '';
+          const seed = `${kind}:${gameId}:${player.id}`;
+
+          add(player.id, kind, line(context(who, names.length > 1, team, seed)), detail(who), seed);
         }
       };
 
       rivalNote(
         hits,
         'rivalHit',
-        who => `${who} cashed`,
+        hitQuip,
         who => `${normalizeTeam(game.winnerTeam!)} won.${score} ${who} had it.`
       );
 
       rivalNote(
         busts,
         'rivalBust',
-        who => `${who} out`,
+        bustQuip,
         who => `${normalizeTeam(game.winnerTeam!)} won.${score} ${who} lost that lock.`
       );
     }

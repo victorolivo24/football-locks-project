@@ -46,7 +46,7 @@ describe('buildAlerts', () => {
       picks, players, URL
     );
     expect(kinds(msgs)).toEqual(['1:gameFinal', '2:rivalHit', '3:rivalHit']);
-    expect(msgs[1].title).toBe('Victor cashed');
+    expect(msgs[1].body).toContain('Victor had it');
   });
 
   it('routes a loss to the bust alert instead', () => {
@@ -56,7 +56,6 @@ describe('buildAlerts', () => {
       picks, players, URL
     );
     expect(kinds(msgs)).toEqual(['1:gameFinal', '2:rivalBust', '3:rivalBust']);
-    expect(msgs[0].title).toBe('Lock lost');
     expect(msgs[2].body).toContain('Victor lost that lock');
   });
 
@@ -106,7 +105,7 @@ describe('buildAlerts', () => {
     );
     const rivals = msgs.filter(m => m.kind === 'rivalHit');
     expect(rivals).toHaveLength(3);
-    expect(rivals[0].title).toBe('Ryan and Mihir cashed');
+    expect(rivals[0].body).toContain('Ryan and Mihir had it');
   });
 
   it('names a mixed result on both sides separately', () => {
@@ -119,8 +118,8 @@ describe('buildAlerts', () => {
       [game({ status: 'final', winnerTeam: 'Seattle Seahawks' })],
       split, players, URL
     );
-    expect(msgs.find(m => m.userId === 3 && m.kind === 'rivalHit')?.title).toBe('Victor cashed');
-    expect(msgs.find(m => m.userId === 3 && m.kind === 'rivalBust')?.title).toBe('Ryan out');
+    expect(msgs.find(m => m.userId === 3 && m.kind === 'rivalHit')?.body).toContain('Victor had it');
+    expect(msgs.find(m => m.userId === 3 && m.kind === 'rivalBust')?.body).toContain('Ryan lost that lock');
   });
 
   it('tags each alert so repeats collapse into one notification', () => {

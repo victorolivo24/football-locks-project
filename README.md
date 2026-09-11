@@ -157,6 +157,19 @@ The bust that eliminated them still goes out. A fifth alert reminds anyone who
 has not submitted, anchored on the week's real first kickoff rather than a
 fixed weekday — week 1 of 2026 opens on a Wednesday.
 
+Alert titles are one-liners rather than descriptions, since the title is what
+gets read on a lock screen. They are drawn from a pool weighted toward whatever
+is specific about the result — the team that let someone down, a Thursday
+elimination, a blowout, a one-score loss — and chosen from a per-event seed, so
+a result picked up by two refreshes always reads the same way while different
+results spread across the pool. The facts live in the body.
+
+**Results are also refreshed from GitHub Actions** (`.github/workflows/refresh-results.yml`)
+every five minutes during the hours games actually end. Hobby crons run once a
+day and in-app polling only runs while a page is open, so without it a Thursday
+night game finishing at 11pm went unannounced until the 4am sweep. The workflow
+needs `CRON_SECRET` set as a repository secret.
+
 **iOS requires the site to be installed to the Home Screen first.** Android and
 desktop do not. The setup card walks through the Safari steps when it detects
 an iPhone that has not installed yet.
