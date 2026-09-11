@@ -220,4 +220,17 @@ describe('buildAlerts', () => {
       expect(kinds(msgs)).toContain('2:gameFinal');
     });
   });
+
+  it('uses first names, since these are read on a lock screen', () => {
+    const withSurname = [{ id: 1, name: 'Dakota Racine' }, { id: 2, name: 'Ryan' }];
+    const msgs = buildAlerts(
+      [game({ status: 'in_progress' })],
+      [game({ status: 'final', winnerTeam: 'New England Patriots' })],
+      [{ userId: 1, gameId: 10, pickedTeam: 'Seattle Seahawks' }],
+      withSurname, URL
+    );
+    const rival = msgs.find(m => m.kind === 'rivalBust')!;
+    expect(rival.body).toContain('Dakota lost that lock');
+    expect(rival.body).not.toContain('Racine');
+  });
 });

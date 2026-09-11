@@ -248,3 +248,53 @@ describe('hit lines with context', () => {
     expect(lines.every(l => !l.includes('null'))).toBe(true);
   });
 });
+
+describe('player-specific bust lines', () => {
+  const bustLines = (over: Partial<QuipContext>) =>
+    bustPools(ctx(over)).flatMap(pool => pool.lines);
+
+  it('asks how long Dakota is sticking around', () => {
+    const lines = bustLines({ who: 'Dakota' });
+    expect(lines.some(l => l.includes('until Dakota gives up'))).toBe(true);
+  });
+
+  it('treats David as the new guy', () => {
+    const lines = bustLines({ who: 'David' });
+    expect(lines.some(l => l.includes('Welcome to the league'))).toBe(true);
+  });
+
+  it('finds the jokes through a stored surname', () => {
+    // Users are stored as "Dakota Racine"; keying on the full name would
+    // silently disable his material.
+    const lines = bustLines({ who: 'Dakota Racine' });
+    expect(lines.some(l => l.includes('Dakota gives up'))).toBe(true);
+  });
+
+  it('keeps a player\'s jokes off everyone else', () => {
+    const lines = bustLines({ who: 'Ryan' });
+    expect(lines.every(l => !l.includes('gives up'))).toBe(true);
+    expect(lines.every(l => !l.includes('Welcome to the league'))).toBe(true);
+  });
+
+  it('keeps them off group busts', () => {
+    const lines = bustLines({ who: 'Dakota and David', plural: true });
+    expect(lines.every(l => !l.includes('gives up'))).toBe(true);
+    expect(lines.every(l => !l.includes('Rookie mistake'))).toBe(true);
+  });
+
+  it('does not reuse a hit joke on a bust', () => {
+    // "Luckily Dakota remembered to submit" makes no sense attached to a loss.
+    const lines = bustLines({ who: 'Dakota' });
+    expect(lines.every(l => !l.includes('remembered to submit'))).toBe(true);
+  });
+
+  it('gives Dakota the right joke on a hit', () => {
+    const lines = hitPools(ctx({ who: 'Dakota Racine' })).flatMap(p => p.lines);
+    expect(lines.some(l => l.includes('remembered to submit'))).toBe(true);
+  });
+
+  it("gives David beginner's luck on a hit", () => {
+    const lines = hitPools(ctx({ who: 'David' })).flatMap(p => p.lines);
+    expect(lines.some(l => l.includes("Beginner's luck"))).toBe(true);
+  });
+});

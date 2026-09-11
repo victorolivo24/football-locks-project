@@ -48,7 +48,9 @@ export function buildAlerts(
 ): PushMessage[] {
   const previous = new Map(before.map(g => [Number(g.id), g]));
   const current = new Map(after.map(g => [Number(g.id), g]));
-  const nameOf = new Map(players.map(p => [p.id, p.name]));
+  // First names only: these are read on a lock screen, and "Dakota Racine
+  // needed 2 games to go right" reads like a court summons.
+  const nameOf = new Map(players.map(p => [p.id, p.name.trim().split(/\s+/)[0]]));
   const messages: PushMessage[] = [];
 
   // All or nothing: one miss kills the week, so anyone already carrying a loss

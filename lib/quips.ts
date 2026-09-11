@@ -238,6 +238,12 @@ const NAILBITER_BUSTS: Array<(c: QuipContext) => string> = [
 export function bustPools(context: QuipContext): Array<{ weight: number; lines: string[] }> {
   const pools: Array<{ weight: number; lines: string[] }> = [];
 
+  if (!context.plural) {
+    // A line written for that person beats any generic one.
+    const personal = PLAYER_BUSTS[playerKey(context.who)];
+    if (personal) pools.push({ weight: 4, lines: personal });
+  }
+
   const teamJoke = TEAM_JOKES[context.team];
   if (teamJoke) pools.push({ weight: 3, lines: [teamJoke(context)] });
 
@@ -345,6 +351,25 @@ const PROGRESS: Array<(c: QuipContext) => string | null> = [
  * Keyed on the name as stored, and only used when a line is about one person.
  * An unknown name simply has no entry and falls through to the general pools.
  */
+const PLAYER_BUSTS: Record<string, string[]> = {
+  Dakota: [
+    'How many weeks until Dakota gives up?',
+    'Dakota is one bad week from retiring',
+    'Give Dakota two more weeks, tops',
+    'Dakota is reconsidering the whole enterprise',
+    'Somebody check whether Dakota is still in this league',
+    "Dakota's commitment is now a countdown",
+  ],
+  David: [
+    'Welcome to the league, David',
+    'David is finding out what this game actually is',
+    'Rookie mistake, David',
+    'David, this is the part everyone warned you about',
+    'First season lessons, David',
+    'David has officially been initiated',
+  ],
+};
+
 const PLAYER_HITS: Record<string, string[]> = {
   Jihoo: [
     'Unc still got it',
@@ -360,7 +385,29 @@ const PLAYER_HITS: Record<string, string[]> = {
     'Chris has entered his own highlight reel',
     'Somebody take the mirror away from Chris',
   ],
+  Dakota: [
+    'Luckily Dakota remembered to submit this week',
+    'Dakota submitted picks and hit one. Big day',
+    'Dakota showed up. Note the date',
+    'Proof that Dakota is still playing',
+    'Dakota remembered the app exists and it paid off',
+  ],
+  David: [
+    "Beginner's luck for David",
+    'David does not know enough to be scared yet',
+    'Welcome to the league, David. Enjoy it while it lasts',
+    'The rookie is doing fine, annoyingly',
+    'David has no idea how unlikely this is',
+  ],
 };
+
+/**
+ * Names are stored in full ("Dakota Racine"), and the jokes are keyed on the
+ * first name so a surname does not quietly disable someone's material.
+ */
+function playerKey(who: string): string {
+  return who.trim().split(/\s+/)[0];
+}
 
 /**
  * Non-sequiturs for a lock that landed.
@@ -392,7 +439,7 @@ export function hitPools(context: QuipContext): Array<{ weight: number; lines: s
   const pools: Array<{ weight: number; lines: string[] }> = [];
 
   if (!context.plural) {
-    const personal = PLAYER_HITS[context.who];
+    const personal = PLAYER_HITS[playerKey(context.who)];
     if (personal) pools.push({ weight: 4, lines: personal });
 
     const progress = PROGRESS.map(fn => fn(context)).filter((l): l is string => l !== null);
