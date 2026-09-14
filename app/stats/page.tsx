@@ -509,8 +509,8 @@ export default function NerdStatsPage() {
                       <th className="px-4 py-3 text-center">Locks</th>
                       <th className="px-4 py-3 text-center">Games</th>
                       <th className="px-4 py-3 text-center">Hit–Miss</th>
-                      <th className="px-4 py-3 text-center">Expected W</th>
-                      <th className="px-4 py-3 text-center">Edge</th>
+                      <th className="px-4 py-3 text-center">Should Have Won</th>
+                      <th className="px-4 py-3 text-center">vs Expected</th>
                       <th className="px-4 py-3">Burned</th>
                     </tr>
                   </thead>
@@ -550,9 +550,17 @@ export default function NerdStatsPage() {
                   </tbody>
                 </table>
                 <p className="pt-3 text-[11px] text-green-200/60 leading-snug">
-                  Expected wins come from each team's closing line, so a heavy favourite holding serve
-                  reads as par. Edge is wins above that — positive teams have paid off, negative ones
-                  have cost the league more than their price said they should.
+                  <strong className="text-white/80">Locks</strong> counts how many times the league
+                  backed this team. <strong className="text-white/80">Games</strong> is how many different
+                  games those locks covered — five people on one result is five locks across one game.
+                  <br /><br />
+                  <strong className="text-white/80">Should Have Won</strong> adds up what the betting line
+                  gave this team each time it was locked. A team locked twice at 75% should have won 1.5 of
+                  those, so a big favorite holding serve is par rather than impressive.
+                  <br /><br />
+                  <strong className="text-white/80">vs Expected</strong> is real wins minus that. Positive
+                  means the team won more often than its price said it would; negative means backing it
+                  cost the league more than it should have.
                 </p>
               </div>
             ) : (

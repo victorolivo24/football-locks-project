@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { bustQuip, bustPools, hitQuip, hitPools, ownQuip, startQuip, reminderQuip, QuipContext } from '../quips';
+import {
+  bustQuip,
+  bustPools,
+  hitQuip,
+  hitPools,
+  ownQuip,
+  startQuip,
+  reminderQuip,
+  closer,
+  testAlert,
+  QuipContext,
+} from '../quips';
 
 const ctx = (over: Partial<QuipContext> = {}): QuipContext => ({
   who: 'David',
@@ -341,5 +352,36 @@ describe('group, start and reminder lines', () => {
 
   it('is stable per reminder, so a repeat run reads the same', () => {
     expect(reminderQuip('same')).toBe(reminderQuip('same'));
+  });
+});
+
+describe('body closers and the test alert', () => {
+  it('keeps closers short enough not to push the facts off a lock screen', () => {
+    const lines = Array.from({ length: 40 }, (_, i) => closer(`c${i}`));
+    expect(lines.every(l => l.length <= 30)).toBe(true);
+  });
+
+  it('varies the closer', () => {
+    const lines = Array.from({ length: 40 }, (_, i) => closer(`c${i}`));
+    const distinct = lines.filter((l, i) => lines.indexOf(l) === i);
+    expect(distinct.length).toBeGreaterThan(4);
+  });
+
+  it('is stable per event, like every other line', () => {
+    expect(closer('same')).toBe(closer('same'));
+  });
+
+  it('always returns a test alert with both halves', () => {
+    for (let i = 0; i < 30; i++) {
+      const alert = testAlert();
+      expect(alert.title.length).toBeGreaterThan(0);
+      expect(alert.body.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('varies the test alert, so pressing twice looks like something happened', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 80; i++) seen.add(testAlert().title);
+    expect(seen.size).toBeGreaterThan(1);
   });
 });

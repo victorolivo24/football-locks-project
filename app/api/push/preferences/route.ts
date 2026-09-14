@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { pushSubscriptions } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { sendAlerts } from '@/lib/push';
+import { testAlert } from '@/lib/quips';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -42,8 +43,7 @@ export async function POST() {
   const result = await sendAlerts([{
     userId: user.userId,
     kind: 'gameFinal',
-    title: 'Notifications are on',
-    body: "This is what an alert looks like. You're all set.",
+    ...testAlert(),
     url: '/',
     // Unique per send: a fixed tag makes a repeat test silently replace the
     // first notification instead of alerting again, which reads as nothing

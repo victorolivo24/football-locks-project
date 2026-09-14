@@ -581,3 +581,48 @@ export function reminderQuip(seed: string): string {
 export function ownQuip(context: QuipContext, hit: boolean): string {
   return pick((hit ? OWN_HITS : OWN_LOSSES).map(fn => fn(context)), context.seed);
 }
+
+/**
+ * Short sign-offs appended after the facts in an alert body.
+ *
+ * The title carries the joke and the body carries the score, so these stay
+ * deliberately tiny — enough to keep the tone consistent without pushing the
+ * actual information off a lock screen.
+ */
+const CLOSERS: string[] = [
+  'Carry on.',
+  'Nothing to be done.',
+  'The board remembers.',
+  'Noted for posterity.',
+  'Make of that what you will.',
+  'This has been football.',
+  'Anyway.',
+  'Such is the slate.',
+  'File it away.',
+  'As foretold.',
+  'No notes.',
+  'Onward.',
+];
+
+export function closer(seed: string): string {
+  return pick(CLOSERS, seed);
+}
+
+/**
+ * The confirmation alert someone gets when switching notifications on.
+ *
+ * Random rather than seeded: pressing the test button twice should look like
+ * something happened, not like nothing changed.
+ */
+const TEST_ALERTS: Array<{ title: string; body: string }> = [
+  { title: 'Notifications are on', body: 'This is what one looks like. They get worse from here.' },
+  { title: 'You are now reachable', body: 'Every bust, every near miss. You asked for this.' },
+  { title: 'The bell is installed', body: "You will now hear about other people's mistakes. And your own." },
+  { title: 'It works', body: 'Sorry in advance for every Sunday from here on.' },
+  { title: 'Congratulations', body: 'You have successfully signed up for bad news, delivered promptly.' },
+  { title: 'Testing, testing', body: 'If you are reading this, the pipeline is intact and you are doomed.' },
+];
+
+export function testAlert(): { title: string; body: string } {
+  return TEST_ALERTS[Math.floor(Math.random() * TEST_ALERTS.length)];
+}
