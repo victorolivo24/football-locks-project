@@ -3,11 +3,14 @@ import { getWeekOdds } from './espnOdds';
 import { fairWinProbability, evCurve, bestLockCount } from './luck';
 import {
   makeRng,
-  correlatedTitleOdds,
-  projectedFinish,
+  seasonTitleOdds,
+  seasonProjection,
   edgeOverField,
   bestLeverageLocks,
   consensusRanks,
+  smoothedPace,
+  FIELD_CORRELATION,
+  SeasonPlayer,
   SimStrategy,
 } from './simulate';
 import { db } from './db';
@@ -27,6 +30,8 @@ export interface PlayerOddsResult {
   margin: number;
   odds: number;
   avgPicksPerWeek: number;
+  /** Pace actually used in the simulation, after regressing toward the field. */
+  simulatedPace: number;
   projectedPoints: number;
   maxCeiling: number;
   leverageLocks: number; // Size that maximises title chance IF THIS PLAYER ALONE switches
@@ -106,20 +111,64 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
   const curve = evCurve(probabilities, 8);
   const evLocks = bestLockCount(curve);
 
-  // Everyone is assumed to keep playing the shape of ticket they played this
-  // week: same size, same distance from the chalk.
-  const strategies: SimStrategy[] = insights.players.map(p => {
-    const actual = board.ranksByUser.get(p.userId);
-    const size = Math.max(1, Math.round(p.avgPicksPerWeek || 3));
+  // Pace is regressed toward the league average, because an observed pace is
+  // mostly noise early on: after one week a single-lock ticket would otherwise
+  // read as a season-long strategy and bury whatever that player has scored.
+  const observed = insights.players.filter(p => p.activeWeeks > 0);
+  const leaguePace = observed.length > 0
+    ? observed.reduce((sum, p) => sum + p.avgPicksPerWeek, 0) / observed.length
+    : 3;
+
+  const paceOf = (p: typeof insights.players[0]) =>
+    Math.max(1, Math.round(smoothedPace(p.avgPicksPerWeek || leaguePace, leaguePace, p.activeWeeks)));
+
+  const survivalFor = (size: number) => {
+    const clamped = Math.max(1, Math.min(curve.length, size));
+    return (curve[clamped - 1]?.probability ?? 0) / 100;
+  };
+
+  /**
+   * How tightly a player moves with the field.
+   *
+   * Someone on the chalk rises and falls with everyone else on the chalk; the
+   * further their actual picks stray from the favourites, the more their week
+   * is their own. Measured from the ticket they really hold, so it is observed
+   * rather than assumed.
+   */
+  const correlationFor = (userId: number, size: number) => {
+    const held = board.ranksByUser.get(userId);
+    if (!held || held.length === 0) return FIELD_CORRELATION;
+
+    const chalk = new Set(consensusRanks(size));
+    const shared = held.filter(rank => chalk.has(rank)).length;
+    return FIELD_CORRELATION * (shared / Math.max(held.length, size));
+  };
+
+  // Which games someone takes in week 12 is unknowable, so future weeks run at
+  // their smoothed size against the chalk, partly correlated with everyone
+  // else. Replaying this week's exact ticket seventeen times would compound one
+  // week of noise into a season-long verdict, and make players on identical
+  // tickets permanently inseparable.
+  const seasonPlayers: SeasonPlayer[] = insights.players.map(p => {
+    const size = paceOf(p);
     return {
       userId: p.userId,
       points: p.totalPoints,
-      ranks: actual && actual.length > 0 ? actual : consensusRanks(size),
+      size,
+      winProb: survivalFor(size),
+      correlation: correlationFor(p.userId, size),
     };
   });
 
-  const odds = correlatedTitleOdds(strategies, probabilities, remainingWeeks, RUNS, makeRng(SEED));
-  const finishes = projectedFinish(strategies, probabilities, remainingWeeks, RUNS, makeRng(SEED));
+  // The edge metric still reasons about this week's actual ticket.
+  const strategies: SimStrategy[] = insights.players.map(p => ({
+    userId: p.userId,
+    points: p.totalPoints,
+    ranks: consensusRanks(paceOf(p)),
+  }));
+
+  const odds = seasonTitleOdds(seasonPlayers, remainingWeeks, RUNS, makeRng(SEED));
+  const finishes = seasonProjection(seasonPlayers, remainingWeeks, RUNS, makeRng(SEED));
 
   const rows: PlayerOddsResult[] = insights.players.map((p) => {
     const bestOther = Math.max(
@@ -130,8 +179,15 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
     const self = strategies.find(s => s.userId === p.userId)!;
     const rivals = strategies.filter(s => s.userId !== p.userId);
 
+    // Edge is about the ticket they actually hold, so it keeps the real ranks
+    // and compares them against the chalk ticket of the same length.
+    const heldRanks = board.ranksByUser.get(p.userId);
+    const held: SimStrategy = heldRanks && heldRanks.length > 0
+      ? { ...self, ranks: heldRanks }
+      : self;
+
     const edge = remainingWeeks > 0
-      ? edgeOverField(self, rivals, probabilities, remainingWeeks, LEVERAGE_RUNS, SEED + p.userId)
+      ? edgeOverField(held, rivals, probabilities, remainingWeeks, LEVERAGE_RUNS, SEED + p.userId)
       : { odds: 0, consensusOdds: 0, edge: 0 };
 
     const leverage = remainingWeeks > 0
@@ -144,6 +200,7 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
       points: p.totalPoints,
       margin: p.totalPoints - bestOther,
       avgPicksPerWeek: p.avgPicksPerWeek,
+      simulatedPace: paceOf(p),
       projectedPoints: p.projectedPoints,
       maxCeiling: p.maxCeiling,
       odds: odds.get(p.userId) ?? 0,

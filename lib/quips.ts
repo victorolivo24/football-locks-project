@@ -109,10 +109,10 @@ const ABSURD: string[] = [
   'You do not bring a canoe to a thunderstorm',
   'Some doors are just walls with ambition',
   'Never trust a man who irons his socks',
-  'The vending machine does not negotiate',
+  'The vending machine does NOT negotiate',
   'You cannot sharpen a spoon and call it a plan',
   'This is why they print instructions on shampoo',
-  'The escalator was fine until you looked at it',
+  'The escalator was fine until you sat on it',
   'Nobody has ever won an argument with a goose',
   'Two umbrellas do not make a roof',
   'The microwave clock has never once been correct',
@@ -183,6 +183,15 @@ const ABSURD: string[] = [
   'Certainty is the cheapest thing you can buy',
   'The graph goes down sometimes. That is a graph',
   'Nobody is coming to fix it',
+  'You pulled a push door. Classic.',
+  'Strike 1! Too bad it\'s not baseball.',
+  'Every dog has its day. Your a cat.',
+  'Left foot in, left foot out - name put in wrong', //comment fix this to improve the wording
+  'Too many slims jims to chew on',
+  'Barked down the wrong tree',
+  'You made your bed, now lie in it',
+  'Not all geese wear bowties',
+  'You wore a white suit to a funeral'
 ];
 
 /** Lines that actually describe what happened, for a single player. */
@@ -427,6 +436,10 @@ const ABSURD_HITS: string[] = [
   'Water found its way downhill again',
   'The heavy thing fell down. Astonishing',
   'Nothing surprising happened to anybody',
+  'You went to Home Depot looking for a tool, and you founnd it',
+  'You show up to a party and everyone\'s wearing party hats',
+  'It\'s like taking candy from a baby',
+  'King\'s don\'t sleep on twin beds'
 ];
 
 /**

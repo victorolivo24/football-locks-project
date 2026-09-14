@@ -1,9 +1,11 @@
 # Keeps results and alerts moving when nobody has the app open.
 #
-# Vercel's Hobby plan allows one cron run per day, and the in-app polling only
-# runs while someone has a page loaded — so a Thursday game finishing at 11pm
-# sat unresolved until the 4am sweep. GitHub Actions is free and unlimited on
-# public repos, so it fills the gap during the hours games actually end.
+# The cadence comes from a loop inside the job, NOT from the cron schedule.
+# GitHub drops high-frequency scheduled runs under load: a */5 schedule here
+# actually fired roughly every two hours on a Sunday, which is how a game
+# ending at 19:00 got announced at 20:27. An hourly trigger is reliable
+# enough, and each run then polls every 60 seconds for its own hour, so a
+# missed trigger costs one hour of cover rather than every update in it.
 #
 # Times are UTC. Eastern is UTC-4 in season (UTC-5 after early November), so
 # each window is deliberately wide enough to cover both.
@@ -11,40 +13,66 @@ name: Refresh results
 
 on:
   schedule:
-    - cron: '*/5 0-5 * * 5'    # Thursday night football, into Friday UTC
-    - cron: '*/5 16-23 * * 0'  # Sunday early and afternoon slates
-    - cron: '*/5 0-5 * * 1'    # Sunday night football, into Monday UTC
-    - cron: '*/5 0-5 * * 2'    # Monday night football, into Tuesday UTC
-    - cron: '*/5 16-23 * * 6'  # Saturday games, late season
-  workflow_dispatch:            # and on demand, from the Actions tab
+    - cron: '0 0-5 * * 5'    # Thursday night football, into Friday UTC
+    - cron: '0 16-23 * * 0'  # Sunday early and afternoon slates
+    - cron: '0 0-5 * * 1'    # Sunday night football, into Monday UTC
+    - cron: '0 0-5 * * 2'    # Monday night football, into Tuesday UTC
+    - cron: '0 16-23 * * 6'  # Saturday games, late season
+    - cron: '0 0-5 * * 0'    # Saturday night, into Sunday UTC
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: How long to keep polling
+        default: '55'
 
 concurrency:
+  # A later run supersedes one still looping, rather than doubling the polling.
   group: refresh-results
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    # Generous ceiling; the loop exits on its own well before this.
+    timeout-minutes: 70
     steps:
-      - name: Pull results and send any alerts
+      - name: Poll for results and send any alerts
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_URL: ${{ vars.APP_URL || 'https://football-locks-project.vercel.app' }}
+          MINUTES: ${{ github.event.inputs.minutes || '55' }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "CRON_SECRET is not set on this repository."
             exit 1
           fi
 
-          status=$(curl -s -o /tmp/body.txt -w '%{http_code}' --max-time 60 \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            "$APP_URL/api/cron/resolve-results")
+          deadline=$(( $(date +%s) + MINUTES * 60 ))
+          attempts=0
+          failures=0
 
-          echo "HTTP $status"
-          cat /tmp/body.txt
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            status=$(curl -s -o /tmp/body.txt -w '%{http_code}' --max-time 45 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$APP_URL/api/cron/resolve-results" || echo 000)
+
+            attempts=$((attempts + 1))
+
+            if [ "$status" = "200" ]; then
+              echo "$(date -u +%H:%M:%S) ok  $(cat /tmp/body.txt)"
+            else
+              failures=$((failures + 1))
+              echo "$(date -u +%H:%M:%S) HTTP $status $(cat /tmp/body.txt)"
+            fi
+
+            sleep 60
+          done
+
+          echo "polled $attempts times, $failures failed"
 
           # A bad secret or a broken deploy should fail loudly rather than
-          # leaving a job that silently does nothing every five minutes.
-          if [ "$status" != "200" ]; then
+          # leaving a job that quietly does nothing every week.
+          if [ "$attempts" -gt 0 ] && [ "$failures" -eq "$attempts" ]; then
+            echo "every request failed"
             exit 1
           fi
