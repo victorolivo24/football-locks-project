@@ -431,3 +431,23 @@ describe('non-sequiturs reach every notification', () => {
     expect(written).toBeGreaterThan(lines.length / 2);
   });
 });
+
+describe('the any-moment pool stays neutral', () => {
+  const neutral = () => startPools(ctx()).find(p => p.lines.length > 20)!.lines;
+
+  it('never needles the reader, which reads as a loss even without saying so', () => {
+    // "This is why they print instructions on shampoo" mentions no result but
+    // is plainly a jab, so it cannot greet a kickoff.
+    const jab = /shampoo|plastic and you watered|Who taught you|Who gave you|Who let you|Were you raised|did you not|Same as you|fork to a soup|fitted sheet either/i;
+    expect(neutral().every(l => !jab.test(l))).toBe(true);
+  });
+
+  it('never presumes a result', () => {
+    const outcome = /receipt for nothing|you are out|chose vibes|ruin|lost|wrong tree|gave up|quit/i;
+    expect(neutral().every(l => !outcome.test(l))).toBe(true);
+  });
+
+  it('is big enough that a kickoff is not repetitive', () => {
+    expect(neutral().length).toBeGreaterThan(30);
+  });
+});

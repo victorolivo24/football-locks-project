@@ -117,72 +117,62 @@ const GENERIC_BUSTS: Array<(c: QuipContext) => string> = [
 ];
 
 /**
- * Non-sequiturs that fit any moment — a kickoff, a reminder, a result either
- * way. Nothing here presumes the week went badly.
+ * Non-sequiturs that fit any moment — a kickoff, a reminder, a lock that hit.
+ *
+ * The bar is higher than "not about losing": anything that mocks the reader's
+ * competence reads as a loss even when it never mentions one, so lines like
+ * "this is why they print instructions on shampoo" belong with the busts.
+ * These only observe something absurd.
  */
 const ABSURD_ANY: string[] = [
-  "You can't smother yourself in honey and expect the bear to respect your personal space",
   'The Home Depot showers are for display only, not for use',
-  'Who taught you how to shovel!?',
-  'Not every chicken lays eggs',
-  'A ladder is just a staircase that gave up',
-  'You do not bring a canoe to a thunderstorm',
   'Some doors are just walls with ambition',
   'Never trust a man who irons his socks',
   'The vending machine does NOT negotiate',
-  'You cannot sharpen a spoon and call it a plan',
-  'This is why they print instructions on shampoo',
-  'The escalator was fine until you sat on it',
   'Nobody has ever won an argument with a goose',
-  'Two umbrellas do not make a roof',
   'The microwave clock has never once been correct',
-  'You brought a fork to a soup',
   'Wet cement remembers everything',
-  'Salt is not a personality',
-  'Nobody asked the ostrich',
-  'A map is not the territory and neither is your ticket',
   'Every barn is a house for something',
-  'A borrowed ladder always leans the wrong way',
-  'You cannot outrun a smell',
   'The second pancake knows what it did',
   'Every rope is just a snake that got organized',
   'The tide does not check the schedule',
   'A hammer has never once apologized',
-  'You do not name a cow you plan to eat',
-  'Who gave you a library card?',
-  'Who let you near a thermostat?',
-  'Were you raised by a vending machine?',
-  "Somebody check this man's tire pressure",
   'That was the employee bathroom',
-  'Those plants are plastic and you watered them',
   'A goat will eat the receipt',
   'Geese remember faces. Yours especially',
   'Not every moth wants the light',
   'Raccoons have never had a plan and they are doing fine',
-  'The squirrel buried it and forgot. Same as you',
-  "A possum's best move is lying down. Take notes",
   'Owls are not wise, they are just quiet',
   'Deer have no concept of insurance',
-  'Somewhere a clock is wrong and nobody will fix it',
-  'This is the sort of thing that happens on a Tuesday',
-  "Nobody's second bowl of cereal is as good as the first",
-  'You put the ketchup in the fridge, did you not',
-  'The nail sticking up was the honest one',
   'Everyone is improvising. Some louder than others',
   'We are all just waiting for the microwave',
-  'You pulled a push door. Classic.',
-  'Strike 1! Too bad it\'s not baseball.',
   'Too many slims jims to chew on',
-  'You made your bed, now lie in it',
-  'Not all geese wear bowties',
-  'You wore a white suit to a funeral'
+  'Bees do not attend meetings',
+  'A traffic cone is a hat for the road',
+  'Somewhere a vending machine is fully stocked',
+  'Every parking lot used to be something else',
+  'Pigeons have never once been in a hurry',
+  'The stapler always outlives the desk',
+  'A bucket is just a hat for water',
+  'The freezer light is a matter of faith',
+  'Every tree is a very slow fountain',
+  'The moon has no opinion on any of this',
+  'A cow has never asked a single question',
+  'Toast is just bread that went through something',
+  'The ocean has never once been in a rush',
+  'Every elevator has heard worse conversations',
+  'Nobody knows how a thermos knows',
+  'Somewhere an escalator is running for nobody',
+  'A paper bag is a suitcase with no ambition',
+  'The ceiling fan has seen things',
 ];
 
 /**
- * Non-sequiturs that only make sense attached to a loss. Kept apart so they
- * never land on a game that has not been played, or on a lock that hit.
+ * Non-sequiturs that only make sense attached to a loss — either because they
+ * say so, or because they are needling somebody.
  */
 const ABSURD_LOSS: string[] = [
+  'You do not name a cow you plan to eat',
   "Every dog has its day. You're a cat",
   'Barked down the wrong tree',
   'You put your left foot in when it was supposed to be the right one',
@@ -219,6 +209,38 @@ const ABSURD_LOSS: string[] = [
   'Certainty is the cheapest thing you can buy',
   'The graph goes down sometimes. That is a graph',
   'Nobody is coming to fix it',
+  "You can't smother yourself in honey and expect the bear to respect your personal space",
+  'Who taught you how to shovel!?',
+  'Not every chicken lays eggs',
+  'A ladder is just a staircase that gave up',
+  'You do not bring a canoe to a thunderstorm',
+  'You cannot sharpen a spoon and call it a plan',
+  'This is why they print instructions on shampoo',
+  'The escalator was fine until you sat on it',
+  'Two umbrellas do not make a roof',
+  'You brought a fork to a soup',
+  'Salt is not a personality',
+  'Nobody asked the ostrich',
+  'A map is not the territory and neither is your ticket',
+  'A borrowed ladder always leans the wrong way',
+  'You cannot outrun a smell',
+  'Who gave you a library card?',
+  'Who let you near a thermostat?',
+  'Were you raised by a vending machine?',
+  "Somebody check this man's tire pressure",
+  'Those plants are plastic and you watered them',
+  'The squirrel buried it and forgot. Same as you',
+  "A possum's best move is lying down. Take notes",
+  'Somewhere a clock is wrong and nobody will fix it',
+  'This is the sort of thing that happens on a Tuesday',
+  "Nobody's second bowl of cereal is as good as the first",
+  'You put the ketchup in the fridge, did you not',
+  'The nail sticking up was the honest one',
+  'You pulled a push door. Classic.',
+  'Strike 1! Too bad it\'s not baseball.',
+  'You made your bed, now lie in it',
+  'Not all geese wear bowties',
+  'You wore a white suit to a funeral'
 ];
 
 /** Everything available to a bust. */
