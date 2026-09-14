@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { makeRng, simulateSeason, seasonTitleOdds, seasonProjection, SeasonPlayer, FIELD_CORRELATION } from '../simulate';
+import {
+  makeRng,
+  consensusRanks,
+  simulateSeason,
+  seasonTitleOdds,
+  seasonProjection,
+  SeasonPlayer,
+  FIELD_CORRELATION,
+} from '../simulate';
 
 const player = (userId: number, points: number, over: Partial<SeasonPlayer> = {}): SeasonPlayer => ({
   userId,
@@ -83,5 +91,36 @@ describe('seasonProjection', () => {
   it('builds on points already banked', () => {
     const finish = seasonProjection([player(1, 9)], 4, 1000, makeRng(11));
     expect(finish.get(1)!).toBeGreaterThanOrEqual(9);
+  });
+});
+
+describe('makeRng', () => {
+  it('is deterministic for a given seed', () => {
+    const a = makeRng(7), b = makeRng(7);
+    expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+  });
+
+  it('differs between seeds', () => {
+    expect(makeRng(1)()).not.toBe(makeRng(2)());
+  });
+
+  it('stays inside [0, 1)', () => {
+    const rng = makeRng(99);
+    for (let i = 0; i < 500; i++) {
+      const v = rng();
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThan(1);
+    }
+  });
+});
+
+describe('consensusRanks', () => {
+  it('is the n safest board positions', () => {
+    expect(consensusRanks(3)).toEqual([0, 1, 2]);
+  });
+
+  it('is empty for a ticket of no locks', () => {
+    expect(consensusRanks(0)).toEqual([]);
+    expect(consensusRanks(-2)).toEqual([]);
   });
 });

@@ -5,13 +5,10 @@ import {
   makeRng,
   seasonTitleOdds,
   seasonProjection,
-  edgeOverField,
-  bestLeverageLocks,
   consensusRanks,
   smoothedPace,
   FIELD_CORRELATION,
   SeasonPlayer,
-  SimStrategy,
 } from './simulate';
 import { db } from './db';
 import { games, picks } from './db/schema';
@@ -20,7 +17,6 @@ import { isSameTeam } from './teams';
 import { HISTORICAL_PAR } from './history';
 
 const RUNS = 20000;
-const LEVERAGE_RUNS = 3000;
 const SEED = 20260909; // Fixed so the same standings always report the same odds
 
 export interface PlayerOddsResult {
@@ -34,12 +30,7 @@ export interface PlayerOddsResult {
   simulatedPace: number;
   projectedPoints: number;
   maxCeiling: number;
-  leverageLocks: number; // Size that maximises title chance IF THIS PLAYER ALONE switches
-  leverageOdds: number; // Their title odds after that unilateral switch
-  currentLocks: number; // The ticket size they are playing now
-  evLocks: number; // Size that maximises points
-  edge: number; // Title points their deviation from the field is worth
-  consensusOdds: number; // What they would have if they simply copied the field
+  /** Pace actually used in the simulation, after regressing toward the field. */
   projectedFinish: number; // Median simulated final score
 }
 
@@ -160,13 +151,6 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
     };
   });
 
-  // The edge metric still reasons about this week's actual ticket.
-  const strategies: SimStrategy[] = insights.players.map(p => ({
-    userId: p.userId,
-    points: p.totalPoints,
-    ranks: consensusRanks(paceOf(p)),
-  }));
-
   const odds = seasonTitleOdds(seasonPlayers, remainingWeeks, RUNS, makeRng(SEED));
   const finishes = seasonProjection(seasonPlayers, remainingWeeks, RUNS, makeRng(SEED));
 
@@ -175,24 +159,6 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
       0,
       ...insights.players.filter(r => r.userId !== p.userId).map(r => r.totalPoints)
     );
-
-    const self = strategies.find(s => s.userId === p.userId)!;
-    const rivals = strategies.filter(s => s.userId !== p.userId);
-
-    // Edge is about the ticket they actually hold, so it keeps the real ranks
-    // and compares them against the chalk ticket of the same length.
-    const heldRanks = board.ranksByUser.get(p.userId);
-    const held: SimStrategy = heldRanks && heldRanks.length > 0
-      ? { ...self, ranks: heldRanks }
-      : self;
-
-    const edge = remainingWeeks > 0
-      ? edgeOverField(held, rivals, probabilities, remainingWeeks, LEVERAGE_RUNS, SEED + p.userId)
-      : { odds: 0, consensusOdds: 0, edge: 0 };
-
-    const leverage = remainingWeeks > 0
-      ? bestLeverageLocks(self, rivals, probabilities, 8, remainingWeeks, LEVERAGE_RUNS, SEED + p.userId)
-      : { locks: self.ranks.length, titleOdds: 0 };
 
     return {
       userId: p.userId,
@@ -204,12 +170,6 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
       projectedPoints: p.projectedPoints,
       maxCeiling: p.maxCeiling,
       odds: odds.get(p.userId) ?? 0,
-      leverageLocks: leverage.locks,
-      leverageOdds: leverage.titleOdds,
-      currentLocks: self.ranks.length,
-      evLocks,
-      edge: edge.edge,
-      consensusOdds: edge.consensusOdds,
       projectedFinish: finishes.get(p.userId) ?? p.totalPoints,
     };
   });

@@ -10,12 +10,6 @@ export type OddsRow = {
   avgPicksPerWeek: number;
   projectedPoints: number;
   maxCeiling: number;
-  leverageLocks: number;
-  leverageOdds: number;
-  currentLocks: number;
-  evLocks: number;
-  edge: number;
-  consensusOdds: number;
   projectedFinish: number;
 };
 
@@ -24,7 +18,6 @@ type OddsPayload = {
   week: number;
   remainingWeeks: number;
   avgPicksPerWeek: number;
-  evLocks: number;
   par: number;
   odds: OddsRow[];
 };
@@ -89,7 +82,7 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
                 <div className="flex items-center space-x-3 shrink-0">
                   {showDetails && (
                     <span className="text-[11px] text-white/60 hidden sm:inline">
-                      {r.avgPicksPerWeek?.toFixed(1) ?? '3.0'}/wk pace • Finishing ~{r.projectedFinish}
+                      {r.avgPicksPerWeek?.toFixed(1) ?? '3.0'} locks/wk so far • Finishing ~{r.projectedFinish}
                     </span>
                   )}
                   <span className="tabular-nums font-bold text-white text-sm">
@@ -111,39 +104,11 @@ export default function OddsCard({ season, week }: { season: number; week: numbe
 
               {showDetails && (
                 <div className="flex justify-between text-[10px] text-green-200/60 px-0.5 sm:hidden">
-                  <span>Pace: {r.avgPicksPerWeek?.toFixed(1) ?? '3.0'} picks/wk</span>
+                  <span>{r.avgPicksPerWeek?.toFixed(1) ?? '3.0'} locks/wk so far</span>
                   <span>Finishing ~{r.projectedFinish} pts</span>
                 </div>
               )}
 
-              {showDetails
-                && r.leverageLocks !== r.currentLocks
-                && r.leverageOdds - r.odds >= 2 && (
-                <div className="text-[10px] text-amber-300/90 px-0.5">
-                  ⚡ If you alone moved to {r.leverageLocks} locks: {r.leverageOdds.toFixed(1)}%
-                  {' '}(from {r.odds.toFixed(1)}%). Only works while the others stay put.
-                </div>
-              )}
-
-              {showDetails && data.remainingWeeks > 0 && (
-                <div className="text-[10px] px-0.5">
-                  {Math.abs(r.edge) < 0.5 ? (
-                    <span className="text-white/50">
-                      🪞 Playing the field's ticket — same games as the pack, so this can't gain ground on them.
-                    </span>
-                  ) : r.edge > 0 ? (
-                    <span className="text-green-300/90">
-                      ↗ Breaking from the field is worth <strong>+{r.edge.toFixed(1)}</strong> title points
-                      (vs {r.consensusOdds.toFixed(1)}% copying it).
-                    </span>
-                  ) : (
-                    <span className="text-red-300/80">
-                      ↘ Breaking from the field costs <strong>{r.edge.toFixed(1)}</strong> title points
-                      (copying it would be {r.consensusOdds.toFixed(1)}%).
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
           );
         })}
