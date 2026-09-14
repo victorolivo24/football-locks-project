@@ -70,6 +70,7 @@ export interface LeagueSuperlative {
 export interface TeamLedgerRow {
   team: string;
   locked: number; // Times this team was locked league-wide
+  games: number; // Distinct games those locks covered
   hits: number;
   misses: number;
   hitRate: number; // Percentage
@@ -420,15 +421,31 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     });
   }
 
-  // 2. The Locksmith (highest hit rate) or Road Warrior
-  const accuracyLeader = [...players].filter(p => p.completedPicks >= 2).sort((a, b) => b.pickWinPct - a.pickWinPct)[0];
-  if (accuracyLeader && accuracyLeader.completedPicks > 0) {
+  // 2. The Locksmith (best hit rate, adjusted for how much we have seen)
+  //
+  // Ranking on raw rate would hand this to whoever went 1 for 1, and a hard
+  // minimum-picks cutoff just moves the arbitrariness somewhere else: with a
+  // cutoff of two, four players tied on 67% and the winner was whoever sorted
+  // first. Shrinking toward a baseline handles both — a perfect single pick
+  // still leads, but a longer record at the same rate outranks a shorter one.
+  const LOCKSMITH_PRIOR = 0.65;
+  const LOCKSMITH_PRIOR_PICKS = 3;
+  const adjustedAccuracy = (p: PlayerInsights) =>
+    (p.correctPicks + LOCKSMITH_PRIOR * LOCKSMITH_PRIOR_PICKS) /
+    (p.completedPicks + LOCKSMITH_PRIOR_PICKS);
+
+  const accuracyLeader = [...players]
+    .filter(p => p.completedPicks > 0)
+    .sort((a, b) => adjustedAccuracy(b) - adjustedAccuracy(a))[0];
+
+  if (accuracyLeader) {
     superlatives.push({
       title: 'The Locksmith',
       icon: '🎯',
       playerName: accuracyLeader.name,
-      stat: `${accuracyLeader.pickWinPct}% Hits`,
-      description: 'Highest lock accuracy across completed games',
+      // The raw record, not the adjusted number, so the stat stays checkable.
+      stat: `${accuracyLeader.correctPicks} of ${accuracyLeader.completedPicks}`,
+      description: 'Best lock accuracy for how much they have played',
     });
   } else {
     const roadLeader = [...players].filter(p => p.totalPicks >= 2).sort((a, b) => b.awayPct - a.awayPct)[0];
@@ -481,7 +498,8 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
 
   // Team ledger: how each locked team actually performed against its price.
   const teamLedgerMap = new Map<string, {
-    locked: number; hits: number; misses: number; expectedHits: number; victims: Set<string>;
+    locked: number; hits: number; misses: number; expectedHits: number;
+    victims: Set<string>; games: Set<number>;
   }>();
 
   for (const pick of seasonPicks) {
@@ -490,10 +508,14 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
 
     const team = normalizeTeam(pick.pickedTeam);
     const row = teamLedgerMap.get(team) ?? {
-      locked: 0, hits: 0, misses: 0, expectedHits: 0, victims: new Set<string>(),
+      locked: 0, hits: 0, misses: 0, expectedHits: 0,
+      victims: new Set<string>(), games: new Set<number>(),
     };
 
     row.locked++;
+    // Everyone picks the same handful of games, so five locks is usually five
+    // people on one result rather than a team that won five times.
+    row.games.add(Number(pick.gameId));
     const hit = !!game.winnerTeam && isSameTeam(game.winnerTeam, pick.pickedTeam);
     if (hit) {
       row.hits++;
@@ -521,6 +543,7 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     .map(([team, row]) => ({
       team,
       locked: row.locked,
+      games: row.games.size,
       hits: row.hits,
       misses: row.misses,
       hitRate: row.locked > 0 ? Math.round((row.hits / row.locked) * 100) : 0,

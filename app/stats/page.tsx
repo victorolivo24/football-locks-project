@@ -506,8 +506,9 @@ export default function NerdStatsPage() {
                   <thead>
                     <tr className="border-b border-white/10 bg-white/5 text-left text-xs font-bold text-green-200 uppercase tracking-wider">
                       <th className="px-4 py-3">Team</th>
-                      <th className="px-4 py-3 text-center">Locked</th>
-                      <th className="px-4 py-3 text-center">W–L</th>
+                      <th className="px-4 py-3 text-center">Locks</th>
+                      <th className="px-4 py-3 text-center">Games</th>
+                      <th className="px-4 py-3 text-center">Hit–Miss</th>
                       <th className="px-4 py-3 text-center">Expected W</th>
                       <th className="px-4 py-3 text-center">Edge</th>
                       <th className="px-4 py-3">Burned</th>
@@ -523,6 +524,7 @@ export default function NerdStatsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center text-white/70">{row.locked}</td>
+                        <td className="px-4 py-3 text-center text-white/50">{row.games}</td>
                         <td className="px-4 py-3 text-center font-semibold text-white">
                           {row.hits}–{row.misses}
                         </td>
