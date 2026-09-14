@@ -235,7 +235,7 @@ describe('hit lines with context', () => {
   it('weights a personal joke above the generic pools', () => {
     const pools = hitPools(ctx({ who: 'Jihoo' }));
     const personal = pools.find(p => p.lines.some(l => l.includes('Unc still got it')))!;
-    const generic = pools.find(p => p.lines.some(l => l.includes('survives')))!;
+    const generic = pools.find(p => p.lines.some(l => l.includes('insufferable')))!;
     expect(personal.weight).toBeGreaterThan(generic.weight);
   });
 
@@ -324,7 +324,7 @@ describe('group, start and reminder lines', () => {
   it('weights group lines above the generic pools', () => {
     const pools = hitPools(ctx({ who: 'Chris and Victor', plural: true }));
     const group = pools.find(p => p.lines.some(l => l.includes('all cashed that one')))!;
-    const generic = pools.find(p => p.lines.some(l => l.includes('survives')))!;
+    const generic = pools.find(p => p.lines.some(l => l.includes('insufferable')))!;
     expect(group.weight).toBeGreaterThan(generic.weight);
   });
 

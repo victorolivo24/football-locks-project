@@ -80,19 +80,18 @@ const TEAM_JOKES: Record<string, (c: QuipContext) => string> = {
 const GENERIC_BUSTS: Array<(c: QuipContext) => string> = [
   c => `See ya later, ${c.who}`,
   c => `${c.who} ${c.plural ? 'have' : 'has'} left the building`,
-  c => `And then there were fewer — ${c.who} out`,
-  c => `Pack it up, ${c.who}`,
-  c => `Better luck next week, ${c.who}`,
-  c => `That's the ballgame for ${c.who}`,
-  c => `${c.who} can stop watching now`,
   c => `RIP ${c.who}'s week`,
   c => `${c.who} ${c.plural ? 'are' : 'is'} officially spectating`,
   c => `Somebody tell ${c.who} it's over`,
   c => `${c.who}: eliminated, with feeling`,
   c => `The ${c.team} said no to ${c.who}`,
   c => `${c.who} backed the ${c.team}. Bold. Wrong`,
-  c => `Down goes ${c.who}`,
   c => `${c.who} ${c.plural ? 'were' : 'was'} this close. ${c.plural ? 'They' : 'Not'} close enough`,
+  c => `${c.who} can stop watching now`,
+  c => `${c.who} ${c.plural ? 'have' : 'has'} been released from caring`,
+  c => `Somebody is going to have to tell ${c.who}`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} free to enjoy the rest of the games now`,
+  c => `The ${c.team} have ruined ${c.who}'s afternoon`,
 ];
 
 /**
@@ -298,43 +297,30 @@ export function bustQuip(context: QuipContext): string {
 }
 
 const HITS: Array<(c: QuipContext) => string> = [
-  c => `${c.who} survives`,
-  c => `Still alive: ${c.who}`,
-  c => `${c.who} cashed that one`,
-  c => `The ${c.team} came through for ${c.who}`,
-  c => `${c.who} ${c.plural ? 'are' : 'is'} still breathing`,
   c => `Annoyingly, ${c.who} ${c.plural ? 'were' : 'was'} right`,
-  c => `${c.who} lives to lock another day`,
-  c => `Good call, ${c.who}. For now`,
-  c => `The ${c.team} held. ${c.who} ${c.plural ? 'live' : 'lives'} on`,
   c => `Unfortunately for everyone, ${c.who} ${c.plural ? 'were' : 'was'} correct`,
-  c => `${c.who} ${c.plural ? 'are' : 'is'} not dead yet`,
-  c => `One down for ${c.who}. Plenty left to go wrong`,
   c => `${c.who} got away with one`,
-  c => `Chalk one up for ${c.who}`,
+  c => `Good call, ${c.who}. For now`,
   c => `${c.who} picked the favorite and the favorite won. Incredible scenes`,
-  c => `${c.who} is telling everyone about this`,
-  c => `${c.who} has never been more insufferable`,
-  c => `Chalk held. ${c.who} is taking full credit`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} telling everyone about this`,
+  c => `${c.who} ${c.plural ? 'have' : 'has'} never been more insufferable`,
+  c => `Chalk held. ${c.who} ${c.plural ? 'are' : 'is'} taking full credit`,
   c => `${c.who} will bring this up unprompted`,
-  c => `${c.who} is already drafting the group chat message`,
-  c => `Nothing happened, and ${c.who} is thrilled`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} already drafting the group chat message`,
+  c => `Nothing happened, and ${c.who} ${c.plural ? 'are' : 'is'} thrilled`,
   c => `${c.who} did the bare minimum and it worked`,
-  c => `${c.who} is describing this as a read`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} describing this as a read`,
   c => `${c.who} called it, apparently`,
-  c => `${c.who} is acting like that was hard`,
-  c => `Somewhere ${c.who} is nodding slowly`,
-  c => `${c.who} is pretending they were never worried`,
-  c => `The favorite won. ${c.who} is a genius now`,
-  c => `${c.who} is updating their personal brand`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} acting like that was hard`,
+  c => `Somewhere ${c.who} ${c.plural ? 'are' : 'is'} nodding slowly`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} pretending they were never worried`,
+  c => `The favorite won. ${c.who} ${c.plural ? 'are' : 'is'} ${c.plural ? 'geniuses' : 'a genius'} now`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} updating their personal brand`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} explaining the logic to someone who did not ask`,
+  c => `${c.who} ${c.plural ? 'have' : 'has'} decided this was skill`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} telling the story like it was close`,
 ];
 
-/**
- * Running-total lines, for a lock that landed but has not finished the job.
- *
- * The interesting part of a hit is rarely the hit — it is how close someone
- * now is, which is what makes a Sunday tense.
- */
 const PROGRESS: Array<(c: QuipContext) => string | null> = [
   c => (c.locksHit !== null && c.lockCount !== null && c.lockCount - c.locksHit === 1
     ? `${c.who} needs one more`
@@ -486,34 +472,27 @@ export function hitQuip(context: QuipContext): string {
 
 const OWN_LOSSES: Array<(c: QuipContext) => string> = [
   c => `Your ${c.team} let you down`,
-  c => `That's your week`,
   c => `The ${c.team} did not hold up their end`,
-  c => 'Week over. Sorry',
   c => `You had the ${c.team}. You no longer have a week`,
   c => `The ${c.team} owed you one. They did not pay`,
-  c => 'That is your slate, gone',
   c => `Should have left the ${c.team} alone`,
-  c => 'Nothing left to sweat this week',
+  c => `Your week died with the ${c.team}`,
+  c => `You trusted the ${c.team}. That was the error`,
+  c => `The ${c.team} took your week with them`,
+  c => `Somewhere a ${c.team} fan is delighted. You are not`,
+  c => 'Nothing left to sweat. Enjoy the football',
 ];
 
 const OWN_HITS: Array<(c: QuipContext) => string> = [
   c => `${c.team} delivered`,
-  c => 'Lock hit. Still alive',
-  c => `That's one. The ${c.team} held`,
-  c => 'One down, still breathing',
-  c => `The ${c.team} did their job`,
-  c => 'Ticket still alive',
-  c => `Nice hold from the ${c.team}`,
+  c => 'That one lived. Do not get comfortable',
+  c => `The ${c.team} did not betray you. This time`,
+  c => 'One down. Plenty of time for it to fall apart',
+  c => `The ${c.team} held up their end. Suspicious`,
+  c => 'You were right, which proves nothing',
+  c => `Credit to the ${c.team}, grudgingly`,
 ];
 
-/**
- * Lines for a group that landed or died together.
- *
- * These groups are always people who took the same side of the same game, so
- * "same pick, same fate" is literally true rather than a guess — and in this
- * league, where three players routinely run identical tickets, it is the joke
- * that writes itself.
- */
 const GROUP_HITS: Array<(c: QuipContext) => string> = [
   c => `${c.who} all cashed that one`,
   c => `Everyone holding the ${c.team} is fine`,
@@ -539,40 +518,38 @@ const GROUP_BUSTS: Array<(c: QuipContext) => string> = [
 
 /** Lines for a game a player locked getting under way. */
 const STARTS: Array<(c: QuipContext) => string> = [
-  c => `Your ${c.team} are live`,
-  c => `Kickoff. The ${c.team} are on`,
-  c => `Here we go. ${c.team} are playing`,
   c => 'No going back now',
   c => 'This is the part where you sweat',
   c => `You picked the ${c.team}. Now watch them`,
-  c => `The ${c.team} are on the clock`,
-  c => 'Your week is officially in progress',
-  c => `${c.team} kickoff. Try to stay calm`,
-  c => 'It has begun',
   c => `Everything is fine until the ${c.team} touch the ball`,
-  c => 'Sit down. It is starting',
+  c => `${c.team} kickoff. Try to stay calm`,
+  c => 'Too late to change your mind',
+  c => `The ${c.team} are now your problem`,
+  c => 'Whatever happens next is your own fault',
+  c => 'Kickoff. Nothing you do from here matters',
+  c => 'You have made your choices. Live with them',
+  c => `The ${c.team} have been handed your week. Good luck`,
+  c => 'Sit down. It is out of your hands',
 ];
 
-/** A line for a locked game kicking off. */
 export function startQuip(context: QuipContext): string {
   return pick(STARTS.map(fn => fn(context)), context.seed);
 }
 
 /** Lines nudging someone who has not submitted. */
 const REMINDERS: string[] = [
-  'You have no locks in',
-  'Still nothing from you',
-  'The slate starts soon and your ticket is empty',
-  'No picks, no points',
-  'You are currently locked in for zero',
-  'Consider yourself reminded',
   'Everyone else is deciding. You are not',
   'Kickoff is coming whether you pick or not',
   'An empty ticket scores exactly nothing',
   'Still time to have an opinion',
+  'Consider yourself reminded',
+  'Your ticket is blank and time is not',
+  'Do you want points or not',
+  'The slate does not wait for you',
+  'Still undecided, apparently',
+  'This is the easy part and you have not done it',
 ];
 
-/** A line for the pre-lock nudge. */
 export function reminderQuip(seed: string): string {
   return pick(REMINDERS, seed);
 }
@@ -590,18 +567,18 @@ export function ownQuip(context: QuipContext, hit: boolean): string {
  * actual information off a lock screen.
  */
 const CLOSERS: string[] = [
-  'Carry on.',
-  'Nothing to be done.',
   'The board remembers.',
   'Noted for posterity.',
   'Make of that what you will.',
   'This has been football.',
-  'Anyway.',
   'Such is the slate.',
   'File it away.',
   'As foretold.',
   'No notes.',
-  'Onward.',
+  'Grim.',
+  'Wonderful.',
+  'Perfect. No issues.',
+  'Nothing to be done.',
 ];
 
 export function closer(seed: string): string {
