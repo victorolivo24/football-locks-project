@@ -6,7 +6,10 @@ import {
   hitPools,
   ownQuip,
   startQuip,
+  startPools,
   reminderQuip,
+  reminderPools,
+  ownPools,
   closer,
   testAlert,
   QuipContext,
@@ -383,5 +386,48 @@ describe('body closers and the test alert', () => {
     const seen = new Set<string>();
     for (let i = 0; i < 80; i++) seen.add(testAlert().title);
     expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
+describe('non-sequiturs reach every notification', () => {
+  const absurd = /chicken lays eggs|Home Depot|goose|ostrich|microwave clock|possum|shampoo/;
+
+  it('reaches kickoff', () => {
+    expect(startPools(ctx()).flatMap(p => p.lines).some(l => absurd.test(l))).toBe(true);
+  });
+
+  it('reaches reminders', () => {
+    expect(reminderPools().flatMap(p => p.lines).some(l => absurd.test(l))).toBe(true);
+  });
+
+  it('reaches your own result, win or lose', () => {
+    expect(ownPools(ctx(), true).flatMap(p => p.lines).some(l => absurd.test(l))).toBe(true);
+    expect(ownPools(ctx(), false).flatMap(p => p.lines).some(l => absurd.test(l))).toBe(true);
+  });
+
+  it('keeps loss-flavored lines off anything that has not lost', () => {
+    // "Your ticket is now a receipt for nothing" must never greet a kickoff
+    // or congratulate a lock that hit.
+    const lossFlavored = /receipt for nothing|you are out|chose vibes|Nobody is coming to fix|dad is shaking/;
+    const starts = startPools(ctx()).flatMap(p => p.lines);
+    const hits = ownPools(ctx(), true).flatMap(p => p.lines);
+    const reminders = reminderPools().flatMap(p => p.lines);
+
+    expect(starts.every(l => !lossFlavored.test(l))).toBe(true);
+    expect(hits.every(l => !lossFlavored.test(l))).toBe(true);
+    expect(reminders.every(l => !lossFlavored.test(l))).toBe(true);
+  });
+
+  it('still offers them to a loss', () => {
+    const onLoss = ownPools(ctx(), false).flatMap(p => p.lines);
+    const onHit = ownPools(ctx(), true).flatMap(p => p.lines);
+    expect(onLoss.some(l => l.includes('receipt for nothing'))).toBe(true);
+    expect(onHit.every(l => !l.includes('receipt for nothing'))).toBe(true);
+  });
+
+  it('does not drown out the written lines', () => {
+    const lines = Array.from({ length: 200 }, (_, i) => startQuip(ctx({ seed: `w${i}` })));
+    const written = lines.filter(l => !absurd.test(l)).length;
+    expect(written).toBeGreaterThan(lines.length / 2);
   });
 });

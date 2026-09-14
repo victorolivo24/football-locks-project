@@ -41,6 +41,28 @@ function pick(lines: string[], seed: string): string {
   return lines[hash(seed) % lines.length];
 }
 
+/**
+ * Pick from several pools, each taking a share of the draw proportional to its
+ * weight. Without this a pool of one line competes with a pool of eighty and
+ * effectively never comes up.
+ */
+function weighted(pools: Array<{ weight: number; lines: string[] }>, seed: string): string {
+  const usable = pools.filter(pool => pool.lines.length > 0);
+  if (usable.length === 0) return '';
+
+  const total = usable.reduce((sum, pool) => sum + pool.weight, 0);
+  let choice = hash(seed) % total;
+
+  for (const pool of usable) {
+    if (choice < pool.weight) {
+      // A second hash so the line within a pool is independent of the pool draw.
+      return pool.lines[hash(seed + '#') % pool.lines.length];
+    }
+    choice -= pool.weight;
+  }
+  return usable[0].lines[0];
+}
+
 /** Team-specific ribbing, keyed on the team that let them down. */
 const TEAM_JOKES: Record<string, (c: QuipContext) => string> = {
   Bills: c => `The Bills came due for ${c.who}`,
@@ -95,11 +117,10 @@ const GENERIC_BUSTS: Array<(c: QuipContext) => string> = [
 ];
 
 /**
- * Non-sequiturs. The body carries the facts, so the title is free to be
- * nonsense — and a lock screen that says "not every chicken lays eggs" is
- * funnier than one that says "Ryan out".
+ * Non-sequiturs that fit any moment — a kickoff, a reminder, a result either
+ * way. Nothing here presumes the week went badly.
  */
-const ABSURD: string[] = [
+const ABSURD_ANY: string[] = [
   "You can't smother yourself in honey and expect the bear to respect your personal space",
   'The Home Depot showers are for display only, not for use',
   'Who taught you how to shovel!?',
@@ -117,13 +138,10 @@ const ABSURD: string[] = [
   'The microwave clock has never once been correct',
   'You brought a fork to a soup',
   'Wet cement remembers everything',
-  'The bees were never on your side',
   'Salt is not a personality',
   'Nobody asked the ostrich',
   'A map is not the territory and neither is your ticket',
-  'You cannot fold a fitted sheet either',
   'Every barn is a house for something',
-  'The lawn does not care that you tried',
   'A borrowed ladder always leans the wrong way',
   'You cannot outrun a smell',
   'The second pancake knows what it did',
@@ -134,7 +152,6 @@ const ABSURD: string[] = [
   'Who gave you a library card?',
   'Who let you near a thermostat?',
   'Were you raised by a vending machine?',
-  'What do you mean you had a feeling?',
   "Somebody check this man's tire pressure",
   'That was the employee bathroom',
   'Those plants are plastic and you watered them',
@@ -147,15 +164,38 @@ const ABSURD: string[] = [
   'Owls are not wise, they are just quiet',
   'Deer have no concept of insurance',
   'Somewhere a clock is wrong and nobody will fix it',
+  'This is the sort of thing that happens on a Tuesday',
+  "Nobody's second bowl of cereal is as good as the first",
+  'You put the ketchup in the fridge, did you not',
+  'The nail sticking up was the honest one',
+  'Everyone is improvising. Some louder than others',
+  'We are all just waiting for the microwave',
+  'You pulled a push door. Classic.',
+  'Strike 1! Too bad it\'s not baseball.',
+  'Too many slims jims to chew on',
+  'You made your bed, now lie in it',
+  'Not all geese wear bowties',
+  'You wore a white suit to a funeral'
+];
+
+/**
+ * Non-sequiturs that only make sense attached to a loss. Kept apart so they
+ * never land on a game that has not been played, or on a lock that hit.
+ */
+const ABSURD_LOSS: string[] = [
+  "Every dog has its day. You're a cat",
+  'Barked down the wrong tree',
+  'You put your left foot in when it was supposed to be the right one',
+  'The bees were never on your side',
+  'You cannot fold a fitted sheet either',
+  'The lawn does not care that you tried',
+  'What do you mean you had a feeling?',
   'Nothing is load-bearing if you believe hard enough',
   'The odds were posted. You chose vibes',
   'Confidence is not a strategy, but it is a personality',
-  'This is the sort of thing that happens on a Tuesday',
   'Somewhere, a dad is shaking his head',
   'A hot dog is a sandwich and you are out',
   'Milk goes bad. So does a ticket',
-  "Nobody's second bowl of cereal is as good as the first",
-  'You put the ketchup in the fridge, did you not',
   'The soup was never going to be that hot',
   'The line moved. You did not',
   'Vegas has a building. You had a feeling',
@@ -171,27 +211,18 @@ const ABSURD: string[] = [
   'No fence has ever kept out weather',
   'Every bucket leaks eventually',
   'You cannot stack water',
-  'The nail sticking up was the honest one',
   'A closed umbrella is just a stick with hope',
   'Rust was always going to win',
-  'Everyone is improvising. Some louder than others',
   'The plan was fine. The universe had notes',
   'You were always going to find out this way',
   'Somewhere a man is doing this correctly',
-  'We are all just waiting for the microwave',
   'Certainty is the cheapest thing you can buy',
   'The graph goes down sometimes. That is a graph',
   'Nobody is coming to fix it',
-  'You pulled a push door. Classic.',
-  'Strike 1! Too bad it\'s not baseball.',
-  'Every dog has its day. Your a cat.',
-  'Left foot in, left foot out - name put in wrong', //comment fix this to improve the wording
-  'Too many slims jims to chew on',
-  'Barked down the wrong tree',
-  'You made your bed, now lie in it',
-  'Not all geese wear bowties',
-  'You wore a white suit to a funeral'
 ];
+
+/** Everything available to a bust. */
+const ABSURD: string[] = [...ABSURD_ANY, ...ABSURD_LOSS];
 
 /** Lines that actually describe what happened, for a single player. */
 const NARRATIVE: Array<(c: QuipContext) => string | null> = [
@@ -281,19 +312,7 @@ export function bustPools(context: QuipContext): Array<{ weight: number; lines: 
 
 /** A line for someone whose week just ended. */
 export function bustQuip(context: QuipContext): string {
-  const pools = bustPools(context);
-  const total = pools.reduce((sum, pool) => sum + pool.weight, 0);
-
-  let choice = hash(context.seed) % total;
-  for (const pool of pools) {
-    if (choice < pool.weight) {
-      // A second hash so the line within a pool is not tied to the pool draw.
-      return pool.lines[hash(context.seed + '#') % pool.lines.length];
-    }
-    choice -= pool.weight;
-  }
-
-  return pools[pools.length - 1].lines[0];
+  return weighted(bustPools(context), context.seed);
 }
 
 const HITS: Array<(c: QuipContext) => string> = [
@@ -457,17 +476,7 @@ export function hitPools(context: QuipContext): Array<{ weight: number; lines: s
 
 /** A line for a rival who is still standing. */
 export function hitQuip(context: QuipContext): string {
-  const pools = hitPools(context);
-  const total = pools.reduce((sum, pool) => sum + pool.weight, 0);
-
-  let choice = hash(context.seed) % total;
-  for (const pool of pools) {
-    if (choice < pool.weight) {
-      return pool.lines[hash(context.seed + '#') % pool.lines.length];
-    }
-    choice -= pool.weight;
-  }
-  return pools[0].lines[0];
+  return weighted(hitPools(context), context.seed);
 }
 
 const OWN_LOSSES: Array<(c: QuipContext) => string> = [
@@ -532,8 +541,15 @@ const STARTS: Array<(c: QuipContext) => string> = [
   c => 'Sit down. It is out of your hands',
 ];
 
+export function startPools(context: QuipContext): Array<{ weight: number; lines: string[] }> {
+  return [
+    { weight: 3, lines: STARTS.map(fn => fn(context)) },
+    { weight: 2, lines: ABSURD_ANY },
+  ];
+}
+
 export function startQuip(context: QuipContext): string {
-  return pick(STARTS.map(fn => fn(context)), context.seed);
+  return weighted(startPools(context), context.seed);
 }
 
 /** Lines nudging someone who has not submitted. */
@@ -550,13 +566,28 @@ const REMINDERS: string[] = [
   'This is the easy part and you have not done it',
 ];
 
+export function reminderPools(): Array<{ weight: number; lines: string[] }> {
+  return [
+    { weight: 3, lines: REMINDERS },
+    { weight: 2, lines: ABSURD_ANY },
+  ];
+}
+
 export function reminderQuip(seed: string): string {
-  return pick(REMINDERS, seed);
+  return weighted(reminderPools(), seed);
 }
 
 /** Lines for the player's own result. */
+export function ownPools(context: QuipContext, hit: boolean): Array<{ weight: number; lines: string[] }> {
+  return [
+    { weight: 3, lines: (hit ? OWN_HITS : OWN_LOSSES).map(fn => fn(context)) },
+    // A loss can reach the loss-flavored lines too; a hit cannot.
+    { weight: 2, lines: hit ? ABSURD_ANY : ABSURD },
+  ];
+}
+
 export function ownQuip(context: QuipContext, hit: boolean): string {
-  return pick((hit ? OWN_HITS : OWN_LOSSES).map(fn => fn(context)), context.seed);
+  return weighted(ownPools(context, hit), context.seed);
 }
 
 /**
