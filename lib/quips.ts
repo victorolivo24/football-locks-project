@@ -542,22 +542,6 @@ const OWN_HITS: Array<(c: QuipContext) => string> = [
   c => `The ${c.team} held up their end. Suspicious`,
   c => 'You were right, which proves nothing',
   c => `Credit to the ${c.team}, grudgingly`,
-  // Same idioms as the loss lines, but the joke is the fake bravery rather
-  // than the result — this league backs favorites, so nobody risked much.
-  c => 'You went out on a limb. The limb was the ground',
-  c => 'You rolled the dice. Every side had the same number',
-  c => 'You called your shot at an empty net',
-  c => 'You played with fire. It was a candle',
-  c => 'You threw your hat in the ring. Nobody else was in the ring',
-  c => 'You put all your eggs in one basket. The basket was a bunker',
-  c => 'You went to the well. The well was a tap',
-  c => 'You took a leap of faith off the bottom step',
-  c => 'You stuck your neck out about four inches',
-  c => 'You backed the right horse. It was the only horse',
-  c => 'You bet the farm on a sure thing. Fearless',
-  c => 'You trusted your gut. Your gut had read the spread',
-  c => 'You had skin in the game. A very small amount of skin',
-  c => 'You danced with the devil. The devil was a favorite',
 ];
 
 const GROUP_HITS: Array<(c: QuipContext) => string> = [
