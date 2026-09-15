@@ -172,6 +172,7 @@ const ABSURD_ANY: string[] = [
  * say so, or because they are needling somebody.
  */
 const ABSURD_LOSS: string[] = [
+  'You had a dog in the fight. The dog lost',
   'You do not name a cow you plan to eat',
   "Every dog has its day. You're a cat",
   'Barked down the wrong tree',
