@@ -168,14 +168,16 @@ const ABSURD_ANY: string[] = [
 ];
 
 /**
- * Non-sequiturs that only make sense attached to a loss — either because they
- * say so, or because they are needling somebody.
+ * Loss lines that speak to the person who lost.
+ *
+ * Kept out of rival alerts: those are sent to everyone else, and "your ticket
+ * is now a receipt for nothing" aimed at a bystander reads as though they were
+ * the one who busted.
  */
-const ABSURD_LOSS: string[] = [
+const ABSURD_LOSS_SELF: string[] = [
   'You had a dog in the fight. The dog lost',
   'You do not name a cow you plan to eat',
   "Every dog has its day. You're a cat",
-  'Barked down the wrong tree',
   'You put your left foot in when it was supposed to be the right one',
   'The bees were never on your side',
   'You cannot fold a fitted sheet either',
@@ -183,69 +185,86 @@ const ABSURD_LOSS: string[] = [
   'What do you mean you had a feeling?',
   'Nothing is load-bearing if you believe hard enough',
   'The odds were posted. You chose vibes',
-  'Confidence is not a strategy, but it is a personality',
-  'Somewhere, a dad is shaking his head',
   'A hot dog is a sandwich and you are out',
-  'Milk goes bad. So does a ticket',
-  'The soup was never going to be that hot',
   'The line moved. You did not',
   'Vegas has a building. You had a feeling',
-  'Somebody in Nevada is having a lovely evening',
   'Your ticket is now a receipt for nothing',
-  'A parlay is just a rumor with extra steps',
   'You were one team away from being insufferable',
-  'The scoreboard does not accept feedback',
   'Your ticket had one job and did not show up',
   'You cannot hedge a feeling',
-  'A stump is a tree that quit',
   'You cannot sand a hole shut',
-  'No fence has ever kept out weather',
-  'Every bucket leaks eventually',
   'You cannot stack water',
-  'A closed umbrella is just a stick with hope',
-  'Rust was always going to win',
-  'The plan was fine. The universe had notes',
   'You were always going to find out this way',
-  'Somewhere a man is doing this correctly',
   'Certainty is the cheapest thing you can buy',
-  'The graph goes down sometimes. That is a graph',
-  'Nobody is coming to fix it',
   "You can't smother yourself in honey and expect the bear to respect your personal space",
   'Who taught you how to shovel!?',
-  'Not every chicken lays eggs',
-  'A ladder is just a staircase that gave up',
   'You do not bring a canoe to a thunderstorm',
   'You cannot sharpen a spoon and call it a plan',
-  'This is why they print instructions on shampoo',
   'The escalator was fine until you sat on it',
-  'Two umbrellas do not make a roof',
   'You brought a fork to a soup',
-  'Salt is not a personality',
-  'Nobody asked the ostrich',
   'A map is not the territory and neither is your ticket',
-  'A borrowed ladder always leans the wrong way',
   'You cannot outrun a smell',
   'Who gave you a library card?',
   'Who let you near a thermostat?',
   'Were you raised by a vending machine?',
-  "Somebody check this man's tire pressure",
   'Those plants are plastic and you watered them',
   'The squirrel buried it and forgot. Same as you',
+  'You put the ketchup in the fridge, did you not',
+  'You pulled a push door. Classic.',
+  'You made your bed, now lie in it',
+  'You wore a white suit to a funeral',
+  'You threw your hat in the ring. The ring kept it',
+  'You had skin in the game. The game has it now',
+  'You backed the right horse. The horse disagreed',
+  'You put all your eggs in one basket. The basket had a hole',
+  'You rolled the dice. The dice went under the couch',
+  'You stepped up to the plate. The plate was somewhere else',
+  'You left it all on the field. It is still there',
+  'You gave 110 percent. The other 10 did not help',
+];
+
+/**
+ * Loss lines that describe the loss without addressing anybody, so they work
+ * whether the reader is the one who busted or is hearing about someone else.
+ */
+const ABSURD_LOSS_ANYONE: string[] = [
+  'Barked down the wrong tree',
+  'Confidence is not a strategy, but it is a personality',
+  'Somewhere, a dad is shaking his head',
+  'Milk goes bad. So does a ticket',
+  'The soup was never going to be that hot',
+  'Somebody in Nevada is having a lovely evening',
+  'A parlay is just a rumor with extra steps',
+  'The scoreboard does not accept feedback',
+  'A stump is a tree that quit',
+  'No fence has ever kept out weather',
+  'Every bucket leaks eventually',
+  'A closed umbrella is just a stick with hope',
+  'Rust was always going to win',
+  'The plan was fine. The universe had notes',
+  'Somewhere a man is doing this correctly',
+  'The graph goes down sometimes. That is a graph',
+  'Nobody is coming to fix it',
+  'Not every chicken lays eggs',
+  'A ladder is just a staircase that gave up',
+  'This is why they print instructions on shampoo',
+  'Two umbrellas do not make a roof',
+  'Salt is not a personality',
+  'Nobody asked the ostrich',
+  'A borrowed ladder always leans the wrong way',
+  "Somebody check this man's tire pressure",
   "A possum's best move is lying down. Take notes",
   'Somewhere a clock is wrong and nobody will fix it',
   'This is the sort of thing that happens on a Tuesday',
   "Nobody's second bowl of cereal is as good as the first",
-  'You put the ketchup in the fridge, did you not',
   'The nail sticking up was the honest one',
-  'You pulled a push door. Classic.',
   'Strike 1! Too bad it\'s not baseball.',
-  'You made your bed, now lie in it',
   'Not all geese wear bowties',
-  'You wore a white suit to a funeral'
 ];
 
 /** Everything available to a bust. */
-const ABSURD: string[] = [...ABSURD_ANY, ...ABSURD_LOSS];
+/** Everything a rival's bust may draw on: nothing here addresses the reader. */
+const ABSURD: string[] = [...ABSURD_ANY, ...ABSURD_LOSS_ANYONE];
 
 /** Lines that actually describe what happened, for a single player. */
 const NARRATIVE: Array<(c: QuipContext) => string | null> = [
@@ -467,7 +486,7 @@ const ABSURD_HITS: string[] = [
   'You went to Home Depot looking for a tool, and you founnd it',
   'You show up to a party and everyone\'s wearing party hats',
   'It\'s like taking candy from a baby',
-  'King\'s don\'t sleep on twin beds'
+  'King\'s don\'t sleep on twin beds',
 ];
 
 /**
@@ -523,6 +542,21 @@ const OWN_HITS: Array<(c: QuipContext) => string> = [
   c => `The ${c.team} held up their end. Suspicious`,
   c => 'You were right, which proves nothing',
   c => `Credit to the ${c.team}, grudgingly`,
+  // The same idioms as the loss lines, landing the other way.
+  c => 'You had a dog in the fight. The dog won',
+  c => 'You backed the right horse. The horse agreed',
+  c => 'You threw your hat in the ring. The hat came back',
+  c => 'You had skin in the game. You still have the skin',
+  c => 'You put all your eggs in one basket. The basket held',
+  c => 'You rolled the dice. The dice cooperated',
+  c => 'You went out on a limb. The limb held',
+  c => 'You bet the farm. You still have the farm',
+  c => 'You called your shot. Nobody saw it, but you did',
+  c => 'You went to the well. The well had water',
+  c => 'You played with fire. Nothing caught',
+  c => 'You left it all on the field. Somebody brought it back',
+  c => 'You stepped up to the plate. The plate was right there',
+  c => 'You gave 110 percent. The extra 10 showed up',
 ];
 
 const GROUP_HITS: Array<(c: QuipContext) => string> = [
@@ -605,7 +639,7 @@ export function ownPools(context: QuipContext, hit: boolean): Array<{ weight: nu
   return [
     { weight: 3, lines: (hit ? OWN_HITS : OWN_LOSSES).map(fn => fn(context)) },
     // A loss can reach the loss-flavored lines too; a hit cannot.
-    { weight: 2, lines: hit ? ABSURD_ANY : ABSURD },
+    { weight: 2, lines: hit ? ABSURD_ANY : [...ABSURD_ANY, ...ABSURD_LOSS_ANYONE, ...ABSURD_LOSS_SELF] },
   ];
 }
 

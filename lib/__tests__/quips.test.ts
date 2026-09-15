@@ -451,3 +451,26 @@ describe('the any-moment pool stays neutral', () => {
     expect(neutral().length).toBeGreaterThan(30);
   });
 });
+
+describe('second person stays where it belongs', () => {
+  it('never addresses the reader in an alert about someone else', () => {
+    // A rival bust goes to everyone else, so "your ticket is now a receipt for
+    // nothing" would read as though the bystander were the one who busted.
+    const rival = bustPools(ctx({ who: 'Dakota' })).flatMap(p => p.lines);
+    const aimedAtReader = rival.filter(l => /\byou\b|\byour\b/i.test(l));
+    expect(aimedAtReader).toEqual([]);
+  });
+
+  it('still offers those lines when the loss is your own', () => {
+    const mine = ownPools(ctx({ who: 'you' }), false).flatMap(p => p.lines);
+    expect(mine.some(l => l.includes('dog in the fight'))).toBe(true);
+    expect(mine.some(l => l.includes('receipt for nothing'))).toBe(true);
+  });
+
+  it('lands the same idioms the other way on a win', () => {
+    const won = ownPools(ctx({ who: 'you' }), true).flatMap(p => p.lines);
+    expect(won.some(l => l.includes('The dog won'))).toBe(true);
+    expect(won.some(l => l.includes('The basket held'))).toBe(true);
+    expect(won.every(l => !l.includes('The dog lost'))).toBe(true);
+  });
+});
