@@ -467,10 +467,12 @@ describe('second person stays where it belongs', () => {
     expect(mine.some(l => l.includes('receipt for nothing'))).toBe(true);
   });
 
-  it('lands the same idioms the other way on a win', () => {
+  it('deflates the bravery on a win rather than mirroring the loss line', () => {
+    // "The dog won" is not a joke. The joke is that nobody risked anything.
     const won = ownPools(ctx({ who: 'you' }), true).flatMap(p => p.lines);
-    expect(won.some(l => l.includes('The dog won'))).toBe(true);
-    expect(won.some(l => l.includes('The basket held'))).toBe(true);
-    expect(won.every(l => !l.includes('The dog lost'))).toBe(true);
+    expect(won.some(l => l.includes('The limb was the ground'))).toBe(true);
+    expect(won.some(l => l.includes('It was the only horse'))).toBe(true);
+    expect(won.every(l => !l.includes('The dog won'))).toBe(true);
+    expect(won.every(l => !l.includes('The basket held'))).toBe(true);
   });
 });

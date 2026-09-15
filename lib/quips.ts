@@ -542,21 +542,22 @@ const OWN_HITS: Array<(c: QuipContext) => string> = [
   c => `The ${c.team} held up their end. Suspicious`,
   c => 'You were right, which proves nothing',
   c => `Credit to the ${c.team}, grudgingly`,
-  // The same idioms as the loss lines, landing the other way.
-  c => 'You had a dog in the fight. The dog won',
-  c => 'You backed the right horse. The horse agreed',
-  c => 'You threw your hat in the ring. The hat came back',
-  c => 'You had skin in the game. You still have the skin',
-  c => 'You put all your eggs in one basket. The basket held',
-  c => 'You rolled the dice. The dice cooperated',
-  c => 'You went out on a limb. The limb held',
-  c => 'You bet the farm. You still have the farm',
-  c => 'You called your shot. Nobody saw it, but you did',
-  c => 'You went to the well. The well had water',
-  c => 'You played with fire. Nothing caught',
-  c => 'You left it all on the field. Somebody brought it back',
-  c => 'You stepped up to the plate. The plate was right there',
-  c => 'You gave 110 percent. The extra 10 showed up',
+  // Same idioms as the loss lines, but the joke is the fake bravery rather
+  // than the result — this league backs favorites, so nobody risked much.
+  c => 'You went out on a limb. The limb was the ground',
+  c => 'You rolled the dice. Every side had the same number',
+  c => 'You called your shot at an empty net',
+  c => 'You played with fire. It was a candle',
+  c => 'You threw your hat in the ring. Nobody else was in the ring',
+  c => 'You put all your eggs in one basket. The basket was a bunker',
+  c => 'You went to the well. The well was a tap',
+  c => 'You took a leap of faith off the bottom step',
+  c => 'You stuck your neck out about four inches',
+  c => 'You backed the right horse. It was the only horse',
+  c => 'You bet the farm on a sure thing. Fearless',
+  c => 'You trusted your gut. Your gut had read the spread',
+  c => 'You had skin in the game. A very small amount of skin',
+  c => 'You danced with the devil. The devil was a favorite',
 ];
 
 const GROUP_HITS: Array<(c: QuipContext) => string> = [
