@@ -674,7 +674,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
         onClick={() => setCalcOpen(true)}
         className="fixed bottom-5 right-5 z-40 bg-gradient-to-r from-yellow-500 to-amber-400 text-black font-bold text-sm px-4 py-3 rounded-full shadow-2xl hover:from-yellow-400"
       >
-        🎛️ Calculator
+        🎛️ Ticket Simulator
       </button>
 
       {calcOpen && (
