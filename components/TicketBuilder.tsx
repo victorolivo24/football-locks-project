@@ -18,14 +18,12 @@ interface Props {
   week: number | null;
   /** The viewer's real picks, so the builder opens on their actual ticket. */
   myPicks: Array<{ gameId: number; pickedTeam: string }>;
-  /** Start with the game list expanded, for when the builder has its own panel. */
-  defaultOpen?: boolean;
 }
 
 /** gameId -> the team taken in that game. */
 type Selection = Record<number, string>;
 
-export default function TicketBuilder({ games, week, myPicks, defaultOpen = false }: Props) {
+export default function TicketBuilder({ games, week, myPicks }: Props) {
   const board = useMemo(() => rankedBoard(games), [games]);
 
   const initial = useMemo<Selection>(() => {
@@ -38,7 +36,6 @@ export default function TicketBuilder({ games, week, myPicks, defaultOpen = fals
 
   // Follow the real ticket as it changes, e.g. picks being made on the page.
   useEffect(() => setSelection(initial), [initial]);
-  const [open, setOpen] = useState(defaultOpen);
 
   const toggle = (gameId: number, team: string) => {
     setSelection((current) => {
@@ -67,111 +64,71 @@ export default function TicketBuilder({ games, week, myPicks, defaultOpen = fals
 
   if (board.length === 0) return null;
 
+  const stat = (label: string, value: string, tone = '') => (
+    <div className="rounded-lg bg-raised py-2.5 text-center">
+      <div className={`num text-2xl font-bold ${tone}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wide text-muted">{label}</div>
+    </div>
+  );
+
   return (
-    <div className="glass-card p-6 space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center space-x-2">
-            <span className="text-2xl">🎛️</span>
-            <h2 className="text-xl font-bold text-white">Build a Ticket</h2>
-          </div>
-          <p className="text-xs text-green-200/80 mt-1">
-            Your Week {week} ticket. Swap games to see what a different slate is worth.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {changed && (
-            <button
-              onClick={() => setSelection(initial)}
-              className="text-xs font-semibold text-white/70 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 transition-colors"
-            >
-              Back to my picks
-            </button>
-          )}
-          {!defaultOpen && (
-            <button
-              onClick={() => setOpen(!open)}
-              className="text-xs font-bold text-yellow-300 bg-yellow-400/10 hover:bg-yellow-400/20 border border-yellow-400/30 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              {open ? 'Hide board' : 'Pick games'}
-            </button>
-          )}
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted">Week {week}. Tap teams to try a different ticket; your real picks don&apos;t change.</p>
+        {changed && (
+          <button onClick={() => setSelection(initial)} className="btn-ghost shrink-0 px-3 py-1.5 text-xs">
+            Back to my picks
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-black/20 rounded-xl border border-white/5 p-3 text-center">
-          <div className="text-[10px] uppercase font-semibold text-white/60">Locks</div>
-          <div className="text-2xl font-black text-white">{chosen.length}</div>
-        </div>
-        <div className="bg-black/20 rounded-xl border border-white/5 p-3 text-center">
-          <div className="text-[10px] uppercase font-semibold text-white/60">Survives</div>
-          <div className="text-2xl font-black text-green-300">
-            {chosen.length > 0 ? `${survives.toFixed(1)}%` : '—'}
-          </div>
-        </div>
-        <div className="bg-black/20 rounded-xl border border-white/5 p-3 text-center">
-          <div className="text-[10px] uppercase font-semibold text-white/60">Expected</div>
-          <div className="text-2xl font-black text-yellow-300">
-            {chosen.length > 0 ? expected.toFixed(2) : '—'}
-          </div>
-        </div>
+      <div className="grid grid-cols-3 gap-2">
+        {stat('Locks', String(chosen.length))}
+        {stat('Hits all', chosen.length > 0 ? `${survives.toFixed(1)}%` : '—', 'text-gold')}
+        {stat('Exp. points', chosen.length > 0 ? expected.toFixed(2) : '—')}
       </div>
 
       {chosen.length > 0 && (
-        <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-green-200/90 flex items-start space-x-2">
-          <span>💡</span>
-          <span>
-            {Math.abs(gap) < 0.005 ? (
-              <>This is the strongest {chosen.length}-lock ticket on the board.</>
-            ) : (
-              <>
-                The safest {chosen.length} games are worth <strong>{bestExpected.toFixed(2)}</strong> expected
-                points, so this ticket gives up <strong>{Math.abs(gap).toFixed(2)}</strong>. Worth it only if
-                you need to finish somewhere the pack will not.
-              </>
-            )}
-          </span>
-        </div>
+        <p className="rounded-lg bg-gold-soft px-3 py-2 text-xs">
+          {Math.abs(gap) < 0.005 ? (
+            <>This is the strongest {chosen.length}-lock ticket on the board.</>
+          ) : (
+            <>
+              The safest {chosen.length} games are worth <strong>{bestExpected.toFixed(2)}</strong> expected
+              points, so this ticket gives up <strong>{Math.abs(gap).toFixed(2)}</strong>. Worth it only if
+              you need to finish somewhere the pack will not.
+            </>
+          )}
+        </p>
       )}
 
-      {open && (
-        <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
-          {board.map((entry, index) => {
-            const game = entry.game;
-            const taken = selection[game.id];
-            const side = (team: string, probability: number) => {
-              const active = taken === team;
-              return (
-                <button
-                  onClick={() => toggle(game.id, team)}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs transition-colors min-w-0 ${
-                    active
-                      ? 'bg-yellow-400/20 border-yellow-400/60 text-white font-bold'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                  }`}
-                >
-                  <TeamLogo team={team} size="sm" className="scale-75" />
-                  <span className="truncate">{team.split(' ').pop()}</span>
-                  <span className="text-[10px] text-green-200/70">{(probability * 100).toFixed(0)}%</span>
-                </button>
-              );
-            };
+      <div className="space-y-1.5">
+        {board.map((entry, index) => {
+          const game = entry.game;
+          const taken = selection[game.id];
+          const side = (team: string, probability: number) => (
+            <button
+              onClick={() => toggle(game.id, team)}
+              className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs transition-colors ${
+                taken === team ? 'border-gold bg-gold-soft font-semibold' : 'border-line bg-raised text-muted hover:text-text'
+              }`}
+            >
+              <TeamLogo team={team} size="sm" className="scale-75" />
+              <span className="truncate">{team.split(' ').pop()}</span>
+              <span className="num ml-auto">{(probability * 100).toFixed(0)}%</span>
+            </button>
+          );
 
-            return (
-              <div
-                key={game.id}
-                className="flex items-center gap-2 bg-white/[0.03] rounded-lg px-2 py-1.5 border border-white/5"
-              >
-                <span className="text-[10px] text-white/30 w-5 shrink-0">#{index + 1}</span>
-                {side(game.awayTeam, entry.awayProbability)}
-                <span className="text-[10px] text-white/30">@</span>
-                {side(game.homeTeam, entry.homeProbability)}
-              </div>
-            );
-          })}
-        </div>
-      )}
+          return (
+            <div key={game.id} className="flex items-center gap-1.5">
+              <span className="num w-5 shrink-0 text-[10px] text-muted">{index + 1}</span>
+              {side(game.awayTeam, entry.awayProbability)}
+              <span className="text-[10px] text-muted">@</span>
+              {side(game.homeTeam, entry.homeProbability)}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

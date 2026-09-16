@@ -67,7 +67,6 @@ export default function NotificationSetup() {
   const [supported, setSupported] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULTS);
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [needsInstall, setNeedsInstall] = useState(false);
@@ -179,113 +178,81 @@ export default function NotificationSetup() {
   if (!supported && !needsInstall) return null;
 
   return (
-    <div className="glass-card p-5 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center space-x-2">
-            <span className="text-xl">🔔</span>
-            <h3 className="text-white font-bold text-lg">Notifications</h3>
-          </div>
-          <p className="text-xs text-green-200/80 mt-0.5">
-            {subscribed
-              ? 'On for this device. Alerts open the live gameday screen.'
-              : 'Know the second someone busts, without opening the app.'}
-          </p>
-        </div>
-        <button
-          onClick={() => setOpen(!open)}
-          className="text-xs font-bold text-yellow-300 bg-yellow-400/10 hover:bg-yellow-400/20 border border-yellow-400/30 px-3 py-1.5 rounded-lg transition-colors shrink-0"
-        >
-          {open ? 'Close' : subscribed ? 'Settings' : 'Set up'}
-        </button>
+    <div className="space-y-3">
+      <div>
+        <h3 className="section-title">Notifications</h3>
+        <p className="text-xs text-muted">
+          {subscribed ? 'On for this device.' : 'Know the second someone busts, without opening the app.'}
+        </p>
       </div>
 
-      {open && (
-        <div className="space-y-4">
-          {needsInstall && (
-            <div className="bg-black/30 border border-yellow-400/30 rounded-xl p-4 space-y-2">
-              <div className="text-sm font-bold text-yellow-300">One step first, on iPhone</div>
-              <p className="text-xs text-green-200/80">
-                Apple only allows notifications once the site is on your Home Screen. Takes about ten seconds:
-              </p>
-              <ol className="text-xs text-white/85 space-y-1.5 list-decimal list-inside">
-                <li><strong>Touch and hold the address bar</strong> at the bottom of Safari, then tap <strong>Share</strong></li>
-                <li>Scroll down the list and tap <strong>Add to Home Screen</strong></li>
-                <li>Tap <strong>Add</strong> in the top right</li>
-                <li>Open <strong>NFL Locks</strong> from your Home Screen and come back here</li>
-              </ol>
-              <p className="text-[11px] text-green-200/60">
-                If a Share icon is already visible in the toolbar (a square with an arrow pointing up),
-                tapping that works too — it is often hidden until you scroll up.
-              </p>
-              <p className="text-[11px] text-white/50">
-                Must be Safari — Chrome on iPhone cannot do this.
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            {ALERTS.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => toggle(key)}
-                className={`w-full flex items-center justify-between gap-3 p-3 rounded-xl border text-left transition-colors ${
-                  prefs[key]
-                    ? 'bg-yellow-500/15 border-yellow-400/40'
-                    : 'bg-white/5 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                <span className="text-sm font-semibold text-white min-w-0 truncate">{label}</span>
-                <span
-                  className={`shrink-0 w-10 h-6 rounded-full flex items-center px-0.5 transition-colors ${
-                    prefs[key] ? 'bg-yellow-400 justify-end' : 'bg-white/20 justify-start'
-                  }`}
-                >
-                  <span className="w-5 h-5 rounded-full bg-white shadow" />
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {subscribed ? (
-              <button
-                onClick={disable}
-                disabled={busy}
-                className="text-xs font-semibold text-red-200 bg-red-500/10 hover:bg-red-500/20 border border-red-400/30 px-3 py-2 rounded-lg disabled:opacity-50"
-              >
-                Turn off on this device
-              </button>
-            ) : (
-              <button
-                onClick={enable}
-                disabled={busy || needsInstall}
-                className="text-sm font-bold text-black bg-gradient-to-r from-yellow-500 to-amber-400 hover:from-yellow-400 px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {busy ? 'Enabling…' : needsInstall ? 'Add to Home Screen first' : 'Turn on notifications'}
-              </button>
-            )}
-            {subscribed && (
-              <button
-                onClick={async () => {
-                  const res = await fetch('/api/push/preferences', { method: 'POST' });
-                  const result = await res.json().catch(() => ({ sent: 0 }));
-                  setNote(
-                    result.sent > 0
-                      ? 'Test alert sent.'
-                      : `Test failed — ${result.error ?? 'no reason given'}`
-                  );
-                }}
-                className="text-xs font-semibold text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg"
-              >
-                Send test
-              </button>
-            )}
-          </div>
-
-          {note && <p className="text-[11px] text-green-200/80">{note}</p>}
+      {needsInstall && (
+        <div className="space-y-2 rounded-lg border border-gold/30 bg-gold-soft p-3">
+          <div className="text-sm font-semibold text-gold">One step first, on iPhone</div>
+          <p className="text-xs text-muted">
+            Apple only allows notifications once the site is on your Home Screen. Takes about ten seconds:
+          </p>
+          <ol className="list-inside list-decimal space-y-1.5 text-xs">
+            <li><strong>Touch and hold the address bar</strong> at the bottom of Safari, then tap <strong>Share</strong></li>
+            <li>Scroll down the list and tap <strong>Add to Home Screen</strong></li>
+            <li>Tap <strong>Add</strong> in the top right</li>
+            <li>Open <strong>NFL Locks</strong> from your Home Screen and come back here</li>
+          </ol>
+          <p className="text-[11px] text-muted">
+            If a Share icon is already visible in the toolbar (a square with an arrow pointing up),
+            tapping that works too. Must be Safari; Chrome on iPhone cannot do this.
+          </p>
         </div>
       )}
+
+      <div className="divide-y divide-line rounded-lg border border-line">
+        {ALERTS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => toggle(key)}
+            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+          >
+            <span className="min-w-0 truncate text-sm">{label}</span>
+            <span
+              className={`flex h-6 w-10 shrink-0 items-center rounded-full px-0.5 transition-colors ${
+                prefs[key] ? 'justify-end bg-gold' : 'justify-start bg-white/15'
+              }`}
+            >
+              <span className="h-5 w-5 rounded-full bg-white shadow" />
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {subscribed ? (
+          <button onClick={disable} disabled={busy} className="btn-ghost px-3 py-1.5 text-xs text-loss disabled:opacity-50">
+            Turn off on this device
+          </button>
+        ) : (
+          <button
+            onClick={enable}
+            disabled={busy || needsInstall}
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy ? 'Enabling…' : needsInstall ? 'Add to Home Screen first' : 'Turn on notifications'}
+          </button>
+        )}
+        {subscribed && (
+          <button
+            onClick={async () => {
+              const res = await fetch('/api/push/preferences', { method: 'POST' });
+              const result = await res.json().catch(() => ({ sent: 0 }));
+              setNote(result.sent > 0 ? 'Test alert sent.' : `Test failed — ${result.error ?? 'no reason given'}`);
+            }}
+            className="btn-ghost px-3 py-1.5 text-xs"
+          >
+            Send test
+          </button>
+        )}
+      </div>
+
+      {note && <p className="text-[11px] text-muted">{note}</p>}
     </div>
   );
 }
