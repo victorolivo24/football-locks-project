@@ -49,6 +49,9 @@ export default function TicketBuilder({ games, week, myPicks, defaultOpen = fals
     });
   };
 
+  // Only offer a way back once the ticket actually differs from the real one.
+  const changed = JSON.stringify(selection) !== JSON.stringify(initial);
+
   const chosen = board.filter(entry => selection[entry.game.id]);
   const probabilities = chosen.map(entry =>
     selection[entry.game.id] === entry.game.homeTeam ? entry.homeProbability : entry.awayProbability
@@ -77,18 +80,22 @@ export default function TicketBuilder({ games, week, myPicks, defaultOpen = fals
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setSelection(initial)}
-            className="text-xs font-semibold text-white/70 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 transition-colors"
-          >
-            Reset
-          </button>
-          <button
-            onClick={() => setOpen(!open)}
-            className="text-xs font-bold text-yellow-300 bg-yellow-400/10 hover:bg-yellow-400/20 border border-yellow-400/30 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            {open ? 'Hide board' : 'Pick games'}
-          </button>
+          {changed && (
+            <button
+              onClick={() => setSelection(initial)}
+              className="text-xs font-semibold text-white/70 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 transition-colors"
+            >
+              Back to my picks
+            </button>
+          )}
+          {!defaultOpen && (
+            <button
+              onClick={() => setOpen(!open)}
+              className="text-xs font-bold text-yellow-300 bg-yellow-400/10 hover:bg-yellow-400/20 border border-yellow-400/30 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {open ? 'Hide board' : 'Pick games'}
+            </button>
+          )}
         </div>
       </div>
 
