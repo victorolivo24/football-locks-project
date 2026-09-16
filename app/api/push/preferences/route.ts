@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       rivalBust: row.rivalBust,
       rivalHit: row.rivalHit,
       lockReminder: row.lockReminder,
+      sweat: row.sweat,
     },
   });
 }

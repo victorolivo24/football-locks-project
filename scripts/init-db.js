@@ -88,6 +88,10 @@ async function main() {
     )`;
 
     await sql`alter table pushsubscriptions add column if not exists lockreminder boolean not null default true`;
+    await sql`alter table pushsubscriptions add column if not exists sweat boolean not null default true`;
+    await sql`alter table games add column if not exists homewinlow real`;
+    await sql`alter table games add column if not exists homewinhigh real`;
+    await sql`alter table games add column if not exists homewinprob real`;
 
     const tables = await sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`;
     console.log(`Initialized tables: ${tables.map((row) => row.table_name).join(', ')}`);

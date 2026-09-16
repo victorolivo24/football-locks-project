@@ -174,6 +174,17 @@ needs `CRON_SECRET` set as a repository secret.
 desktop do not. The setup card walks through the Safari steps when it detects
 an iPhone that has not installed yet.
 
+## Backups
+
+`.github/workflows/backup.yml` dumps the database every night and keeps 30 days
+as workflow artifacts. The repo is public, so dumps are encrypted with the
+`BACKUP_PASSPHRASE` repo secret — keep a copy of it outside the repo, since the
+artifacts are useless without it. Restore:
+
+```bash
+gpg --decrypt backup.sql.gz.gpg | gunzip | psql "$DATABASE_URL"
+```
+
 ## API Routes
 
 ### Authentication

@@ -676,3 +676,56 @@ const TEST_ALERTS: Array<{ title: string; body: string }> = [
 export function testAlert(): { title: string; body: string } {
   return TEST_ALERTS[Math.floor(Math.random() * TEST_ALERTS.length)];
 }
+
+/** Titles for a lock whose win probability just dropped under the sweat line. */
+const SWEAT_OWN: Array<(c: QuipContext) => string> = [
+  c => `Your ${c.team} are in trouble`,
+  c => 'This is fine',
+  c => 'Do not look at the score',
+  c => 'You may want to sit down',
+  c => 'Breathe. It is only your whole week',
+  c => `The ${c.team} have chosen violence, against you`,
+  c => 'Now would be a good time to stop watching',
+];
+
+const SWEAT_RIVAL: Array<(c: QuipContext) => string> = [
+  c => `${c.who} ${c.plural ? 'are' : 'is'} sweating`,
+  c => `${c.who} ${c.plural ? 'have' : 'has'} stopped refreshing the app`,
+  c => `Somebody check on ${c.who}`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} doing breathing exercises`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} pacing the living room`,
+  c => `Thoughts and prayers for ${c.who}`,
+  c => `${c.who} ${c.plural ? 'are' : 'is'} negotiating with a higher power`,
+];
+
+/** Titles for a lock that dipped under the sweat line and still won. */
+const COMEBACK_OWN: Array<(c: QuipContext) => string> = [
+  c => 'You survived that. Barely',
+  c => 'Your heart rate can come down now',
+  c => 'That should not have worked',
+  c => 'You will never speak of this again',
+  c => `The ${c.team} put you through it and still delivered`,
+];
+
+const COMEBACK_RIVAL: Array<(c: QuipContext) => string> = [
+  c => `${c.who} survived that somehow`,
+  c => `${c.who} will pretend ${c.plural ? 'they were' : 'he was'} never worried`,
+  c => `${c.who} aged five years and lived`,
+  c => `Against all logic, ${c.who} ${c.plural ? 'are' : 'is'} fine`,
+  c => `${c.who} escaped. Unfortunately`,
+];
+
+/**
+ * A close-call title: mid-game for a lock in trouble, or at the final whistle
+ * for one that came back. Your own lock is spoken to directly; anyone else's
+ * is narrated.
+ */
+export function sweatQuip(context: QuipContext, survived: boolean, own: boolean): string {
+  const written = survived
+    ? (own ? COMEBACK_OWN : COMEBACK_RIVAL)
+    : (own ? SWEAT_OWN : SWEAT_RIVAL);
+  return weighted([
+    { weight: 3, lines: written.map(fn => fn(context)) },
+    { weight: 1, lines: ABSURD_ANY },
+  ], context.seed);
+}

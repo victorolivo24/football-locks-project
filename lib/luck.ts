@@ -1,3 +1,5 @@
+import { isSameTeam } from './teams';
+
 /**
  * Market-implied expectation for all-or-nothing tickets.
  *
@@ -116,4 +118,39 @@ export function evCurve(sortedProbabilities: number[], maxN = 8): EvTier[] {
 export function bestLockCount(curve: EvTier[]): number {
   if (curve.length === 0) return 0;
   return curve.reduce((best, tier) => (tier.expected > best.expected ? tier : best), curve[0]).n;
+}
+
+export interface LiveGame {
+  homeTeam: string;
+  awayTeam: string;
+  status: string;
+  winnerTeam?: string | null;
+  homeWinProb?: number | null;
+  homeMoneyline?: number | null;
+  awayMoneyline?: number | null;
+}
+
+/**
+ * Chance a side wins, as of right now: settled once final, ESPN's live number
+ * during the game, the devigged closing line before kickoff.
+ */
+export function sideWinChance(game: LiveGame, homeSide: boolean): number | null {
+  if (game.status === 'final') {
+    if (!game.winnerTeam) return 0; // a tie is a miss
+    return isSameTeam(game.winnerTeam, homeSide ? game.homeTeam : game.awayTeam) ? 1 : 0;
+  }
+  if (game.status === 'in_progress' && game.homeWinProb != null) {
+    return homeSide ? game.homeWinProb : 1 - game.homeWinProb;
+  }
+  if (game.homeMoneyline != null && game.awayMoneyline != null) {
+    const home = fairWinProbability(game.homeMoneyline, game.awayMoneyline);
+    return homeSide ? home : 1 - home;
+  }
+  return null;
+}
+
+/** Live chance a whole ticket cashes. Null if any leg has no number yet. */
+export function liveTicketChance(legs: Array<number | null>): number | null {
+  if (legs.length === 0 || legs.some(l => l === null)) return null;
+  return legs.reduce((product: number, l) => product * (l as number), 1);
 }

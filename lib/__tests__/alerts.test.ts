@@ -233,4 +233,70 @@ describe('buildAlerts', () => {
     expect(rival.body).toContain('Dakota lost that lock');
     expect(rival.body).not.toContain('Racine');
   });
+
+  describe('close calls', () => {
+    const sweats = (msgs: ReturnType<typeof buildAlerts>) => msgs.filter(m => m.kind === 'sweat');
+
+    it('fires once when a lock drops under the sweat line mid-game', () => {
+      const msgs = buildAlerts(
+        [game({ status: 'in_progress', homeWinLow: 0.4, homeWinHigh: 0.7 })],
+        [game({ status: 'in_progress', homeWinLow: 0.18, homeWinHigh: 0.7 })],
+        picks, players, URL
+      );
+      expect(sweats(msgs).map(m => m.userId)).toEqual([1, 2, 3]);
+      expect(sweats(msgs)[0].body).toContain('down to 18%');
+      expect(sweats(msgs)[1].body).toContain('Victor has them');
+    });
+
+    it('does not fire again while it stays under the line', () => {
+      const msgs = buildAlerts(
+        [game({ status: 'in_progress', homeWinLow: 0.18, homeWinHigh: 0.7 })],
+        [game({ status: 'in_progress', homeWinLow: 0.12, homeWinHigh: 0.7 })],
+        picks, players, URL
+      );
+      expect(sweats(msgs)).toEqual([]);
+    });
+
+    it('reads the away side from the home high', () => {
+      const awayPick: PickRow[] = [{ userId: 1, gameId: 10, pickedTeam: 'New England Patriots' }];
+      const msgs = buildAlerts(
+        [game({ status: 'in_progress', homeWinLow: 0.3, homeWinHigh: 0.6 })],
+        [game({ status: 'in_progress', homeWinLow: 0.3, homeWinHigh: 0.85 })],
+        awayPick, players, URL
+      );
+      expect(sweats(msgs)[0].body).toContain('Patriots are down to 15%');
+    });
+
+    it('announces a comeback when a dipped lock wins', () => {
+      const msgs = buildAlerts(
+        [game({ status: 'in_progress', homeWinLow: 0.1, homeWinHigh: 0.9 })],
+        [game({ status: 'final', winnerTeam: 'Seattle Seahawks', homeWinLow: 0.1, homeWinHigh: 1 })],
+        picks, players, URL
+      );
+      expect(sweats(msgs)[0].body).toContain('came back from 10%');
+    });
+
+    it('says nothing about a lock that never got close', () => {
+      const msgs = buildAlerts(
+        [game({ status: 'in_progress', homeWinLow: 0.5, homeWinHigh: 0.8 })],
+        [game({ status: 'final', winnerTeam: 'Seattle Seahawks', homeWinLow: 0.45, homeWinHigh: 1 })],
+        picks, players, URL
+      );
+      expect(sweats(msgs)).toEqual([]);
+    });
+
+    it('stays quiet about a player who is already out', () => {
+      const dead = { id: 20, homeTeam: 'Detroit Lions', awayTeam: 'New Orleans Saints', status: 'final', winnerTeam: 'New Orleans Saints' };
+      const twoLocks: PickRow[] = [
+        { userId: 1, gameId: 20, pickedTeam: 'Detroit Lions' },
+        { userId: 1, gameId: 10, pickedTeam: 'Seattle Seahawks' },
+      ];
+      const msgs = buildAlerts(
+        [dead, game({ status: 'in_progress', homeWinLow: 0.4, homeWinHigh: 0.7 })],
+        [dead, game({ status: 'in_progress', homeWinLow: 0.1, homeWinHigh: 0.7 })],
+        twoLocks, players, URL
+      );
+      expect(sweats(msgs)).toEqual([]);
+    });
+  });
 });

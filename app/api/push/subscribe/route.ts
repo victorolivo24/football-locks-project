@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       rivalBust: prefs.rivalBust ?? true,
       rivalHit: prefs.rivalHit ?? false,
       lockReminder: prefs.lockReminder ?? true,
+      sweat: prefs.sweat ?? true,
     };
 
     // The endpoint is the device's identity, so re-subscribing updates in

@@ -19,6 +19,11 @@ export const games = pgTable('games', {
   status: text('status').notNull().default('scheduled'),
   homeScore: integer('homescore'),
   awayScore: integer('awayscore'),
+  // Lowest and highest home win probability seen during the game, for close-call alerts.
+  homeWinLow: real('homewinlow'),
+  homeWinHigh: real('homewinhigh'),
+  // Latest live home win probability, for the gameday view.
+  homeWinProb: real('homewinprob'),
 });
 // Picks table - one row per user per game
 export const picks = pgTable('picks', {
@@ -69,6 +74,7 @@ export const pushSubscriptions = pgTable('pushsubscriptions', {
   rivalBust: boolean('rivalbust').notNull().default(true),
   rivalHit: boolean('rivalhit').notNull().default(false),
   lockReminder: boolean('lockreminder').notNull().default(true),
+  sweat: boolean('sweat').notNull().default(true),
   createdAt: timestamp('createdat', { withTimezone: true }).notNull().defaultNow(),
 });
 

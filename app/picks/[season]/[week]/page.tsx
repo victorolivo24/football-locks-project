@@ -8,6 +8,7 @@ import TicketBuilder from '@/components/TicketBuilder';
 import { DateTime } from 'luxon';
 import { normalizeTeam, isSameTeam } from '@/lib/teams';
 import { parlayForPicks, moneylineForPick, findGameForPick } from '@/lib/gameOdds';
+import { sideWinChance, liveTicketChance } from '@/lib/luck';
 
 interface Game {
   id: number;
@@ -20,6 +21,7 @@ interface Game {
   awayScore?: number | null;
   // Lines stored for the week, attached by /api/schedule.
   homeMoneyline?: number | null;
+  homeWinProb?: number | null;
   awayMoneyline?: number | null;
   spread?: string | null;
   total?: number | null;
@@ -249,6 +251,10 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
               const busted = isUserBusted(u);
               const perfect = isUserPerfect(u);
               const parlay = parlayForPicks(picks, games);
+              const ticketChance = liveTicketChance(picks.map((p) => {
+                const g = findGameForPick(p, games);
+                return g ? sideWinChance(g, isSameTeam(p.pickedTeam, g.homeTeam)) : null;
+              }));
               
               return (
                 <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
@@ -271,8 +277,13 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                           {parlay.americanOdds}
                         </span>
                         <span className="text-white/60 text-xs">
-                          ({parlay.impliedProb}% implied win)
+                          ({parlay.impliedProb}% at lock)
                         </span>
+                        {ticketChance !== null && !busted && !perfect && (
+                          <span className="font-black text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-300 border border-green-400/30">
+                            {Math.round(ticketChance * 100)}% now
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="text-yellow-300 font-semibold text-sm">Hasn’t submitted yet</div>
@@ -442,6 +453,20 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
                       <span className={`text-2xl font-black tabular-nums ${homeWon ? 'text-green-300' : 'text-white/70'}`}>
                         {g.homeScore}
                       </span>
+                    </div>
+                  )}
+
+                  {g.status === 'in_progress' && g.homeWinProb != null && (
+                    <div className="px-4 py-2 border-b border-white/5 bg-black/10">
+                      <div className="flex justify-between text-[11px] font-bold text-white/80 mb-1">
+                        <span>{normalizeTeam(g.awayTeam)} {Math.round((1 - g.homeWinProb) * 100)}%</span>
+                        <span className="text-white/40 font-semibold">win probability</span>
+                        <span>{normalizeTeam(g.homeTeam)} {Math.round(g.homeWinProb * 100)}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden flex">
+                        <div className="bg-cyan-400" style={{ width: `${(1 - g.homeWinProb) * 100}%` }} />
+                        <div className="bg-pink-400 flex-1" />
+                      </div>
                     </div>
                   )}
                   

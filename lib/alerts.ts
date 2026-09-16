@@ -1,6 +1,6 @@
 import { isSameTeam, normalizeTeam } from './teams';
 import type { AlertKind, PushMessage } from './push';
-import { bustQuip, hitQuip, ownQuip, startQuip, closer, QuipContext } from './quips';
+import { bustQuip, hitQuip, ownQuip, startQuip, sweatQuip, closer, QuipContext } from './quips';
 import { DateTime } from 'luxon';
 
 export interface GameState {
@@ -12,7 +12,12 @@ export interface GameState {
   winnerTeam: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
+  homeWinLow?: number | null;
+  homeWinHigh?: number | null;
 }
+
+/** Win probability a lock has to fall under before anyone is told it is in trouble. */
+export const SWEAT_LINE = 0.25;
 
 export interface PickRow {
   userId: number;
@@ -99,6 +104,52 @@ export function buildAlerts(
           `${matchup} just kicked off. You have ${normalizeTeam(pick.pickedTeam)}. ${closer(`start:${gameId}:${pick.userId}`)}`,
           `start:${gameId}`
         );
+      }
+    }
+
+    // Close calls. A lock falling under the sweat line mid-game, and a lock
+    // that fell under it but won anyway. The low only ever drops, so each
+    // crossing is seen once however often the refresh runs.
+    const lowFor = (g: GameState, homeSide: boolean): number | null =>
+      homeSide ? g.homeWinLow ?? null : (g.homeWinHigh == null ? null : 1 - g.homeWinHigh);
+
+    for (const side of [game.homeTeam, game.awayTeam]) {
+      const homeSide = side === game.homeTeam;
+      const low = lowFor(game, homeSide);
+      if (low === null || low >= SWEAT_LINE) continue;
+
+      const prevLow = lowFor(was, homeSide);
+      const sweating = game.status === 'in_progress' && (prevLow === null || prevLow >= SWEAT_LINE);
+      const survived = was.status !== 'final' && game.status === 'final'
+        && !!game.winnerTeam && isSameTeam(game.winnerTeam, side);
+      if (!sweating && !survived) continue;
+
+      const sideBackers = backers
+        .filter(p => !out.has(p.userId) && isSameTeam(p.pickedTeam, side))
+        .map(p => p.userId);
+      if (sideBackers.length === 0) continue;
+
+      const team = normalizeTeam(side);
+      const pct = Math.round(low * 100);
+      const state = survived ? `came back from ${pct}% to win` : `are down to ${pct}% to win`;
+
+      for (const player of players) {
+        const own = sideBackers.includes(player.id);
+        const names = sideBackers.filter(id => id !== player.id)
+          .map(id => nameOf.get(id)).filter(Boolean) as string[];
+        if (!own && names.length === 0) continue;
+
+        const who = own ? 'you' : listNames(names);
+        const seed = `${survived ? 'comeback' : 'sweat'}:${gameId}:${team}:${player.id}`;
+        const title = sweatQuip({
+          who, plural: !own && names.length > 1, team, margin: null, earlyWeek: false,
+          lockCount: null, survivors: null, locksHit: null, seed,
+        }, survived, own);
+        const body = own
+          ? `The ${team} ${state}. You have them. ${closer(seed)}`
+          : `The ${team} ${state}. ${who} ${names.length > 1 ? 'have' : 'has'} them. ${closer(seed)}`;
+
+        add(player.id, 'sweat', title, body, seed);
       }
     }
 

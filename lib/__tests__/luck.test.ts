@@ -7,6 +7,9 @@ import {
   slateProbabilities,
   evCurve,
   bestLockCount,
+  sideWinChance,
+  liveTicketChance,
+  LiveGame,
 } from '../luck';
 
 const close = (a: number, b: number, tolerance = 0.001) => expect(Math.abs(a - b)).toBeLessThan(tolerance);
@@ -138,5 +141,40 @@ describe('evCurve', () => {
   it('is empty for an unpriced slate', () => {
     expect(evCurve([])).toHaveLength(0);
     expect(bestLockCount([])).toBe(0);
+  });
+});
+
+describe('live chances', () => {
+  const g = (over: Partial<LiveGame> = {}): LiveGame => ({
+    homeTeam: 'Seattle Seahawks', awayTeam: 'New England Patriots', status: 'scheduled',
+    winnerTeam: null, homeWinProb: null, homeMoneyline: -166, awayMoneyline: 142, ...over,
+  });
+
+  it('uses the closing line before kickoff', () => {
+    close(sideWinChance(g(), true)!, fairWinProbability(-166, 142));
+  });
+
+  it('switches to the live number once the game is on', () => {
+    expect(sideWinChance(g({ status: 'in_progress', homeWinProb: 0.3 }), true)).toBe(0.3);
+    close(sideWinChance(g({ status: 'in_progress', homeWinProb: 0.3 }), false)!, 0.7);
+  });
+
+  it('settles to 1 or 0 at the final, with a tie as a miss', () => {
+    expect(sideWinChance(g({ status: 'final', winnerTeam: 'Seattle Seahawks' }), true)).toBe(1);
+    expect(sideWinChance(g({ status: 'final', winnerTeam: 'Seattle Seahawks' }), false)).toBe(0);
+    expect(sideWinChance(g({ status: 'final', winnerTeam: null }), true)).toBe(0);
+    // Winners are stored as nicknames while teams are stored in full.
+    expect(sideWinChance(g({ status: 'final', winnerTeam: 'Seahawks' }), true)).toBe(1);
+  });
+
+  it('has no number with neither a line nor a live feed', () => {
+    expect(sideWinChance(g({ homeMoneyline: null, awayMoneyline: null }), true)).toBeNull();
+  });
+
+  it('multiplies the legs, and a dead leg kills the ticket', () => {
+    close(liveTicketChance([1, 0.5, 0.8])!, 0.4);
+    expect(liveTicketChance([1, 0, 0.9])).toBe(0);
+    expect(liveTicketChance([0.5, null])).toBeNull();
+    expect(liveTicketChance([])).toBeNull();
   });
 });

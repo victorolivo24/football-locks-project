@@ -1,7 +1,8 @@
 import { db } from './db';
-import { picks } from './db/schema';
+import { games, picks } from './db/schema';
 import { and, eq } from 'drizzle-orm';
 import { fetchNFLSchedule, upsertGames, getGamesForWeek } from './nfl';
+import { isSameTeam } from './teams';
 import { calculateAllWeeklyScores } from './scoring';
 import { buildAlerts, GameState } from './alerts';
 import { sendAlerts } from './push';
@@ -23,6 +24,7 @@ export async function refreshWeekResults(season: number, week: number): Promise<
   const before = await getGamesForWeek(season, week);
 
   await upsertGames(gamesData);
+  await recordWinProbability(gamesData, before);
   await calculateAllWeeklyScores(season, week);
 
   const after = await getGamesForWeek(season, week);
@@ -59,4 +61,43 @@ async function notifyWeekChanges(
     // Never let a notification failure break scoring.
     console.error('Alert dispatch failed:', error);
   }
+}
+
+/**
+ * Store live win probability for games in play, and for games that finished
+ * since the last refresh so a comeback is still caught at the final whistle.
+ *
+ * ESPN's summary carries the whole in-game probability curve, so the low and
+ * high are taken over all of it — a dip is caught even if no refresh happened
+ * to run at that moment.
+ */
+async function recordWinProbability(gamesData: any[], before: any[]) {
+  await Promise.all(gamesData.map(async (espn) => {
+    const stored = before.find(g => isSameTeam(g.homeTeam, espn.homeTeam) && isSameTeam(g.awayTeam, espn.awayTeam));
+    if (!stored) return;
+
+    const inPlay = espn.status === 'in_progress' || (espn.status === 'final' && stored.status !== 'final');
+    if (!inPlay) return;
+
+    try {
+      const res = await fetch(
+        `https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${espn.id}`,
+        { cache: 'no-store' }
+      );
+      if (!res.ok) return;
+      const curve = ((await res.json()).winprobability ?? [])
+        .map((p: any) => Number(p.homeWinPercentage))
+        .filter((v: number) => Number.isFinite(v));
+      if (curve.length === 0) return;
+
+      await db.update(games).set({
+        homeWinLow: Math.min(...curve),
+        homeWinHigh: Math.max(...curve),
+        homeWinProb: curve[curve.length - 1],
+      }).where(eq(games.id, stored.id));
+    } catch (error) {
+      // Win probability is decoration; never let it break scoring.
+      console.error('Win probability fetch failed:', error);
+    }
+  }));
 }

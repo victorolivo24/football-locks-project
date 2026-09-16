@@ -8,14 +8,16 @@ type Prefs = {
   rivalBust: boolean;
   rivalHit: boolean;
   lockReminder: boolean;
+  sweat: boolean;
 };
 
-const DEFAULTS: Prefs = { gameStart: true, gameFinal: true, rivalBust: true, rivalHit: false, lockReminder: true };
+const DEFAULTS: Prefs = { gameStart: true, gameFinal: true, rivalBust: true, rivalHit: false, lockReminder: true, sweat: true };
 
 const ALERTS: Array<{ key: keyof Prefs; label: string }> = [
   { key: 'lockReminder', label: 'Picks are about to lock' },
   { key: 'gameStart', label: 'A game I locked kicks off' },
   { key: 'gameFinal', label: 'A game I locked finishes' },
+  { key: 'sweat', label: 'Someone is in a close call' },
   { key: 'rivalBust', label: 'Someone else busts' },
   { key: 'rivalHit', label: "Someone else's lock hits" },
 ];
