@@ -65,9 +65,13 @@ async function readBoard(season: number, week: number) {
   const rankByGame = new Map<number, number>();
   priced.forEach((game, index) => rankByGame.set(game.gameId, index));
 
-  const weekPicks = await db.query.picks.findMany({
-    where: and(eq(picks.season, season), eq(picks.week, week)),
-  }).catch(() => []);
+  // Same rule as the stats: nobody's ticket counts until the week kicks off.
+  const started = weekGames.some(g => new Date(g.startTime as any).getTime() <= Date.now());
+  const weekPicks = started
+    ? await db.query.picks.findMany({
+        where: and(eq(picks.season, season), eq(picks.week, week)),
+      }).catch(() => [])
+    : [];
 
   // Only count a pick as taking the board position if they backed the
   // favourite; siding with a dog is a different bet than that rank represents.

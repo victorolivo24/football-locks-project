@@ -252,9 +252,16 @@ export async function getSeasonInsights(season: number, currentWeekOverride?: nu
     orderBy: (games, { asc }) => [asc(games.startTime)],
   });
 
-  const seasonPicks = await db.query.picks.findMany({
+  // A week's picks only count once its first game kicks off. Before that they
+  // are private and still editable, and letting them move the odds lets anyone
+  // who submits early shift the board for everyone else.
+  const now = Date.now();
+  const lockedWeeks = new Set(
+    seasonGames.filter(g => new Date(g.startTime as any).getTime() <= now).map(g => g.week)
+  );
+  const seasonPicks = (await db.query.picks.findMany({
     where: (picks, { eq }) => eq(picks.season, season),
-  });
+  })).filter(p => lockedWeeks.has(p.week));
 
   const seasonScores = await db.query.weeklyScores.findMany({
     where: (weeklyScores, { eq }) => eq(weeklyScores.season, season),
