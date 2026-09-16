@@ -83,10 +83,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
           <button
             onClick={() => setSettingsOpen(true)}
-            aria-label="Settings"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-muted hover:bg-white/5 hover:text-text"
+            className="btn-ghost gap-1.5 px-3 py-1.5 text-xs"
           >
-            ⚙️
+            🔔 Notifications
           </button>
         </div>
       </header>
@@ -119,7 +118,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <div className="absolute inset-0 bg-black/60" onClick={() => setSettingsOpen(false)} />
           <div className="relative h-full w-full max-w-md space-y-4 overflow-y-auto border-l border-line bg-ink p-4">
             <div className="flex items-center justify-between">
-              <h2 className="section-title">Settings</h2>
+              <h2 className="section-title">Notifications</h2>
               <button onClick={() => setSettingsOpen(false)} className="btn-ghost px-3 py-1.5 text-xs">
                 Close
               </button>

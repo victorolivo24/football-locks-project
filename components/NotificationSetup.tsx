@@ -180,7 +180,6 @@ export default function NotificationSetup() {
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="section-title">Notifications</h3>
         <p className="text-xs text-muted">
           {subscribed ? 'On for this device.' : 'Know the second someone busts, without opening the app.'}
         </p>
