@@ -13,13 +13,13 @@ type Prefs = {
 
 const DEFAULTS: Prefs = { gameStart: true, gameFinal: true, rivalBust: true, rivalHit: false, lockReminder: true, sweat: true };
 
-const ALERTS: Array<{ key: keyof Prefs; label: string }> = [
-  { key: 'lockReminder', label: 'Picks are about to lock' },
-  { key: 'gameStart', label: 'A game I locked kicks off' },
-  { key: 'gameFinal', label: 'A game I locked finishes' },
-  { key: 'sweat', label: 'Someone is in a close call' },
-  { key: 'rivalBust', label: 'Someone else busts' },
-  { key: 'rivalHit', label: "Someone else's lock hits" },
+const ALERTS: Array<{ key: keyof Prefs; label: string; hint: string }> = [
+  { key: 'lockReminder', label: 'Reminder to submit', hint: "Only if you haven't submitted yet. The day before picks lock, and the afternoon of." },
+  { key: 'gameStart', label: 'My games kick off', hint: 'When a team you locked starts playing.' },
+  { key: 'gameFinal', label: 'My results', hint: 'When a team you locked wins or loses, with the final score.' },
+  { key: 'sweat', label: 'Close calls', hint: "When anyone's locked team drops under 25% to win mid-game, and again if it comes back to win." },
+  { key: 'rivalBust', label: 'Others miss', hint: "When someone else's locked team loses." },
+  { key: 'rivalHit', label: 'Others hit', hint: "When someone else's locked team wins." },
 ];
 
 /** base64url VAPID key to the ArrayBuffer the Push API wants. */
@@ -205,13 +205,16 @@ export default function NotificationSetup() {
       )}
 
       <div className="divide-y divide-line rounded-lg border border-line">
-        {ALERTS.map(({ key, label }) => (
+        {ALERTS.map(({ key, label, hint }) => (
           <button
             key={key}
             onClick={() => toggle(key)}
             className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
           >
-            <span className="min-w-0 truncate text-sm">{label}</span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">{label}</span>
+              <span className="block text-[11px] text-muted">{hint}</span>
+            </span>
             <span
               className={`flex h-6 w-10 shrink-0 items-center rounded-full px-0.5 transition-colors ${
                 prefs[key] ? 'justify-end bg-gold' : 'justify-start bg-white/15'
