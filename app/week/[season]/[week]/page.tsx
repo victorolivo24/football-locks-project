@@ -51,6 +51,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
   const isLocked = isPicksLocked(season, week);
   const lockTimeDisplay = getLockTime(season, week).toFormat('cccc h:mm a') + ' ET';
   const hasSubmitted = myPicks.length > 0;
+  const [calcOpen, setCalcOpen] = useState(false);
 
   // Seed the calculator with whatever ticket is on the page right now.
   const calcSeed = useMemo(
@@ -658,8 +659,6 @@ export default function WeekPage({ params }: { params: { season: string; week: s
               </div>
             </div>
 
-            <TicketBuilder games={games} week={week} myPicks={calcSeed} />
-
             {/* Scoring reminder card */}
             <div className="glass-section p-4 text-xs text-green-200/80 space-y-1.5">
               <div className="font-bold text-white text-sm mb-1">⚡ League Rules</div>
@@ -671,6 +670,27 @@ export default function WeekPage({ params }: { params: { season: string; week: s
         </div>
       </main>
 
+      <button
+        onClick={() => setCalcOpen(true)}
+        className="fixed bottom-5 right-5 z-40 bg-gradient-to-r from-yellow-500 to-amber-400 text-black font-bold text-sm px-4 py-3 rounded-full shadow-2xl hover:from-yellow-400"
+      >
+        🎛️ Calculator
+      </button>
+
+      {calcOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setCalcOpen(false)} />
+          <div className="relative w-full max-w-md h-full overflow-y-auto bg-[#061b10] border-l border-white/10 p-4 space-y-3">
+            <button
+              onClick={() => setCalcOpen(false)}
+              className="text-xs font-semibold text-white/70 hover:text-white bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg"
+            >
+              ✕ Close
+            </button>
+            <TicketBuilder games={games} week={week} myPicks={calcSeed} defaultOpen />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
