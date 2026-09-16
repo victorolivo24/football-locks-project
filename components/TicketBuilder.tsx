@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import TeamLogo from '@/components/TeamLogo';
 import { rankedBoard, ticketProbability, expectedPoints } from '@/lib/luck';
 
@@ -18,12 +18,14 @@ interface Props {
   week: number | null;
   /** The viewer's real picks, so the builder opens on their actual ticket. */
   myPicks: Array<{ gameId: number; pickedTeam: string }>;
+  /** Start with the game list expanded, for when the builder has its own panel. */
+  defaultOpen?: boolean;
 }
 
 /** gameId -> the team taken in that game. */
 type Selection = Record<number, string>;
 
-export default function TicketBuilder({ games, week, myPicks }: Props) {
+export default function TicketBuilder({ games, week, myPicks, defaultOpen = false }: Props) {
   const board = useMemo(() => rankedBoard(games), [games]);
 
   const initial = useMemo<Selection>(() => {
@@ -33,7 +35,10 @@ export default function TicketBuilder({ games, week, myPicks }: Props) {
   }, [myPicks]);
 
   const [selection, setSelection] = useState<Selection>(initial);
-  const [open, setOpen] = useState(false);
+
+  // Follow the real ticket as it changes, e.g. picks being made on the page.
+  useEffect(() => setSelection(initial), [initial]);
+  const [open, setOpen] = useState(defaultOpen);
 
   const toggle = (gameId: number, team: string) => {
     setSelection((current) => {
@@ -57,10 +62,7 @@ export default function TicketBuilder({ games, week, myPicks }: Props) {
   const bestExpected = expectedPoints(bestSameSize);
   const gap = expected - bestExpected;
 
-  // Strictly a look-back. Before the slate starts this would be a cheat sheet
-  // for picks that have not locked yet, so it stays hidden until kickoff.
-  const kickedOff = board.some(entry => new Date(entry.game.startTime).getTime() <= Date.now());
-  if (board.length === 0 || !kickedOff) return null;
+  if (board.length === 0) return null;
 
   return (
     <div className="glass-card p-6 space-y-4">
@@ -71,7 +73,7 @@ export default function TicketBuilder({ games, week, myPicks }: Props) {
             <h2 className="text-xl font-bold text-white">Build a Ticket</h2>
           </div>
           <p className="text-xs text-green-200/80 mt-1">
-            Your Week {week} ticket. Swap games to see what a different slate would have been worth.
+            Your Week {week} ticket. Swap games to see what a different slate is worth.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
