@@ -154,3 +154,26 @@ export function liveTicketChance(legs: Array<number | null>): number | null {
   if (legs.length === 0 || legs.some(l => l === null)) return null;
   return legs.reduce((product: number, l) => product * (l as number), 1);
 }
+
+/**
+ * Chance a ticket cashes by the betting lines alone. Lines stop updating at
+ * kickoff, so for a started game this is its closing number — "at lock" is
+ * deliberately never the live figure, so the two can be shown side by side.
+ */
+export function atLockChance(
+  picks: Array<{ gameId: number | null; pickedTeam: string }>,
+  games: Array<{ id: number; homeTeam: string; homeMoneyline?: number | null; awayMoneyline?: number | null }>
+): number | null {
+  if (picks.length === 0) return null;
+  let chance = 1;
+  for (const pick of picks) {
+    const game = games.find(g => Number(g.id) === Number(pick.gameId));
+    if (!game || game.homeMoneyline == null || game.awayMoneyline == null) return null;
+    const home = isSameTeam(pick.pickedTeam, game.homeTeam);
+    chance *= fairWinProbability(
+      home ? game.homeMoneyline : game.awayMoneyline,
+      home ? game.awayMoneyline : game.homeMoneyline
+    );
+  }
+  return chance;
+}

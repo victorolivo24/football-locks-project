@@ -9,6 +9,7 @@ import {
   bestLockCount,
   sideWinChance,
   liveTicketChance,
+  atLockChance,
   LiveGame,
 } from '../luck';
 
@@ -176,5 +177,24 @@ describe('live chances', () => {
     expect(liveTicketChance([1, 0, 0.9])).toBe(0);
     expect(liveTicketChance([0.5, null])).toBeNull();
     expect(liveTicketChance([])).toBeNull();
+  });
+});
+
+describe('atLockChance', () => {
+  const games = [
+    { id: 1, homeTeam: 'Seattle Seahawks', homeMoneyline: -166, awayMoneyline: 142 },
+    { id: 2, homeTeam: 'Detroit Lions', homeMoneyline: -310, awayMoneyline: 250 },
+  ];
+
+  it('multiplies each leg by its devigged closing line', () => {
+    close(
+      atLockChance([{ gameId: 1, pickedTeam: 'Seahawks' }, { gameId: 2, pickedTeam: 'New Orleans Saints' }], games)!,
+      fairWinProbability(-166, 142) * fairWinProbability(250, -310)
+    );
+  });
+
+  it('has no number for an empty ticket or an unpriced game', () => {
+    expect(atLockChance([], games)).toBeNull();
+    expect(atLockChance([{ gameId: 9, pickedTeam: 'Bills' }], games)).toBeNull();
   });
 });

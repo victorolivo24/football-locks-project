@@ -2,129 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #061b10; /* deep green */
-  --foreground: #f3f4f6; /* gray-100 */
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #061b10;
-    --foreground: #f3f4f6;
-  }
+html, body {
+  background: #0A0E13;
+  color: #E8EDF2;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  -webkit-tap-highlight-color: transparent;
 }
 
-@layer utilities {
-  .text-balance { text-wrap: balance; }
-
-  /* Subtle football field gradient with yard lines */
-  .football-field {
-    background-image:
-      linear-gradient(160deg, #0a3d1e 0%, #0f4f28 45%, #0b3e21 100%),
-      repeating-linear-gradient(
-        to right,
-        rgba(255, 255, 255, 0.08) 0 1px,
-        transparent 1px 60px
-      );
-    background-blend-mode: overlay;
+@layer components {
+  /* Surfaces */
+  .card {
+    @apply bg-panel border border-line rounded-2xl;
   }
 
-  .glass-card {
-    @apply bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl;
+  .section-title {
+    @apply font-display text-lg font-bold uppercase tracking-wide text-text;
   }
 
-  .glass-section {
-    @apply bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl;
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-muted;
   }
 
-  .btn-gradient {
-    @apply inline-flex items-center justify-center font-bold rounded-xl border-2 shadow-2xl transition-transform duration-200;
+  /* The two signal tags. Gold is always "at lock", pink is always "live". */
+  .tag {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider;
+  }
+  .tag-lock {
+    @apply tag bg-gold-soft text-gold;
+  }
+  .tag-live {
+    @apply tag bg-live-soft text-live;
+  }
+  .tag-muted {
+    @apply tag bg-white/5 text-muted;
+  }
+  .tag-win {
+    @apply tag bg-win-soft text-win;
+  }
+  .tag-loss {
+    @apply tag bg-loss-soft text-loss;
   }
 
-  .btn-yellow {
-    @apply btn-gradient text-black border-yellow-400/50;
-    background-image: linear-gradient(90deg, #f59e0b, #f59e0b, #fbbf24);
+  .live-dot {
+    @apply inline-block h-1.5 w-1.5 rounded-full bg-live animate-pulse;
   }
 
-  .btn-blue {
-    @apply btn-gradient text-white border-blue-500/30;
-    background-image: linear-gradient(90deg, #2563eb, #1d4ed8);
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
   }
-
-  .btn-slate {
-    @apply btn-gradient text-white border-gray-600/50;
-    background-image: linear-gradient(90deg, #374151, #1f2937);
+  .btn-primary {
+    @apply btn bg-gold text-ink hover:brightness-110;
   }
-
   .btn-ghost {
-    @apply inline-flex items-center justify-center font-semibold rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors;
+    @apply btn bg-white/5 text-text border border-line hover:bg-white/10;
   }
 
-  .pick-radio {
-    @apply w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200;
-  }
-}
-
-/* =========================================
-   Disco Theme Utilities (For Gameday View)
-   ========================================= */
-
-@keyframes disco-bg {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes pulse-neon {
-  0%, 100% { box-shadow: 0 0 15px rgba(236, 72, 153, 0.4), 0 0 30px rgba(6, 182, 212, 0.2); }
-  50% { box-shadow: 0 0 25px rgba(236, 72, 153, 0.6), 0 0 50px rgba(6, 182, 212, 0.4); }
-}
-
-@layer utilities {
-  .disco-container {
-    @apply relative overflow-hidden rounded-3xl p-6 shadow-2xl;
-    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #4a00e0, #8e2de2);
-    background-size: 400% 400%;
-    animation: disco-bg 15s ease infinite;
+  .num {
+    @apply font-display tabular-nums;
   }
 
-  .disco-container::before {
-    content: '';
-    position: absolute;
-    top: 0; right: 0; bottom: 0; left: 0;
-    background-image: 
-      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-    background-size: 40px 40px;
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  /* Make sure content sits above the grid */
-  .disco-content {
-    @apply relative z-10;
-  }
-
-  .font-disco {
-    font-family: var(--font-righteous), system-ui, sans-serif;
-    letter-spacing: 0.05em;
-  }
-
-  .disco-card {
-    @apply bg-black/40 backdrop-blur-md border border-pink-500/40 rounded-2xl;
-    animation: pulse-neon 4s infinite alternate;
-  }
-
-  .disco-section {
-    @apply bg-white/10 backdrop-blur-sm border border-cyan-500/30 rounded-xl transition-all duration-300;
-  }
-  
-  .disco-section:hover {
-    @apply border-pink-500/50 bg-white/20;
-  }
+  /* Legacy names still used by the admin page, mapped onto the new look. */
+  .glass-card { @apply card; }
+  .glass-section { @apply bg-raised border border-line rounded-xl; }
+  .btn-yellow { @apply btn-primary; }
+  .football-field { }
 }

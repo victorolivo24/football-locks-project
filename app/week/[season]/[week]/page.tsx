@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
 import { isPicksLocked, getLockTime } from '@/lib/nfl';
+import AppShell, { PageHeader } from '@/components/AppShell';
 import TeamLogo from '@/components/TeamLogo';
 import TicketBuilder from '@/components/TicketBuilder';
 import { isSameTeam, normalizeTeam } from '@/lib/teams';
+import { fairWinProbability, slateProbabilities, evCurve, bestLockCount, atLockChance } from '@/lib/luck';
 
 interface Game {
   id: number;
@@ -18,7 +20,6 @@ interface Game {
   winnerTeam?: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
-  // Lines refreshed daily and attached by /api/schedule.
   homeMoneyline?: number | null;
   awayMoneyline?: number | null;
   spread?: string | null;
@@ -35,25 +36,41 @@ interface User {
   userId: number;
 }
 
+const formatMl = (ml: number | null | undefined) => (ml == null ? '' : ml > 0 ? `+${ml}` : `${ml}`);
+
+function countdown(to: DateTime): string {
+  const diff = to.diff(DateTime.now().setZone('America/New_York'), ['days', 'hours', 'minutes']);
+  if (diff.toMillis() <= 0) return 'Locked';
+  if (diff.days > 0) return `${diff.days}d ${diff.hours}h`;
+  if (diff.hours > 0) return `${diff.hours}h ${Math.floor(diff.minutes)}m`;
+  return `${Math.max(1, Math.floor(diff.minutes))}m`;
+}
+
 export default function WeekPage({ params }: { params: { season: string; week: string } }) {
   const [user, setUser] = useState<User | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [myPicks, setMyPicks] = useState<Pick[]>([]);
   const [picks, setPicks] = useState<Array<{ gameId: number; team?: string }>>([]);
+  const [league, setLeague] = useState<{ users: Array<{ id: number; name: string }>; picksByUser: Record<string, Pick[]> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [, setTick] = useState(0);
   const router = useRouter();
 
   const season = parseInt(params.season);
   const week = parseInt(params.week);
   const isLocked = isPicksLocked(season, week);
-  const lockTimeDisplay = getLockTime(season, week).toFormat('cccc h:mm a') + ' ET';
+  const lockTime = getLockTime(season, week);
   const hasSubmitted = myPicks.length > 0;
-  const [calcOpen, setCalcOpen] = useState(false);
 
-  // Seed the calculator with whatever ticket is on the page right now.
+  // Keep the countdown moving.
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const calcSeed = useMemo(
     () => hasSubmitted
       ? myPicks
@@ -75,32 +92,24 @@ export default function WeekPage({ params }: { params: { season: string; week: s
       } else {
         router.push('/login');
       }
-    } catch (error) {
+    } catch {
       router.push('/login');
     }
   };
 
   // Poll whenever a game SHOULD have a result, not when the database already
-  // says one is live. Status only becomes in_progress because a refresh wrote
-  // it, so gating on that meant polling could never start: the page waited for
-  // a change that only polling could produce.
+  // says one is live: status only changes because a refresh wrote it.
   const needsPolling = games.some(
     (g) => g.status !== 'final' && new Date(g.startTime).getTime() <= Date.now()
   );
 
-  // Cron cannot run more than once a day, so live scores are driven by the page.
   useEffect(() => {
     if (!needsPolling) return;
-
     const tick = async () => {
       await fetch('/api/results/refresh', { method: 'POST' }).catch(() => undefined);
       const res = await fetch(`/api/schedule?season=${season}&week=${week}`).catch(() => null);
-      if (res?.ok) {
-        const data = await res.json();
-        setGames(data.games || []);
-      }
+      if (res?.ok) setGames((await res.json()).games || []);
     };
-
     tick();
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
@@ -108,21 +117,20 @@ export default function WeekPage({ params }: { params: { season: string; week: s
 
   const fetchData = async () => {
     try {
-      // Fetch games
-      const gamesResponse = await fetch(`/api/schedule?season=${season}&week=${week}`);
-      if (gamesResponse.ok) {
-        const gamesData = await gamesResponse.json();
-        setGames(gamesData.games || []);
+      const [gamesRes, picksRes, leagueRes] = await Promise.all([
+        fetch(`/api/schedule?season=${season}&week=${week}`),
+        fetch(`/api/picks/my?season=${season}&week=${week}`),
+        fetch(`/api/picks/all?season=${season}&week=${week}`),
+      ]);
+      if (gamesRes.ok) setGames((await gamesRes.json()).games || []);
+      if (picksRes.ok) setMyPicks((await picksRes.json()).picks || []);
+      // Only readable once you have submitted your own.
+      if (leagueRes.ok) {
+        const data = await leagueRes.json();
+        setLeague({ users: data.users || [], picksByUser: data.picksByUser || {} });
       }
-
-      // Fetch my picks
-      const picksResponse = await fetch(`/api/picks/my?season=${season}&week=${week}`);
-      if (picksResponse.ok) {
-        const picksData = await picksResponse.json();
-        setMyPicks(picksData.picks || []);
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
+    } catch (err) {
+      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
@@ -133,45 +141,15 @@ export default function WeekPage({ params }: { params: { season: string; week: s
     setPicks(prev => {
       const existing = prev.find(p => p.gameId === gameId);
       const rest = prev.filter(p => p.gameId !== gameId);
-
-      // If user clicks the already selected team, uncheck / clear the pick
-      if (existing && existing.team === pickedTeam) {
-        return rest;
-      }
-
+      if (existing && existing.team === pickedTeam) return rest;
       return [...rest, { gameId, team: pickedTeam }];
     });
   };
 
-  const handleClearSinglePick = (gameId: number) => {
+  const handleSubmit = async () => {
     if (isLocked || hasSubmitted) return;
-    setPicks(prev => prev.filter(p => p.gameId !== gameId));
-  };
-
-  const handleClearAllDraftPicks = () => {
-    if (isLocked || hasSubmitted) return;
-    if (picks.length === 0) return;
-    setPicks([]);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isLocked || hasSubmitted) return;
-
     const validPicks = picks.filter(p => !!p.team).map(p => ({ gameId: p.gameId, pickedTeam: p.team! }));
-
-    if (validPicks.length === 0) {
-      alert('Please select at least one game to submit.');
-      return;
-    }
-
-
-
-    const payload = {
-      season,
-      week,
-      picks: validPicks,
-    };
+    if (validPicks.length === 0) return;
 
     setSubmitting(true);
     setError('');
@@ -179,518 +157,258 @@ export default function WeekPage({ params }: { params: { season: string; week: s
       const res = await fetch('/api/picks/submit', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ season, week, picks: validPicks }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || res.statusText);
-      setSuccess('Picks submitted successfully!');
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      window.location.reload();
     } catch (err: any) {
       setError(`Submit failed: ${err.message}`);
-    } finally {
       setSubmitting(false);
     }
   };
 
-  const getPickedTeam = (gameId: number) => {
-    if (hasSubmitted) {
-      const submittedPick = myPicks.find(p => p.gameId === gameId);
-      return submittedPick?.pickedTeam || '';
-    }
-    const pick = picks.find(p => p.gameId === gameId);
-    return pick?.team || '';
-  };
+  const pickedTeamFor = (gameId: number) =>
+    hasSubmitted
+      ? myPicks.find(p => p.gameId === gameId)?.pickedTeam || ''
+      : picks.find(p => p.gameId === gameId)?.team || '';
 
-  const formatGameTime = (startTime: string) => {
-    return DateTime.fromISO(startTime).setZone('America/New_York').toFormat('EEE, MMM d, h:mm a');
-  };
-
-  const pickedCount = picks.filter(p => !!p.team).length;
-
-  if (loading) {
+  if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl text-white">Loading Week {week}...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <span className="font-display text-xl font-bold uppercase tracking-wide text-muted">Loading week {week}…</span>
       </div>
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  const draft = calcSeed;
+  const draftChance = atLockChance(draft, games);
+  const drafting = !isLocked && !hasSubmitted;
+
+  // Sweet spot for this week's board, safest games first.
+  const slateProbs = slateProbabilities(games);
+  const curve = evCurve(slateProbs, 6);
+  const bestN = bestLockCount(curve);
+
+  const status = isLocked
+    ? { tag: 'tag-muted', text: 'Locked' }
+    : hasSubmitted
+      ? { tag: 'tag-win', text: 'Submitted' }
+      : { tag: 'tag-lock', text: `Locks in ${countdown(lockTime)}` };
 
   return (
-    <div className="min-h-screen pb-12">
-      <nav className="relative glass-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <Link href="/" className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <span className="text-black font-bold text-lg">🔒</span>
-                </div>
-                <span className="text-2xl font-bold text-white">NFL Locks</span>
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-green-200 font-medium">Welcome, {user.name}</span>
-            </div>
-          </div>
+    <AppShell>
+      <PageHeader
+        eyebrow={`Season ${season}`}
+        title={`Week ${week}`}
+        right={
+          <button onClick={() => setCalcOpen(true)} className="btn-ghost px-3 py-2 text-xs">
+            🎛️ Ticket Simulator
+          </button>
+        }
+      />
+
+      <div className="card mb-5 flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className={status.tag}>{status.text}</span>
+          <span className="text-sm text-muted">
+            {isLocked ? 'Picks are closed for this week' : `Picks lock ${lockTime.toFormat("ccc h:mm a")} ET`}
+          </span>
         </div>
-      </nav>
-
-      <main className="relative max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {/* Hero Section */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
-            Week {week} Locks
-          </h1>
-          <p className="text-lg text-green-200 mb-4">Season {season}</p>
-          {isLocked && (
-            <div className="inline-flex items-center px-5 py-2.5 bg-red-600/20 border border-red-500/30 rounded-full text-red-200 font-semibold text-sm">
-              <span className="mr-2">🔒</span>
-              Picks are locked for this week ({lockTimeDisplay} deadline passed)
-            </div>
-          )}
-          {!isLocked && hasSubmitted && (
-            <div className="inline-flex items-center px-5 py-2.5 bg-green-600/20 border border-green-500/30 rounded-full text-green-200 font-semibold text-sm">
-              <span className="mr-2">✅</span>
-              You have submitted your picks for Week {week}
-            </div>
-          )}
-          {!isLocked && !hasSubmitted && (
-            <div className="inline-flex items-center px-5 py-2.5 bg-yellow-500/20 border border-yellow-400/40 rounded-full text-yellow-200 font-semibold text-sm">
-              <span className="mr-2">⏳</span>
-              Select your winners below and click Submit Picks before {lockTimeDisplay}
-            </div>
-          )}
-        </div>
-
-        {error && (
-          <div className="mb-6 bg-red-600/20 border border-red-500/30 text-red-200 px-6 py-4 rounded-xl backdrop-blur-sm">
-            <div className="flex items-center">
-              <span className="mr-2">⚠️</span>
-              {error}
-            </div>
-          </div>
+        {hasSubmitted && draftChance !== null && (
+          <span className="text-sm">
+            Your {myPicks.length}-lock ticket: <span className="num text-lg font-bold text-gold">{Math.round(draftChance * 100)}%</span>
+            <span className="ml-1 tag-lock">at lock</span>
+          </span>
         )}
+      </div>
 
-        {success && (
-          <div className="mb-6 bg-green-600/20 border border-green-500/30 text-green-200 px-6 py-4 rounded-xl backdrop-blur-sm">
-            <div className="flex items-center">
-              <span className="mr-2">✅</span>
-              {success}
-            </div>
-          </div>
-        )}
+      {error && <div className="card mb-4 border-loss/40 px-4 py-3 text-sm text-loss">{error}</div>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Games and Picks (2 columns on lg) */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
-                    <span className="text-xl">🏈</span>
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">Matchups</h2>
-                    <p className="text-xs text-green-200">
-                      {games.length} games scheduled this week
-                    </p>
-                  </div>
-                </div>
-
-
-              </div>
-
-              {games.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-5xl mb-3">🏈</div>
-                  <p className="text-green-200 text-lg">No games scheduled for this week yet.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {games.map((game) => {
-                    const currentPick = getPickedTeam(game.id);
-                    const isAwayPicked = isSameTeam(currentPick, game.awayTeam);
-                    const isHomePicked = isSameTeam(currentPick, game.homeTeam);
-                    const isAwayWinner = !!game.winnerTeam && isSameTeam(game.winnerTeam, game.awayTeam);
-                    const isHomeWinner = !!game.winnerTeam && isSameTeam(game.winnerTeam, game.homeTeam);
-                    const isFinal = game.status === 'final';
-
-                    return (
-                      <div
-                        key={game.id}
-                        className="glass-section p-4 sm:p-5 hover:bg-white/10 transition-all duration-200 overflow-hidden"
-                      >
-                        {/* Game Header Bar */}
-                        <div className="flex items-center justify-between mb-3 text-xs">
-                          <span className="flex items-center gap-2 min-w-0">
-                            <span className="text-green-200 font-medium">
-                              {formatGameTime(game.startTime)}
-                            </span>
-                            {game.spread && (
-                              <span className="bg-white/10 text-white/90 px-2 py-0.5 rounded text-[11px] font-semibold border border-white/10 whitespace-nowrap">
-                                {game.spread}{game.total ? ` • O/U ${game.total}` : ''}
-                              </span>
-                            )}
-                          </span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                              isFinal
-                                ? 'bg-green-600/20 text-green-200 border border-green-500/30'
-                                : game.status === 'in_progress'
-                                ? 'bg-yellow-600/20 text-yellow-200 border border-yellow-500/30'
-                                : 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
-                            }`}
-                          >
-                            {game.status}
-                          </span>
-                        </div>
-
-                        {/* Pick Selection Grid */}
-                        {!isLocked && !hasSubmitted && game.status === 'scheduled' ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                            {/* Away Team Pick Button */}
-                            <button
-                              type="button"
-                              onClick={() => handlePickChange(game.id, game.awayTeam)}
-                              className={`group relative flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 text-left w-full min-w-0 ${
-                                isAwayPicked
-                                  ? 'bg-yellow-500/25 border-yellow-400 ring-2 ring-yellow-400/50 shadow-lg'
-                                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-                              }`}
-                            >
-                              <div className="shrink-0">
-                                <TeamLogo team={game.awayTeam} size="sm" />
-                              </div>
-                              <div className="min-w-0 flex-1 overflow-hidden">
-                                <div className="text-[10px] text-green-300 font-semibold uppercase tracking-wider">
-                                  Away{game.awayMoneyline != null && (
-                                    <span className="ml-1.5 text-yellow-300/90 font-bold tabular-nums">
-                                      {game.awayMoneyline > 0 ? `+${game.awayMoneyline}` : game.awayMoneyline}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-sm font-bold text-white truncate">
-                                  {game.awayTeam}
-                                </div>
-                              </div>
-                              <div className="shrink-0">
-                                {isAwayPicked ? (
-                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-yellow-400 text-black text-xs font-black shadow">
-                                    🔒
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-white/20 text-transparent group-hover:border-yellow-400/50">
-                                    •
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-
-                            {/* Home Team Pick Button */}
-                            <button
-                              type="button"
-                              onClick={() => handlePickChange(game.id, game.homeTeam)}
-                              className={`group relative flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 text-left w-full min-w-0 ${
-                                isHomePicked
-                                  ? 'bg-yellow-500/25 border-yellow-400 ring-2 ring-yellow-400/50 shadow-lg'
-                                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-                              }`}
-                            >
-                              <div className="shrink-0">
-                                <TeamLogo team={game.homeTeam} size="sm" />
-                              </div>
-                              <div className="min-w-0 flex-1 overflow-hidden">
-                                <div className="text-[10px] text-green-300 font-semibold uppercase tracking-wider">
-                                  Home{game.homeMoneyline != null && (
-                                    <span className="ml-1.5 text-yellow-300/90 font-bold tabular-nums">
-                                      {game.homeMoneyline > 0 ? `+${game.homeMoneyline}` : game.homeMoneyline}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-sm font-bold text-white truncate">
-                                  {game.homeTeam}
-                                </div>
-                              </div>
-                              <div className="shrink-0">
-                                {isHomePicked ? (
-                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-yellow-400 text-black text-xs font-black shadow">
-                                    🔒
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-white/20 text-transparent group-hover:border-yellow-400/50">
-                                    •
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          </div>
-                        ) : (
-                          /* Locked / Submitted Display */
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <TeamLogo team={game.awayTeam} size="sm" />
-                                <span className={`text-sm font-bold truncate ${isAwayPicked ? 'text-yellow-400' : 'text-white'}`}>
-                                  {game.awayTeam}
-                                </span>
-                                {game.awayMoneyline != null && (
-                                  <span className="text-[11px] text-yellow-300/80 font-bold tabular-nums shrink-0">
-                                    {game.awayMoneyline > 0 ? `+${game.awayMoneyline}` : game.awayMoneyline}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-xs font-bold text-green-300 px-2">@</span>
-                              <div className="flex items-center gap-3 min-w-0 justify-end">
-                                {game.homeMoneyline != null && (
-                                  <span className="text-[11px] text-yellow-300/80 font-bold tabular-nums shrink-0">
-                                    {game.homeMoneyline > 0 ? `+${game.homeMoneyline}` : game.homeMoneyline}
-                                  </span>
-                                )}
-                                <span className={`text-sm font-bold truncate ${isHomePicked ? 'text-yellow-400' : 'text-white'}`}>
-                                  {game.homeTeam}
-                                </span>
-                                <TeamLogo team={game.homeTeam} size="sm" />
-                              </div>
-                            </div>
-
-                            {/* User Pick Tag */}
-                            {currentPick && (
-                              <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-400/30">
-                                <span className="text-yellow-200 font-medium">Your Pick:</span>
-                                <span className="font-bold text-yellow-300 flex items-center gap-1">
-                                  <span>🔒</span> {currentPick}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Score, live or final */}
-                        {game.awayScore != null && game.homeScore != null && game.status !== 'scheduled' && (
-                          <div className={`mt-3 flex items-center justify-center gap-4 py-2 px-3 rounded-lg border text-sm font-bold ${
-                            game.status === 'in_progress'
-                              ? 'bg-yellow-500/15 border-yellow-400/40 text-yellow-100'
-                              : 'bg-white/5 border-white/10 text-white'
-                          }`}>
-                            <span className={`tabular-nums ${isAwayWinner ? 'text-green-300' : 'text-white/60'}`}>
-                              {normalizeTeam(game.awayTeam)} {game.awayScore}
-                            </span>
-                            <span className="text-[10px] uppercase tracking-wider text-white/50">
-                              {game.status === 'in_progress' ? '● Live' : 'Final'}
-                            </span>
-                            <span className={`tabular-nums ${isHomeWinner ? 'text-green-300' : 'text-white/60'}`}>
-                              {normalizeTeam(game.homeTeam)} {game.homeScore}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Winner Banner if final */}
-                        {game.winnerTeam && (
-                          <div className="mt-2 flex items-center justify-center py-2 px-3 bg-green-600/20 border border-green-500/30 rounded-lg text-xs font-bold text-green-200">
-                            🏆 Winner: {game.winnerTeam}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+      <div className="grid gap-5 lg:grid-cols-3">
+        {/* Matchups */}
+        <section className="space-y-2.5 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <h2 className="section-title">Matchups</h2>
+            <span className="text-xs text-muted">
+              {drafting ? 'Tap a team to lock it · tap again to undo' : `${games.length} games`}
+            </span>
           </div>
 
-          {/* Right Panel: My Picks & Actions */}
-          <div className="space-y-6">
-            <div className="glass-card p-6">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">👤</span>
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">My Picks</h2>
-                  <p className="text-xs text-green-200">
-                    {hasSubmitted ? 'Submitted locks' : 'Current selections'}
-                  </p>
-                </div>
-              </div>
+          {games.length === 0 && <div className="card px-4 py-10 text-center text-muted">No games scheduled yet.</div>}
 
-              {!hasSubmitted && !isLocked ? (
-                <div>
-                  {pickedCount === 0 ? (
-                    <div className="text-center py-8 text-green-200">
-                      <div className="text-4xl mb-2">🎯</div>
-                      <p className="font-medium text-sm">No picks selected yet.</p>
-                      <p className="text-xs text-green-300 mt-1">Select a team in each matchup on the left.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 mb-6">
-                      <div className="flex items-center justify-between text-xs text-green-200 font-semibold mb-2">
-                        <span>Selected {pickedCount} {pickedCount === 1 ? 'game' : 'games'}:</span>
-                        <button
-                          type="button"
-                          onClick={handleClearAllDraftPicks}
-                          className="text-red-300 hover:text-red-200 underline font-normal text-[11px]"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-                      <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
-                        {picks.filter(p => !!p.team).map((p) => {
-                          const g = games.find(game => game.id === p.gameId);
-                          return (
-                            <div
-                              key={p.gameId}
-                              className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/10 text-xs gap-2"
-                            >
-                              <span className="text-white/80 truncate max-w-[120px]">
-                                {g ? `${normalizeTeam(g.awayTeam)} @ ${normalizeTeam(g.homeTeam)}` : `Game #${p.gameId}`}
-                              </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/30 truncate max-w-[110px]">
-                                  🔒 {normalizeTeam(p.team!)}
-                                </span>
-                                <button
-                                  type="button"
-                                  title="Remove pick"
-                                  onClick={() => handleClearSinglePick(p.gameId)}
-                                  className="text-white/50 hover:text-red-300 px-1 hover:bg-white/10 rounded"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+          {games.map((game) => {
+            const picked = pickedTeamFor(game.id);
+            const started = game.status !== 'scheduled';
+            const editable = drafting && !started;
+            const homeFair = game.homeMoneyline != null && game.awayMoneyline != null
+              ? fairWinProbability(game.homeMoneyline, game.awayMoneyline)
+              : null;
 
-                  {pickedCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleSubmit}
-                      disabled={submitting}
-                      className="w-full btn-yellow py-3.5 px-6 font-bold text-base hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none shadow-xl"
-                    >
-                      <span className="flex items-center justify-center">
-                        <span className="mr-2 text-xl">🔒</span>
-                        {submitting
-                          ? 'Submitting Picks...'
-                          : `Submit ${pickedCount} Picks`}
-                      </span>
-                    </button>
-                  )}
-                </div>
-              ) : myPicks.length === 0 ? (
-                <div className="text-center py-8 text-green-200">
-                  <div className="text-4xl mb-2">🔒</div>
-                  <p className="font-medium text-sm">No picks submitted for this week.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-xs text-green-200 font-semibold mb-2">
-                    Your {myPicks.length} Submitted Picks:
-                  </div>
-                  <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                    {myPicks.map((pick) => {
-                      let game = games.find(g => g.id === pick.gameId);
-                      if (game && !(isSameTeam(pick.pickedTeam, game.homeTeam) || isSameTeam(pick.pickedTeam, game.awayTeam))) {
-                        game = games.find(g => isSameTeam(pick.pickedTeam, g.homeTeam) || isSameTeam(pick.pickedTeam, g.awayTeam));
-                      }
-                      const isHit = !!(game && game.status === 'final' && game.winnerTeam && isSameTeam(game.winnerTeam, pick.pickedTeam));
-                      const isLoss = !!(game && game.status === 'final' && game.winnerTeam && !isSameTeam(game.winnerTeam, pick.pickedTeam));
-
-                      return (
-                        <div
-                          key={pick.gameId}
-                          className={`p-3 rounded-xl border transition-colors ${
-                            isHit
-                              ? 'bg-green-600/15 border-green-500/30'
-                              : isLoss
-                              ? 'bg-red-600/15 border-red-500/30 opacity-80'
-                              : 'bg-white/5 border-white/10'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center space-x-2 min-w-0">
-                              <TeamLogo team={pick.pickedTeam} size="sm" />
-                              <span className="font-bold text-white truncate max-w-[110px]">
-                                {pick.pickedTeam}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {isHit && (
-                                <span className="text-[10px] font-bold bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.5 rounded-full">
-                                  HIT ✅
-                                </span>
-                              )}
-                              {isLoss && (
-                                <span className="text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-full">
-                                  LOSS ❌
-                                </span>
-                              )}
-                              {!isHit && !isLoss && (
-                                <span className="text-[10px] font-medium bg-white/10 text-white/70 px-2 py-0.5 rounded-full">
-                                  {game?.status === 'in_progress' ? 'LIVE ⏳' : 'PENDING'}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-6 pt-4 border-t border-white/10">
-                <Link
-                  href={`/picks/${season}/${week}`}
-                  className="w-full btn-blue py-3 px-4 font-bold text-sm hover:scale-[1.02] inline-flex items-center justify-center shadow-lg"
+            const side = (team: string, ml: number | null | undefined, score: number | null | undefined, fair: number | null) => {
+              const mine = !!picked && isSameTeam(picked, team);
+              const won = game.status === 'final' && !!game.winnerTeam && isSameTeam(game.winnerTeam, team);
+              const lost = game.status === 'final' && !won;
+              return (
+                <button
+                  type="button"
+                  disabled={!editable}
+                  onClick={() => handlePickChange(game.id, team)}
+                  className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                    mine ? 'border-gold bg-gold-soft' : 'border-line bg-raised'
+                  } ${editable ? 'hover:border-white/20' : 'cursor-default'} ${lost ? 'opacity-50' : ''}`}
                 >
-                  <span className="mr-2 text-lg">👥</span>
-                  View League Picks & Standings
+                  <TeamLogo team={team} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className={`truncate font-display text-base font-bold uppercase leading-tight sm:text-lg ${mine ? 'text-gold' : 'text-text'}`}>
+                      {normalizeTeam(team)}
+                    </div>
+                    <div className="text-[11px] text-muted">
+                      {formatMl(ml)}{fair !== null && ` · ${Math.round(fair * 100)}%`}
+                    </div>
+                  </div>
+                  {started && score != null ? (
+                    <span className={`num shrink-0 text-2xl font-bold ${won ? 'text-win' : 'text-text'}`}>{score}</span>
+                  ) : mine ? (
+                    <span className="shrink-0 text-gold">🔒</span>
+                  ) : null}
+                </button>
+              );
+            };
+
+            return (
+              <div key={game.id} className="card p-2.5">
+                <div className="mb-2 flex items-center justify-between px-1 text-[11px] text-muted">
+                  <span>
+                    {DateTime.fromISO(game.startTime).setZone('America/New_York').toFormat('ccc h:mm a')}
+                    {game.spread && ` · ${game.spread}`}
+                    {game.total && ` · O/U ${game.total}`}
+                  </span>
+                  {game.status === 'final' ? (
+                    <span className="tag-muted">Final</span>
+                  ) : game.status === 'in_progress' ? (
+                    <span className="tag-live"><span className="live-dot" /> Live</span>
+                  ) : null}
+                </div>
+                <div className="flex gap-2">
+                  {side(game.awayTeam, game.awayMoneyline, game.awayScore, homeFair === null ? null : 1 - homeFair)}
+                  {side(game.homeTeam, game.homeMoneyline, game.homeScore, homeFair)}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+
+        {/* Sidebar */}
+        <aside className={`space-y-5 ${drafting ? '' : 'order-first lg:order-none'}`}>
+          {curve.length > 0 && (
+            <section className="card p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="section-title">Sweet Spot</h2>
+                <span className="tag-lock">at lock</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {curve.map(tier => (
+                  <div
+                    key={tier.n}
+                    className={`rounded-xl border p-2 text-center ${
+                      tier.n === bestN ? 'border-gold bg-gold-soft' : 'border-line bg-raised'
+                    }`}
+                  >
+                    <div className="text-[10px] font-semibold uppercase text-muted">{tier.n} {tier.n === 1 ? 'lock' : 'locks'}</div>
+                    <div className={`num text-xl font-bold ${tier.n === bestN ? 'text-gold' : ''}`}>{tier.expected}</div>
+                    <div className="text-[10px] text-muted">{Math.round(tier.probability)}% cash</div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-muted">
+                Expected points by ticket size, taking the safest games first. <span className="text-gold">{bestN} locks</span> is
+                the best play on this board.
+              </p>
+            </section>
+          )}
+
+          <section className="card p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="section-title">League Tickets</h2>
+              <span className="tag-lock">at lock</span>
+            </div>
+            {!league ? (
+              <p className="text-sm text-muted">Submit your picks to see everyone else&apos;s.</p>
+            ) : (
+              <div className="space-y-2">
+                {league.users
+                  .map(u => ({ u, ticket: league.picksByUser[u.name] || [] }))
+                  .map(row => ({ ...row, chance: atLockChance(row.ticket, games) }))
+                  .sort((a, b) => (b.chance ?? -1) - (a.chance ?? -1))
+                  .map(({ u, ticket, chance }) => (
+                    <div key={u.id} className="flex items-center justify-between gap-2 rounded-xl bg-raised px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold">{u.name.split(' ')[0]}</div>
+                        <div className="mt-0.5 flex -space-x-1">
+                          {ticket.length === 0
+                            ? <span className="text-[11px] text-muted">No picks</span>
+                            : ticket.map(p => <TeamLogo key={p.gameId} team={p.pickedTeam} size="sm" className="scale-75" />)}
+                        </div>
+                      </div>
+                      {chance !== null && (
+                        <span className="num text-xl font-bold text-gold">{Math.round(chance * 100)}%</span>
+                      )}
+                    </div>
+                  ))}
+                <Link href={`/picks/${season}/${week}`} className="btn-ghost mt-1 w-full text-xs">
+                  Follow them live →
                 </Link>
               </div>
-            </div>
+            )}
+          </section>
 
-            {/* Scoring reminder card */}
-            <div className="glass-section p-4 text-xs text-green-200/80 space-y-1.5">
-              <div className="font-bold text-white text-sm mb-1">⚡ League Rules</div>
-              <p>• Picks lock this week on <strong>{lockTimeDisplay}</strong>.</p>
-              <p>• <strong>All-or-Nothing</strong>: If all your picks hit, earn points equal to games picked. Any wrong pick = 0 points.</p>
-              <p>• Opponents’ picks become visible after you submit your own picks.</p>
+          <details className="card p-4 text-sm text-muted">
+            <summary className="section-title cursor-pointer">How scoring works</summary>
+            <ul className="mt-3 list-disc space-y-1.5 pl-4">
+              <li>Lock as many games as you like before {lockTime.toFormat('ccc h:mm a')} ET.</li>
+              <li>If every lock wins, you score one point per lock. One miss and the week is zero.</li>
+              <li>A tie counts as a miss.</li>
+              <li>You see everyone else&apos;s picks once you submit your own.</li>
+            </ul>
+          </details>
+        </aside>
+      </div>
+
+      {/* Draft bar: sits above the phone tab bar while picking */}
+      {drafting && draft.length > 0 && (
+        <div className="fixed inset-x-0 bottom-[68px] z-20 px-4 md:bottom-4">
+          <div className="card mx-auto flex max-w-2xl items-center justify-between gap-3 border-gold/40 bg-raised px-4 py-3 shadow-2xl">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">{draft.length} {draft.length === 1 ? 'lock' : 'locks'}</div>
+              {draftChance !== null && (
+                <div className="text-xs text-muted">
+                  <span className="font-semibold text-gold">{Math.round(draftChance * 100)}%</span> to cash at lock
+                </div>
+              )}
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button onClick={() => setPicks([])} className="btn-ghost px-3 text-xs">Clear</button>
+              <button onClick={handleSubmit} disabled={submitting} className="btn-primary">
+                {submitting ? 'Submitting…' : 'Submit picks'}
+              </button>
             </div>
           </div>
         </div>
-      </main>
-
-      <button
-        onClick={() => setCalcOpen(true)}
-        className="fixed bottom-5 right-5 z-40 bg-gradient-to-r from-yellow-500 to-amber-400 text-black font-bold text-sm px-4 py-3 rounded-full shadow-2xl hover:from-yellow-400"
-      >
-        🎛️ Ticket Simulator
-      </button>
+      )}
 
       {calcOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/60" onClick={() => setCalcOpen(false)} />
-          <div className="relative w-full max-w-md h-full overflow-y-auto bg-[#061b10] border-l border-white/10 p-4 space-y-3">
-            <button
-              onClick={() => setCalcOpen(false)}
-              className="text-xs font-semibold text-white/70 hover:text-white bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg"
-            >
-              ✕ Close
-            </button>
+          <div className="relative h-full w-full max-w-md space-y-3 overflow-y-auto border-l border-line bg-ink p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="section-title">Ticket Simulator</h2>
+              <button onClick={() => setCalcOpen(false)} className="btn-ghost px-3 py-1.5 text-xs">Close</button>
+            </div>
             <TicketBuilder games={games} week={week} myPicks={calcSeed} defaultOpen />
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }

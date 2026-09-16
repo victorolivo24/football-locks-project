@@ -1,14 +1,13 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import TeamLogo from '@/components/TeamLogo';
-import TicketBuilder from '@/components/TicketBuilder';
 import { DateTime } from 'luxon';
+import AppShell, { PageHeader } from '@/components/AppShell';
+import TeamLogo from '@/components/TeamLogo';
 import { normalizeTeam, isSameTeam } from '@/lib/teams';
-import { parlayForPicks, moneylineForPick, findGameForPick } from '@/lib/gameOdds';
-import { sideWinChance, liveTicketChance } from '@/lib/luck';
+import { findGameForPick } from '@/lib/gameOdds';
+import { sideWinChance, liveTicketChance, atLockChance } from '@/lib/luck';
 
 interface Game {
   id: number;
@@ -19,10 +18,9 @@ interface Game {
   winnerTeam?: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
-  // Lines stored for the week, attached by /api/schedule.
   homeMoneyline?: number | null;
-  homeWinProb?: number | null;
   awayMoneyline?: number | null;
+  homeWinProb?: number | null;
   spread?: string | null;
   total?: number | null;
 }
@@ -32,53 +30,40 @@ interface PickItem {
   pickedTeam: string;
 }
 
-interface PicksByUser {
-  [userName: string]: PickItem[];
-}
-
 interface UserRow { id: number; name: string }
 
-export default function AllPicksPage({ params }: { params: { season: string; week: string } }) {
+const firstName = (name: string) => name.trim().split(/\s+/)[0];
+
+/** Live games first, then upcoming by kickoff, finals last. */
+const gameOrder = (g: Game) =>
+  (g.status === 'in_progress' ? 0 : g.status === 'scheduled' ? 1 : 2) * 1e13 + new Date(g.startTime).getTime();
+
+export default function LivePage({ params }: { params: { season: string; week: string } }) {
   const season = parseInt(params.season);
   const week = parseInt(params.week);
-  const router = useRouter();
 
   const [games, setGames] = useState<Game[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
-  const [picksByUser, setPicksByUser] = useState<PicksByUser>({});
+  const [picksByUser, setPicksByUser] = useState<Record<string, PickItem[]>>({});
+  const [picksHidden, setPicksHidden] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState<'game' | 'player'>('player');
-  const [myName, setMyName] = useState<string>('');
 
   useEffect(() => {
     (async () => {
       try {
-        const [schedRes, picksRes, meRes] = await Promise.all([
+        const [schedRes, picksRes] = await Promise.all([
           fetch(`/api/schedule?season=${season}&week=${week}`),
           fetch(`/api/picks/all?season=${season}&week=${week}`),
-          fetch('/api/me'),
         ]);
-        if (meRes.ok) {
-          const me = await meRes.json();
-          setMyName(me.user?.name ?? '');
-        }
-        if (schedRes.ok) {
-          const s = await schedRes.json();
-          setGames(s.games || []);
-        }
+        if (schedRes.ok) setGames((await schedRes.json()).games || []);
         if (picksRes.ok) {
           const p = await picksRes.json();
           setPicksByUser(p.picksByUser || {});
           setUsers(p.users || []);
-        } else if (picksRes.status === 403) {
-          const b = await picksRes.json().catch(() => ({}));
-          setError(b.error || 'You must submit your picks first to view others');
         } else {
-          setError('Unable to load picks');
+          // Everyone's picks stay hidden until you submit your own.
+          setPicksHidden(true);
         }
-      } catch (e) {
-        setError('Network error loading picks');
       } finally {
         setLoading(false);
       }
@@ -86,468 +71,223 @@ export default function AllPicksPage({ params }: { params: { season: string; wee
   }, [season, week]);
 
   // Poll whenever a game SHOULD have a result, not when the database already
-  // says one is live. Status only becomes in_progress because a refresh wrote
-  // it, so gating on that meant polling could never start: the page waited for
-  // a change that only polling could produce.
+  // says one is live: status only changes because a refresh wrote it.
   const needsPolling = games.some(
     (g) => g.status !== 'final' && new Date(g.startTime).getTime() <= Date.now()
   );
 
-  // Cron jobs can only run once a day, so live scores come from the page.
   useEffect(() => {
     if (!needsPolling) return;
-
     const tick = async () => {
       await fetch('/api/results/refresh', { method: 'POST' }).catch(() => undefined);
       const res = await fetch(`/api/schedule?season=${season}&week=${week}`).catch(() => null);
-      if (res?.ok) {
-        const data = await res.json();
-        setGames(data.games || []);
-      }
+      if (res?.ok) setGames((await res.json()).games || []);
     };
-
     tick();
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
   }, [needsPolling, season, week]);
 
-  const formatGameTime = (iso: string) =>
-    DateTime.fromISO(iso).setZone('America/New_York').toFormat('EEE, MMM d, h:mm a');
-
-  const isPickLoss = (p: PickItem) => {
-    const g = games.find((g) => g.id === p.gameId) ||
-              games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-    if (!g) return false;
-    if (g.status !== 'final' || !g.winnerTeam) return false;
-    return !isSameTeam(g.winnerTeam, p.pickedTeam);
-  };
-
-  const isUserBusted = (u: UserRow) => {
-    const picks = picksByUser[u.name] || [];
-    return picks.some((p) => isPickLoss(p));
-  };
-
-  const isUserPerfect = (u: UserRow) => {
-    const picks = picksByUser[u.name] || [];
-    if (picks.length === 0) return false;
-    return picks.every((p) => {
-      const g = games.find((g) => g.id === p.gameId) ||
-                games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-      if (!g) return false;
-      if (g.status !== 'final' || !g.winnerTeam) return false;
-      return isSameTeam(g.winnerTeam, p.pickedTeam);
-    });
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <span className="font-display text-xl font-bold uppercase tracking-wide text-muted">Loading…</span>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen max-w-2xl mx-auto p-6">
-        <div className="glass-card p-6">
-          <div className="text-red-200">{error}</div>
-          <div className="mt-4">
-            <Link href={`/week/${season}/${week}`} className="btn-blue px-4 py-2">Back to Week</Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const gameFor = (p: PickItem) => findGameForPick(p, games);
+  const lost = (p: PickItem) => {
+    const g = gameFor(p);
+    return !!g && g.status === 'final' && !(g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam));
+  };
+
+  const tickets = users
+    .map(u => {
+      const ticket = picksByUser[u.name] || [];
+      const out = ticket.some(lost);
+      const legs = ticket.map(p => {
+        const g = gameFor(p);
+        return g ? sideWinChance(g, isSameTeam(p.pickedTeam, g.homeTeam)) : null;
+      });
+      const live = liveTicketChance(legs);
+      return {
+        user: u,
+        ticket,
+        out,
+        cashed: ticket.length > 0 && !out && live === 1,
+        live,
+        atLock: atLockChance(ticket, games),
+      };
+    })
+    .filter(t => t.ticket.length > 0)
+    .sort((a, b) => Number(a.out) - Number(b.out) || (b.live ?? -1) - (a.live ?? -1));
+
+  const liveCount = games.filter(g => g.status === 'in_progress').length;
 
   return (
-    <div className="min-h-screen">
-      <nav className="relative glass-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <Link href={`/week/${season}/${week}`} className="text-white hover:underline">← Back</Link>
-              <span className="text-2xl font-bold text-white">All Picks</span>
-            </div>
+    <AppShell>
+      <PageHeader
+        eyebrow={`Season ${season} · Week ${week}`}
+        title="Live"
+        right={
+          liveCount > 0
+            ? <span className="tag-live text-xs"><span className="live-dot" /> {liveCount} live</span>
+            : <span className="tag-muted text-xs">No games live</span>
+        }
+      />
+
+      <div className="grid gap-5 lg:grid-cols-3">
+        {/* Live tickets */}
+        <aside className="order-first space-y-2 lg:order-none lg:col-start-3 lg:row-start-1">
+          <div className="flex items-center justify-between">
+            <h2 className="section-title">Tickets</h2>
+            <span className="text-[11px] text-muted">
+              <span className="text-live">live</span> · <span className="text-gold">at lock</span>
+            </span>
           </div>
-        </div>
-      </nav>
 
-      <main className="max-w-5xl mx-auto p-6">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-white">Season {season} • Week {week}</h1>
-        </div>
-
-        {/* Week Parlay Board */}
-        {users.length > 0 && Object.keys(picksByUser).length > 0 && (
-          <div className="glass-card p-4 mb-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-3">
-              <h2 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                <span>🎲</span>
-                <span>Week {week} Parlay Board</span>
-              </h2>
-              <span className="text-[11px] text-white/60">Compounded Vegas slate odds</span>
+          {picksHidden ? (
+            <div className="card p-4 text-sm text-muted">
+              Submit your picks to see everyone&apos;s tickets.
+              <Link href={`/week/${season}/${week}`} className="btn-primary mt-3 w-full">Make picks</Link>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-              {users.map((u) => {
-                const uPicks = picksByUser[u.name] || [];
-                if (uPicks.length === 0) return null;
-                const uParlay = parlayForPicks(uPicks, games);
-                return (
-                  <div key={u.id} className="bg-white/5 border border-white/10 rounded-xl p-2.5 text-center">
-                    <div className="font-bold text-white text-xs truncate">{u.name}</div>
-                    <div className="text-[10px] text-white/50">{uPicks.length} {uPicks.length === 1 ? 'lock' : 'locks'}</div>
-                    <div className="text-sm font-black text-yellow-300 mt-0.5">{uParlay.americanOdds}</div>
-                    <div className="text-[10px] text-green-300/90 font-medium mt-0.5">{uParlay.impliedProb}% chance</div>
+          ) : tickets.length === 0 ? (
+            <div className="card p-4 text-sm text-muted">Nobody has submitted yet.</div>
+          ) : (
+            tickets.map(t => (
+              <div key={t.user.id} className={`card flex items-center justify-between gap-3 px-3 py-2.5 ${t.out ? 'opacity-50' : ''}`}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{firstName(t.user.name)}</span>
+                    {t.out && <span className="tag-loss">Out</span>}
+                    {t.cashed && <span className="tag-win">Cashed</span>}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {t.ticket.map(p => {
+                      const g = gameFor(p);
+                      const won = g?.status === 'final' && !!g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam);
+                      const miss = lost(p);
+                      const playing = g?.status === 'in_progress';
+                      return (
+                        <span
+                          key={p.gameId}
+                          title={normalizeTeam(p.pickedTeam)}
+                          className={`rounded-full border p-0.5 ${
+                            won ? 'border-win' : miss ? 'border-loss opacity-50' : playing ? 'border-live' : 'border-line'
+                          }`}
+                        >
+                          <TeamLogo team={p.pickedTeam} size="sm" className="scale-75" />
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className={`num text-2xl font-bold leading-none ${
+                    t.out ? 'text-muted' : t.cashed ? 'text-win' : 'text-live'
+                  }`}>
+                    {t.live === null ? '—' : `${Math.round(t.live * 100)}%`}
+                  </div>
+                  {t.atLock !== null && (
+                    <div className="mt-0.5 text-[11px] text-gold">{Math.round(t.atLock * 100)}% at lock</div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </aside>
 
-        {myName && (
-          <div className="mb-6">
-            <TicketBuilder
-              games={games}
-              week={week}
-              myPicks={picksByUser[myName] ?? []}
-            />
-          </div>
-        )}
+        {/* Games */}
+        <section className="space-y-2.5 lg:col-span-2 lg:col-start-1 lg:row-start-1">
+          <h2 className="section-title">Games</h2>
 
-        {users.length > 0 && (
-          <div className="flex justify-center mb-8">
-            <div className="inline-flex bg-black/40 p-1 rounded-xl border border-white/10">
-              <button
-                onClick={() => setViewMode('game')}
-                className={`px-6 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  viewMode === 'game' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/60 hover:text-white'
-                }`}
-              >
-                Gameday View
-              </button>
-              <button
-                onClick={() => setViewMode('player')}
-                className={`px-6 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  viewMode === 'player' ? 'bg-yellow-500 text-black shadow-lg' : 'text-white/60 hover:text-white'
-                }`}
-              >
-                By Player
-              </button>
-            </div>
-          </div>
-        )}
+          {[...games].sort((a, b) => gameOrder(a) - gameOrder(b)).map(g => {
+            const live = g.status === 'in_progress';
+            const final = g.status === 'final';
 
-        <div className="space-y-4">
-          {users.length === 0 ? (
-            <div className="glass-card p-8 text-center text-green-200">
-              No registered players found yet.
-            </div>
-          ) : viewMode === 'player' ? (
-            users.map((u) => {
-              const picks = picksByUser[u.name] || [];
-              const has = picks.length > 0;
-              const busted = isUserBusted(u);
-              const perfect = isUserPerfect(u);
-              const parlay = parlayForPicks(picks, games);
-              const ticketChance = liveTicketChance(picks.map((p) => {
-                const g = findGameForPick(p, games);
-                return g ? sideWinChance(g, isSameTeam(p.pickedTeam, g.homeTeam)) : null;
+            // Everyone riding each side. Players already knocked out by a
+            // different game stay listed but dimmed: their pick here no longer
+            // decides anything, but hiding them made it look like nobody had it.
+            const ridersOf = (team: string) => users
+              .filter(u => (picksByUser[u.name] || [])
+                .some(p => Number(p.gameId) === Number(g.id) && isSameTeam(p.pickedTeam, team)))
+              .map(u => ({
+                user: u,
+                outElsewhere: (picksByUser[u.name] || [])
+                  .some(p => Number(p.gameId) !== Number(g.id) && lost(p)),
               }));
-              
+
+            const side = (team: string, score: number | null | undefined, prob: number | null) => {
+              const won = final && !!g.winnerTeam && isSameTeam(g.winnerTeam, team);
+              const riders = ridersOf(team);
               return (
-                <div key={u.id} className={`glass-card p-5 ${busted ? 'opacity-85' : ''}`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                    <div className="text-white font-bold text-lg flex items-center gap-3">
-                      <span>{u.name}</span>
-                      {busted && (
-                        <span className="text-red-300 text-xs font-semibold bg-red-900/40 px-2 py-1 rounded-full">Busted</span>
-                      )}
-                      {!busted && perfect && (
-                        <span className="text-green-200 text-xs font-semibold bg-green-600/20 border border-green-500/30 px-2 py-1 rounded-full">Perfect</span>
-                      )}
-                    </div>
-                    {has ? (
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-white/60">{picks.length} {picks.length === 1 ? 'Lock' : 'Locks'} Parlay:</span>
-                        <span className={`font-black px-2 py-0.5 rounded text-xs ${
-                          parlay.americanOdds.startsWith('+') ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-blue-400/20 text-blue-300 border border-blue-400/30'
-                        }`}>
-                          {parlay.americanOdds}
-                        </span>
-                        <span className="text-white/60 text-xs">
-                          ({parlay.impliedProb}% at lock)
-                        </span>
-                        {ticketChance !== null && !busted && !perfect && (
-                          <span className="font-black text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-300 border border-green-400/30">
-                            {Math.round(ticketChance * 100)}% now
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-yellow-300 font-semibold text-sm">Hasn’t submitted yet</div>
+                <div className={`flex-1 min-w-0 ${final && !won ? 'opacity-50' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <TeamLogo team={team} size="sm" />
+                    <span className="truncate font-display text-base font-bold uppercase sm:text-lg">{normalizeTeam(team)}</span>
+                    {g.status !== 'scheduled' && score != null && (
+                      <span className={`num ml-auto text-3xl font-bold ${won ? 'text-win' : ''}`}>{score}</span>
                     )}
                   </div>
-                  {has && (
-                    <div className={`grid sm:grid-cols-2 gap-3`}>
-                      {picks.map((p) => {
-                        const g = games.find((g) => g.id === p.gameId) ||
-                                 games.find((g) => isSameTeam(p.pickedTeam, g.homeTeam) || isSameTeam(p.pickedTeam, g.awayTeam));
-                        if (!g) return null;
-                        const loss = g.status === 'final' && g.winnerTeam && !isSameTeam(g.winnerTeam, p.pickedTeam);
-                        const hit = g.status === 'final' && g.winnerTeam && isSameTeam(g.winnerTeam, p.pickedTeam);
-                        const pickedHome = isSameTeam(p.pickedTeam, g.homeTeam);
-                        const pickedAway = isSameTeam(p.pickedTeam, g.awayTeam);
-                        const ml = (g.awayTeam && g.homeTeam)
-                          ? moneylineForPick(p.pickedTeam, g)
-                          : null;
-                        const mlStr = ml !== null ? (ml > 0 ? `+${ml}` : `${ml}`) : '';
-
-                        return (
-                          <div key={`${u.id}-${p.gameId}`} className={`glass-section p-3 sm:p-4 min-w-0 overflow-hidden ${loss ? 'opacity-70' : ''}`}>
-                            {g && g.awayScore != null && g.homeScore != null && g.status !== 'scheduled' && (
-                              <div className="flex items-center gap-2 mb-1.5 text-[11px] font-bold">
-                                <span className="text-white/70 tabular-nums">
-                                  {normalizeTeam(g.awayTeam)} {g.awayScore} – {normalizeTeam(g.homeTeam)} {g.homeScore}
-                                </span>
-                                <span className={`uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded ${
-                                  g.status === 'in_progress'
-                                    ? 'bg-yellow-500/20 text-yellow-200 border border-yellow-400/30'
-                                    : 'bg-white/10 text-white/50'
-                                }`}>
-                                  {g.status === 'in_progress' ? '● Live' : 'Final'}
-                                </span>
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between gap-3 min-w-0">
-                              <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
-                                <div className={`flex items-center gap-1.5 min-w-0 ${pickedAway ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
-                                  <TeamLogo team={g.awayTeam} size="sm" />
-                                  <span className="text-xs truncate max-w-[70px] sm:max-w-[90px]">{normalizeTeam(g.awayTeam)}</span>
-                                </div>
-                                <span className="text-white/60 font-semibold text-xs shrink-0">@</span>
-                                <div className={`flex items-center gap-1.5 min-w-0 ${pickedHome ? 'opacity-100 font-bold text-white' : 'opacity-60 text-white/70'}`}>
-                                  <TeamLogo team={g.homeTeam} size="sm" />
-                                  <span className="text-xs truncate max-w-[70px] sm:max-w-[90px]">{normalizeTeam(g.homeTeam)}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className={`bg-yellow-500 text-black px-2.5 py-0.5 rounded-full text-xs font-bold ${loss ? 'line-through bg-red-400 text-black' : ''}`}>
-                                  🔒 {normalizeTeam(p.pickedTeam)} {mlStr && <span className="opacity-80 font-semibold text-[10px] ml-0.5">({mlStr})</span>}
-                                </span>
-                                {hit && (
-                                  <span className="text-green-200 text-[10px] font-bold bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded-full shrink-0">
-                                    HIT ✅
-                                  </span>
-                                )}
-                                {loss && (
-                                  <span className="text-red-200 text-[10px] font-bold bg-red-600/20 border border-red-500/30 px-2 py-0.5 rounded-full shrink-0">
-                                    MISS ❌
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-[10px] text-green-300/80 mt-1.5 truncate">{formatGameTime(g.startTime)}</div>
-                          </div>
-                        );
-                      })}
+                  {prob !== null && (
+                    <div className={`mt-0.5 text-[11px] ${live ? 'text-live' : 'text-muted'}`}>
+                      {Math.round(prob * 100)}% {live ? 'live' : final ? '' : 'at lock'}
                     </div>
                   )}
-                </div>
-              );
-            })
-          ) : (
-            <div className="space-y-6 disco-container">
-              <div className="disco-content">
-              <div className="disco-card p-4 sm:p-6 mb-6">
-                <h2 className="text-2xl font-disco text-pink-400 mb-2">Gameday Live</h2>
-                <p className="text-sm text-cyan-100">
-                  This view tracks picks game-by-game for players still in contention. 
-                  Once a player misses a pick, they are eliminated for the week and their picks are removed from the remaining games.
-                </p>
-                
-                {(() => {
-                  const bustedUsers = users.filter(isUserBusted);
-                  if (bustedUsers.length === 0) return null;
-                  return (
-                    <div className="mt-4 pt-4 border-t border-white/10">
-                      <h3 className="text-xs font-bold text-red-300 uppercase tracking-wider mb-3">
-                        Eliminated Players ({bustedUsers.length})
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {bustedUsers.map(u => (
-                          <div key={u.id} className="bg-red-900/30 border border-red-500/30 text-red-200 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5">
-                            <span>❌</span> {u.name}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="space-y-4">
-                {games.map((g) => {
-                  // Find users who picked away team and are NOT busted on ANOTHER game
-              const awayPickers = users.filter((u) => {
-                const picks = picksByUser[u.name] || [];
-                const thisPick = picks.find(p => p.gameId === g.id && isSameTeam(p.pickedTeam, g.awayTeam));
-                if (!thisPick) return false;
-                
-                // If they busted on a different game, hide them
-                const bustedOther = picks.some(p => p.gameId !== g.id && isPickLoss(p));
-                return !bustedOther;
-              });
-
-              // Find users who picked home team and are NOT busted on ANOTHER game
-              const homePickers = users.filter((u) => {
-                const picks = picksByUser[u.name] || [];
-                const thisPick = picks.find(p => p.gameId === g.id && isSameTeam(p.pickedTeam, g.homeTeam));
-                if (!thisPick) return false;
-                
-                const bustedOther = picks.some(p => p.gameId !== g.id && isPickLoss(p));
-                return !bustedOther;
-              });
-
-              const isFinal = g.status === 'final';
-              const awayWon = isFinal && g.winnerTeam && isSameTeam(g.winnerTeam, g.awayTeam);
-              const homeWon = isFinal && g.winnerTeam && isSameTeam(g.winnerTeam, g.homeTeam);
-
-              if (awayPickers.length === 0 && homePickers.length === 0) {
-                return null;
-              }
-
-              return (
-                <div key={g.id} className="disco-card p-0 overflow-hidden mb-4">
-                  <div className="bg-black/50 px-4 py-3 border-b border-pink-500/30 flex items-center justify-between text-xs font-disco text-cyan-300">
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium tracking-wider">{formatGameTime(g.startTime)}</span>
-                      {g.spread && (
-                        <span className="bg-white/10 text-white/90 font-sans px-2 py-0.5 rounded text-[11px] font-semibold border border-white/10">
-                          {g.spread} {g.total ? `• O/U ${g.total}` : ''}
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                        isFinal
-                          ? 'bg-green-500/20 text-green-300 border border-green-500/40'
-                          : g.status === 'in_progress'
-                          ? 'bg-pink-500/30 text-pink-200 border border-pink-500/50 shadow-[0_0_10px_rgba(236,72,153,0.5)]'
-                          : 'bg-cyan-600/30 text-cyan-100 border border-cyan-500/50'
-                      }`}
-                    >
-                      {g.status === 'in_progress' ? 'live' : g.status}
-                    </span>
-                  </div>
-
-                  {(g.awayScore != null && g.homeScore != null && g.status !== 'scheduled') && (
-                    <div className="flex items-center justify-center gap-3 py-2 border-b border-white/5 bg-black/20">
-                      <span className={`text-2xl font-black tabular-nums ${awayWon ? 'text-green-300' : 'text-white/70'}`}>
-                        {g.awayScore}
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {riders.map(({ user: u, outElsewhere }) => (
+                      <span
+                        key={u.id}
+                        title={outElsewhere ? 'Already out this week' : undefined}
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          outElsewhere
+                            ? 'bg-white/5 text-muted line-through'
+                            : won ? 'bg-win-soft text-win' : final ? 'bg-loss-soft text-loss' : 'bg-white/5 text-text'
+                        }`}
+                      >
+                        {firstName(u.name)}
                       </span>
-                      <span className="text-xs text-white/40 font-bold">
-                        {g.status === 'in_progress' ? 'LIVE' : 'FINAL'}
-                      </span>
-                      <span className={`text-2xl font-black tabular-nums ${homeWon ? 'text-green-300' : 'text-white/70'}`}>
-                        {g.homeScore}
-                      </span>
-                    </div>
-                  )}
-
-                  {g.status === 'in_progress' && g.homeWinProb != null && (
-                    <div className="px-4 py-2 border-b border-white/5 bg-black/10">
-                      <div className="flex justify-between text-[11px] font-bold text-white/80 mb-1">
-                        <span>{normalizeTeam(g.awayTeam)} {Math.round((1 - g.homeWinProb) * 100)}%</span>
-                        <span className="text-white/40 font-semibold">win probability</span>
-                        <span>{normalizeTeam(g.homeTeam)} {Math.round(g.homeWinProb * 100)}%</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden flex">
-                        <div className="bg-cyan-400" style={{ width: `${(1 - g.homeWinProb) * 100}%` }} />
-                        <div className="bg-pink-400 flex-1" />
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="grid grid-cols-2 divide-x divide-white/5">
-                    {/* Away Team Side */}
-                    <div className={`p-4 ${isFinal && !awayWon ? 'opacity-50' : ''}`}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <TeamLogo team={g.awayTeam} size="md" />
-                        <div className="min-w-0">
-                          <div className="text-[10px] text-cyan-300 font-disco uppercase tracking-widest">Away</div>
-                          <div className="font-bold text-white text-lg truncate font-disco flex items-baseline gap-1.5">
-                            <span>{normalizeTeam(g.awayTeam)}</span>
-                            {g.awayMoneyline != null && (
-                              <span className="text-xs font-sans text-white/60 font-semibold">
-                                ({g.awayMoneyline > 0 ? `+${g.awayMoneyline}` : g.awayMoneyline})
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        {awayPickers.map(u => {
-                          const hit = isFinal && awayWon;
-                          const loss = isFinal && !awayWon;
-                          return (
-                            <div key={u.id} className="flex items-center justify-between disco-section px-3 py-2 rounded text-sm mb-1.5">
-                              <span className="text-white font-medium truncate">{u.name}</span>
-                              {hit && <span className="text-xs bg-green-500/20 text-green-300 px-1.5 rounded">✅</span>}
-                              {loss && <span className="text-xs bg-red-500/20 text-red-300 px-1.5 rounded">❌</span>}
-                            </div>
-                          );
-                        })}
-                        {awayPickers.length === 0 && (
-                          <div className="text-xs text-white/30 italic px-1">No picks</div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Home Team Side */}
-                    <div className={`p-4 ${isFinal && !homeWon ? 'opacity-50' : ''}`}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <TeamLogo team={g.homeTeam} size="md" />
-                        <div className="min-w-0">
-                          <div className="text-[10px] text-pink-300 font-disco uppercase tracking-widest">Home</div>
-                          <div className="font-bold text-white text-lg truncate font-disco flex items-baseline gap-1.5">
-                            <span>{normalizeTeam(g.homeTeam)}</span>
-                            {g.homeMoneyline != null && (
-                              <span className="text-xs font-sans text-white/60 font-semibold">
-                                ({g.homeMoneyline > 0 ? `+${g.homeMoneyline}` : g.homeMoneyline})
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        {homePickers.map(u => {
-                          const hit = isFinal && homeWon;
-                          const loss = isFinal && !homeWon;
-                          return (
-                            <div key={u.id} className="flex items-center justify-between disco-section px-3 py-2 rounded text-sm mb-1.5">
-                              <span className="text-white font-medium truncate">{u.name}</span>
-                              {hit && <span className="text-xs bg-green-500/20 text-green-300 px-1.5 rounded">✅</span>}
-                              {loss && <span className="text-xs bg-red-500/20 text-red-300 px-1.5 rounded">❌</span>}
-                            </div>
-                          );
-                        })}
-                        {homePickers.length === 0 && (
-                          <div className="text-xs text-white/30 italic px-1">No picks</div>
-                        )}
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               );
-            })}
+            };
+
+            const homeChance = final ? null : sideWinChance(g, true);
+
+            return (
+              <div key={g.id} className={`card p-3 ${live ? 'border-live/40' : ''}`}>
+                <div className="mb-2 flex items-center justify-between text-[11px] text-muted">
+                  <span>
+                    {DateTime.fromISO(g.startTime).setZone('America/New_York').toFormat('ccc h:mm a')}
+                    {g.spread && ` · ${g.spread}`}
+                  </span>
+                  {live ? (
+                    <span className="tag-live"><span className="live-dot" /> Live</span>
+                  ) : final ? (
+                    <span className="tag-muted">Final</span>
+                  ) : (
+                    <span className="tag-muted">Upcoming</span>
+                  )}
+                </div>
+
+                <div className="flex gap-4">
+                  {side(g.awayTeam, g.awayScore, homeChance === null ? null : 1 - homeChance)}
+                  {side(g.homeTeam, g.homeScore, homeChance)}
+                </div>
+
+                {live && g.homeWinProb != null && (
+                  <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div className="bg-live" style={{ width: `${(1 - g.homeWinProb) * 100}%` }} />
+                    <div className="flex-1 bg-white/25" />
+                  </div>
+                )}
               </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
+            );
+          })}
+        </section>
+      </div>
+    </AppShell>
   );
 }

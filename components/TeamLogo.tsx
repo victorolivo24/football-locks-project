@@ -33,7 +33,9 @@ export default function TeamLogo({ team, size = 'md', className = '' }: TeamLogo
         width={px}
         height={px}
         className={className}
-        style={{ width: px, height: px, objectFit: 'contain' }}
+        // A faint light outline keeps dark marks (Giants, Jets, Raiders) visible
+        // on the dark background without boxing every logo in a white circle.
+        style={{ width: px, height: px, objectFit: 'contain', filter: 'drop-shadow(0 0 1px rgba(255,255,255,0.55))' }}
         onError={() => setErrored(true)}
         title={team}
         unoptimized
