@@ -149,14 +149,14 @@ export function sideWinChance(game: LiveGame, homeSide: boolean): number | null 
   return null;
 }
 
-/** Live chance a whole ticket cashes. Null if any leg has no number yet. */
+/** Live chance a whole ticket hits. Null if any leg has no number yet. */
 export function liveTicketChance(legs: Array<number | null>): number | null {
   if (legs.length === 0 || legs.some(l => l === null)) return null;
   return legs.reduce((product: number, l) => product * (l as number), 1);
 }
 
 /**
- * Chance a ticket cashes by the betting lines alone. Lines stop updating at
+ * Chance a ticket hits by the betting lines alone. Lines stop updating at
  * kickoff, so for a started game this is its closing number — "at lock" is
  * deliberately never the live figure, so the two can be shown side by side.
  */

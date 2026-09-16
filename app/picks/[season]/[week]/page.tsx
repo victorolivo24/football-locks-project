@@ -115,7 +115,7 @@ export default function LivePage({ params }: { params: { season: string; week: s
         user: u,
         ticket,
         out,
-        cashed: ticket.length > 0 && !out && live === 1,
+        hit: ticket.length > 0 && !out && live === 1,
         live,
         atLock: atLockChance(ticket, games),
       };
@@ -161,7 +161,7 @@ export default function LivePage({ params }: { params: { season: string; week: s
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{firstName(t.user.name)}</span>
                     {t.out && <span className="tag-loss">Out</span>}
-                    {t.cashed && <span className="tag-win">Cashed</span>}
+                    {t.hit && <span className="tag-win">Hit</span>}
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {t.ticket.map(p => {
@@ -185,7 +185,7 @@ export default function LivePage({ params }: { params: { season: string; week: s
                 </div>
                 <div className="shrink-0 text-right">
                   <div className={`num text-2xl font-bold leading-none ${
-                    t.out ? 'text-muted' : t.cashed ? 'text-win' : 'text-live'
+                    t.out ? 'text-muted' : t.hit ? 'text-win' : 'text-live'
                   }`}>
                     {t.live === null ? '—' : `${Math.round(t.live * 100)}%`}
                   </div>

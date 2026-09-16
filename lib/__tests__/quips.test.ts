@@ -215,7 +215,7 @@ describe('hit lines with context', () => {
 
   it('calls a completed ticket done', () => {
     const lines = hitLines({ who: 'Mihir', lockCount: 3, locksHit: 3 });
-    expect(lines.some(l => l.includes('Full ticket, cashed'))).toBe(true);
+    expect(lines.some(l => l.includes('Full ticket, hit'))).toBe(true);
     expect(lines.every(l => !l.includes('to go for'))).toBe(true);
   });
 
@@ -326,7 +326,7 @@ describe('group, start and reminder lines', () => {
 
   it('weights group lines above the generic pools', () => {
     const pools = hitPools(ctx({ who: 'Chris and Victor', plural: true }));
-    const group = pools.find(p => p.lines.some(l => l.includes('all cashed that one')))!;
+    const group = pools.find(p => p.lines.some(l => l.includes('all hit that one')))!;
     const generic = pools.find(p => p.lines.some(l => l.includes('insufferable')))!;
     expect(group.weight).toBeGreaterThan(generic.weight);
   });

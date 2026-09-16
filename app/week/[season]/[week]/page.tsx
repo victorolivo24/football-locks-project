@@ -317,7 +317,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
                   >
                     <div className="text-[10px] font-semibold uppercase text-muted">{tier.n} {tier.n === 1 ? 'lock' : 'locks'}</div>
                     <div className={`num text-xl font-bold ${tier.n === bestN ? 'text-gold' : ''}`}>{tier.expected}</div>
-                    <div className="text-[10px] text-muted">{Math.round(tier.probability)}% cash</div>
+                    <div className="text-[10px] text-muted">{Math.round(tier.probability)}% hits</div>
                   </div>
                 ))}
               </div>
@@ -383,7 +383,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
               <div className="text-sm font-semibold">{draft.length} {draft.length === 1 ? 'lock' : 'locks'}</div>
               {draftChance !== null && (
                 <div className="text-xs text-muted">
-                  <span className="font-semibold text-gold">{Math.round(draftChance * 100)}%</span> to cash at lock
+                  <span className="font-semibold text-gold">{Math.round(draftChance * 100)}%</span> to hit at lock
                 </div>
               )}
             </div>

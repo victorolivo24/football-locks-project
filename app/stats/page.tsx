@@ -103,7 +103,7 @@ export default function StatsPage() {
                       <span className="tag-muted num">#{i + 1}</span>
                     </div>
                     <div className="text-xs text-muted">
-                      {p.totalPoints} pts · {p.activeWeeks} {p.activeWeeks === 1 ? 'week' : 'weeks'} · {p.perfectWeeks} cashed
+                      {p.totalPoints} pts · {p.activeWeeks} {p.activeWeeks === 1 ? 'week' : 'weeks'} · {p.perfectWeeks} hit
                     </div>
                   </div>
                   {p.topTeams?.[0] && <TeamLogo team={p.topTeams[0].team} size="md" />}

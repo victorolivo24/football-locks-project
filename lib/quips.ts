@@ -393,10 +393,10 @@ const PROGRESS: Array<(c: QuipContext) => string | null> = [
     ? `That's ${c.locksHit} of ${c.lockCount} for ${c.who}`
     : null),
   c => (c.locksHit !== null && c.lockCount !== null && c.lockCount - c.locksHit === 1
-    ? `${c.who} is one game from cashing`
+    ? `${c.who} is one game from hitting`
     : null),
   c => (c.locksHit !== null && c.lockCount === c.locksHit
-    ? `${c.who} is done. Full ticket, cashed`
+    ? `${c.who} is done. Full ticket, hit`
     : null),
   c => (c.locksHit !== null && c.lockCount !== null && c.lockCount - c.locksHit >= 3
     ? `${c.who} has ${c.lockCount - c.locksHit} left and plenty of time to ruin it`
@@ -545,7 +545,7 @@ const OWN_HITS: Array<(c: QuipContext) => string> = [
 ];
 
 const GROUP_HITS: Array<(c: QuipContext) => string> = [
-  c => `${c.who} all cashed that one`,
+  c => `${c.who} all hit that one`,
   c => `Everyone holding the ${c.team} is fine`,
   c => `${c.who} are all still alive. Annoying`,
   c => `A good day for ${c.who}`,
