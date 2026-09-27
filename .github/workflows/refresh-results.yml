@@ -1,11 +1,13 @@
 # Keeps results and alerts moving when nobody has the app open.
 #
 # The cadence comes from a loop inside the job, NOT from the cron schedule.
-# GitHub drops high-frequency scheduled runs under load: a */5 schedule here
-# actually fired roughly every two hours on a Sunday, which is how a game
-# ending at 19:00 got announced at 20:27. An hourly trigger is reliable
-# enough, and each run then polls every 60 seconds for its own hour, so a
-# missed trigger costs one hour of cover rather than every update in it.
+# GitHub drops scheduled runs under load, hourly ones included: on 2026-09-27
+# nothing fired between 09:42 and 17:00 UTC, so the 1pm slate kicked off with
+# no job running and alerts only went out when someone opened the site.
+#
+# So each run covers the whole slate rather than its own hour: it polls every
+# 60 seconds for five hours, and any one trigger firing is enough. A later
+# trigger simply restarts the window.
 #
 # Times are UTC. Eastern is UTC-4 in season (UTC-5 after early November), so
 # each window is deliberately wide enough to cover both.
@@ -14,7 +16,7 @@ name: Refresh results
 on:
   schedule:
     - cron: '0 0-5 * * 5'    # Thursday night football, into Friday UTC
-    - cron: '0 16-23 * * 0'  # Sunday early and afternoon slates
+    - cron: '0 12-23 * * 0'  # Sunday, from the London kickoffs on
     - cron: '0 0-5 * * 1'    # Sunday night football, into Monday UTC
     - cron: '0 0-5 * * 2'    # Monday night football, into Tuesday UTC
     - cron: '0 16-23 * * 6'  # Saturday games, late season
@@ -23,7 +25,7 @@ on:
     inputs:
       minutes:
         description: How long to keep polling
-        default: '55'
+        default: '300'
 
 concurrency:
   # A later run supersedes one still looping, rather than doubling the polling.
@@ -34,13 +36,14 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     # Generous ceiling; the loop exits on its own well before this.
-    timeout-minutes: 70
+    # GitHub's own hard limit for a job is six hours.
+    timeout-minutes: 330
     steps:
       - name: Poll for results and send any alerts
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_URL: ${{ vars.APP_URL || 'https://football-locks-project.vercel.app' }}
-          MINUTES: ${{ github.event.inputs.minutes || '55' }}
+          MINUTES: ${{ github.event.inputs.minutes || '300' }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "CRON_SECRET is not set on this repository."
