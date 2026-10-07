@@ -42,23 +42,30 @@ function pick(lines: string[], seed: string): string {
 }
 
 /**
- * Pick from several pools, each taking a share of the draw proportional to its
- * weight. Without this a pool of one line competes with a pool of eighty and
- * effectively never comes up.
+ * Pick from several pools, each taking a share of the draw set by its weight
+ * and its size. Without a weight a pool of one line competes with a pool of
+ * eighty and effectively never comes up; without the size term the opposite
+ * happens, and a single team joke lands on a quarter of that team's busts
+ * while seventy non-sequiturs split the same quarter. The square root keeps
+ * small pools present without letting one line dominate.
  */
 function weighted(pools: Array<{ weight: number; lines: string[] }>, seed: string): string {
   const usable = pools.filter(pool => pool.lines.length > 0);
   if (usable.length === 0) return '';
 
-  const total = usable.reduce((sum, pool) => sum + pool.weight, 0);
+  // Scaled by 16 so the shares stay integers after rounding.
+  const share = (pool: { weight: number; lines: string[] }) =>
+    Math.max(1, Math.round(pool.weight * Math.sqrt(pool.lines.length) * 16));
+
+  const total = usable.reduce((sum, pool) => sum + share(pool), 0);
   let choice = hash(seed) % total;
 
   for (const pool of usable) {
-    if (choice < pool.weight) {
+    if (choice < share(pool)) {
       // A second hash so the line within a pool is independent of the pool draw.
       return pool.lines[hash(seed + '#') % pool.lines.length];
     }
-    choice -= pool.weight;
+    choice -= share(pool);
   }
   return usable[0].lines[0];
 }
@@ -639,24 +646,6 @@ export function ownQuip(context: QuipContext, hit: boolean): string {
  * deliberately tiny — enough to keep the tone consistent without pushing the
  * actual information off a lock screen.
  */
-const CLOSERS: string[] = [
-  'The board remembers.',
-  'Noted for posterity.',
-  'Make of that what you will.',
-  'This has been football.',
-  'Such is the slate.',
-  'File it away.',
-  'As foretold.',
-  'No notes.',
-  'Grim.',
-  'Wonderful.',
-  'Perfect. No issues.',
-  'Nothing to be done.',
-];
-
-export function closer(seed: string): string {
-  return pick(CLOSERS, seed);
-}
 
 /**
  * The confirmation alert someone gets when switching notifications on.

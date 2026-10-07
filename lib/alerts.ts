@@ -1,6 +1,6 @@
 import { isSameTeam, normalizeTeam } from './teams';
 import type { AlertKind, PushMessage } from './push';
-import { bustQuip, hitQuip, ownQuip, startQuip, sweatQuip, closer, QuipContext } from './quips';
+import { bustQuip, hitQuip, ownQuip, startQuip, sweatQuip, QuipContext } from './quips';
 import { DateTime } from 'luxon';
 
 export interface GameState {
@@ -101,7 +101,7 @@ export function buildAlerts(
             locksHit: null,
             seed: `start:${gameId}:${pick.userId}`,
           }),
-          `${matchup} just kicked off. You have ${normalizeTeam(pick.pickedTeam)}. ${closer(`start:${gameId}:${pick.userId}`)}`,
+          `${matchup} just kicked off. You have ${normalizeTeam(pick.pickedTeam)}.`,
           `start:${gameId}`
         );
       }
@@ -146,8 +146,8 @@ export function buildAlerts(
           lockCount: null, survivors: null, locksHit: null, seed,
         }, survived, own);
         const body = own
-          ? `The ${team} ${state}. You have them. ${closer(seed)}`
-          : `The ${team} ${state}. ${who} ${names.length > 1 ? 'have' : 'has'} them. ${closer(seed)}`;
+          ? `The ${team} ${state}. You have them.`
+          : `The ${team} ${state}. ${who} ${names.length > 1 ? 'have' : 'has'} them.`;
 
         add(player.id, 'sweat', title, body, seed);
       }
@@ -208,7 +208,7 @@ export function buildAlerts(
             context('you', false, pick.pickedTeam, `own:${gameId}:${pick.userId}`, locksFor(pick.userId)),
             hit
           ),
-          `${normalizeTeam(pick.pickedTeam)} ${hit ? 'won' : 'lost'}.${score} ${closer(`own:${gameId}:${pick.userId}`)}`,
+          `${normalizeTeam(pick.pickedTeam)} ${hit ? 'won' : 'lost'}.${score.trimEnd()}`,
           `final:${gameId}:${pick.userId}`
         );
       }
@@ -227,7 +227,7 @@ export function buildAlerts(
         affected: number[],
         kind: AlertKind,
         line: (c: QuipContext) => string,
-        detail: (who: string, seed: string) => string
+        detail: (who: string) => string
       ) => {
         for (const player of players) {
           const others = affected.filter(id => id !== player.id);
@@ -245,7 +245,7 @@ export function buildAlerts(
             player.id,
             kind,
             line(context(who, names.length > 1, team, seed, lockCount, survivors, locksHit)),
-            detail(who, seed),
+            detail(who),
             seed
           );
         }
@@ -255,14 +255,14 @@ export function buildAlerts(
         hits,
         'rivalHit',
         hitQuip,
-        (who, seed) => `${normalizeTeam(game.winnerTeam!)} won.${score} ${who} had it. ${closer(seed)}`
+        (who) => `${normalizeTeam(game.winnerTeam!)} won.${score} ${who} had it.`
       );
 
       rivalNote(
         busts,
         'rivalBust',
         bustQuip,
-        (who, seed) => `${normalizeTeam(game.winnerTeam!)} won.${score} ${who} lost that lock. ${closer(seed)}`
+        (who) => `${normalizeTeam(game.winnerTeam!)} won.${score} ${who} lost that lock.`
       );
     }
   }

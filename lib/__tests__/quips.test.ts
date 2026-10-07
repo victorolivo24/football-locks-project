@@ -10,7 +10,6 @@ import {
   reminderQuip,
   reminderPools,
   ownPools,
-  closer,
   testAlert,
   QuipContext,
 } from '../quips';
@@ -358,22 +357,35 @@ describe('group, start and reminder lines', () => {
   });
 });
 
-describe('body closers and the test alert', () => {
-  it('keeps closers short enough not to push the facts off a lock screen', () => {
-    const lines = Array.from({ length: 40 }, (_, i) => closer(`c${i}`));
-    expect(lines.every(l => l.length <= 30)).toBe(true);
+describe('pool sizes share the draw', () => {
+  const ctx = (seed: string) => ({
+    who: 'Chris', plural: false, team: 'Ravens', margin: 10, earlyWeek: false,
+    lockCount: 3, survivors: 4, locksHit: 2, seed,
   });
 
-  it('varies the closer', () => {
-    const lines = Array.from({ length: 40 }, (_, i) => closer(`c${i}`));
-    const distinct = lines.filter((l, i) => lines.indexOf(l) === i);
-    expect(distinct.length).toBeGreaterThan(4);
+  it('does not let a one-line pool outdraw a pool of seventy', () => {
+    // The team joke is a single line; the non-sequiturs are the biggest pool.
+    const pools = bustPools(ctx('x'));
+    const single = pools.find(p => p.lines.length === 1)!;
+    const biggest = pools.reduce((a, b) => (a.lines.length > b.lines.length ? a : b));
+
+    const lines = Array.from({ length: 400 }, (_, i) => bustQuip(ctx(`bust:${i}`)));
+    const singleHits = lines.filter(l => single.lines.includes(l)).length;
+    const biggestHits = lines.filter(l => biggest.lines.includes(l)).length;
+
+    expect(singleHits / lines.length).toBeLessThan(0.15);
+    expect(biggestHits).toBeGreaterThan(singleHits * 3);
   });
 
-  it('is stable per event, like every other line', () => {
-    expect(closer('same')).toBe(closer('same'));
+  it('still shows the one-line pool sometimes', () => {
+    const pools = bustPools(ctx('x'));
+    const single = pools.find(p => p.lines.length === 1)!;
+    const lines = Array.from({ length: 400 }, (_, i) => bustQuip(ctx(`bust:${i}`)));
+    expect(lines.some(l => single.lines.includes(l))).toBe(true);
   });
+});
 
+describe('the test alert', () => {
   it('always returns a test alert with both halves', () => {
     for (let i = 0; i < 30; i++) {
       const alert = testAlert();
