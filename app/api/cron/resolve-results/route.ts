@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentNFLWeek, getCurrentWeekFromSchedule } from '@/lib/nfl';
 import { refreshWeekResults } from '@/lib/results';
+import { anyGameInWindow } from '@/lib/refreshWindow';
 
 async function handler(request: NextRequest) {
   try {
@@ -13,6 +14,13 @@ async function handler(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+
+    // Vercel's once-a-day sweep always runs in full (it sends this header);
+    // the minute-by-minute pollers only wake the database when a game is on.
+    const isNightlySweep = request.headers.has('x-vercel-cron-schedule');
+    if (!isNightlySweep && !(await anyGameInWindow())) {
+      return NextResponse.json({ success: true, message: 'No games in progress; skipped' });
     }
 
     const { season, week } = (await getCurrentWeekFromSchedule()) ?? getCurrentNFLWeek();
