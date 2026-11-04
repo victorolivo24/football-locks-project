@@ -174,10 +174,16 @@ describe('ticketFacts', () => {
     expect(ticketFacts(1, field, [home(1), home(2)], probs)!.notClearOf).toEqual([3]);
   });
 
-  it('knows whose ticket it covers and whose it avoids', () => {
+  it('knows whose ticket it matches, extends, and avoids', () => {
     const facts = ticketFacts(1, field, [home(1), home(2)], probs)!;
-    expect(facts.covers).toEqual([2]);
+    expect(facts.same).toEqual([2]);
+    expect(facts.extends).toEqual([]);
     expect(facts.clearOf).toEqual([3]);
+
+    const bigger = ticketFacts(1, field, [home(1), home(2), home(3)], probs)!;
+    expect(bigger.same).toEqual([]);
+    expect(bigger.extends).toEqual([{ userId: 2, extra: 1, theirs: 2 }, { userId: 3, extra: 2, theirs: 1 }]);
+    expect(bigger.clearOf).toEqual([]);
   });
 
   it('is zero chance for an empty ticket', () => {

@@ -232,8 +232,13 @@ export interface TicketFacts {
   pointsIfHit: number;
   /** Rivals still level or ahead if this ticket hits and theirs does too. */
   notClearOf: number[];
-  /** Rivals whose whole ticket this one holds, so they can never gain on it. */
-  covers: number[];
+  /** Rivals on exactly this ticket, so neither side can gain on the other. */
+  same: number[];
+  /**
+   * Rivals whose whole ticket this one holds plus more. All hit and the viewer
+   * gains the extra legs; the extras bust and the rival gains their ticket.
+   */
+  extends: Array<{ userId: number; extra: number; theirs: number }>;
   /** Rivals sharing no game with it, so their bust is pure gain. */
   clearOf: number[];
 }
@@ -261,7 +266,10 @@ export function ticketFacts(
     hitChance,
     pointsIfHit,
     notClearOf: rivals.filter(r => r.points + r.ticket.length >= pointsIfHit).map(r => r.userId),
-    covers: rivals.filter(r => r.ticket.length > 0 && r.ticket.every(holds)).map(r => r.userId),
+    same: rivals.filter(r => r.ticket.length === ticket.length && r.ticket.every(holds)).map(r => r.userId),
+    extends: rivals
+      .filter(r => r.ticket.length > 0 && r.ticket.length < ticket.length && r.ticket.every(holds))
+      .map(r => ({ userId: r.userId, extra: ticket.length - r.ticket.length, theirs: r.ticket.length })),
     clearOf: rivals
       .filter(r => r.ticket.length > 0 && !r.ticket.some(l => ticket.some(t => t.gameId === l.gameId)))
       .map(r => r.userId),

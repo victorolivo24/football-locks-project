@@ -302,7 +302,10 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                             {row.facts.notClearOf.length === 0
                               ? 'clear of the field even if everyone hits.'
                               : `not clear of ${names(row.facts.notClearOf)} if theirs hit too.`}
-                            {row.facts.covers.length > 0 && ` Holds everything ${names(row.facts.covers)} has, so they can't gain on it.`}
+                            {row.facts.same.length > 0 && ` Same ticket as ${names(row.facts.same)}, so you move together.`}
+                            {row.facts.extends.map(e =>
+                              ` ${names([e.userId])}'s ticket plus ${e.extra}: all hit and you gain ${e.extra} on them, your extra${e.extra === 1 ? '' : 's'} bust and they gain ${e.theirs}.`
+                            ).join('')}
                             {row.facts.clearOf.length > 0 && ` Shares nothing with ${names(row.facts.clearOf)}, so their bust is pure gain.`}
                           </p>
                         )}
