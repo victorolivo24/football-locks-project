@@ -243,6 +243,18 @@ export default function FieldPage({ params }: { params: { season: string; week: 
               )}
             </div>
 
+            {!editingMe && (() => {
+              const rival = rivals.find(r => r.userId === editingId);
+              if (!rival) return null;
+              const chalk = Math.round((rival.rankShares[0] ?? 0) * 100);
+              return (
+                <p className="text-xs text-muted">
+                  Guess: {rival.simulatedPace} {rival.simulatedPace === 1 ? 'lock' : 'locks'}, the way they usually play.
+                  They take the safest game on the board {chalk}% of weeks, and sit {rival.points} pts.
+                </p>
+              );
+            })()}
+
             <div className="grid grid-cols-3 gap-2">
               {stat('Locks', String(chosen.length))}
               {stat('Hits all', chosen.length > 0 ? `${survives.toFixed(1)}%` : '—', 'text-gold')}
@@ -287,6 +299,31 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                 </p>
               </div>
             )}
+
+            <details className="card p-4 text-sm text-muted">
+              <summary className="section-title cursor-pointer">How this works</summary>
+              <ul className="mt-3 list-disc space-y-1.5 pl-4">
+                <li>
+                  Expected points scores a ticket on its own. It ignores that the leader only needs to hold serve
+                  and the pack needs to catch up.
+                </li>
+                <li>
+                  So each play is scored by your chance of winning the season once this week is played: every way
+                  the week can go, weighted by the lines, then the remaining weeks simulated from each result.
+                </li>
+                <li>
+                  Everyone on the same game lives or dies on the same result. Sharing the leader&apos;s games means
+                  you can never gain on them; fading them means you can.
+                </li>
+                <li>
+                  A rival&apos;s guess is how many games they usually lock, placed on the board ranks they take most
+                  often this season. Change it if you know better, or clear it if you think they will sit out.
+                </li>
+                <li>
+                  Plays are subsets of the safest eight games, one to six locks. Underdog sides are not searched.
+                </li>
+              </ul>
+            </details>
           </aside>
         </div>
       )}
