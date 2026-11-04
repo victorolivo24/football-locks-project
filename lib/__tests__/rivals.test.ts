@@ -98,11 +98,20 @@ describe('titleOddsAfterWeek', () => {
   });
 });
 
+const oneSide = favourites.map(leg => [leg]);
+const bothSides = favourites.map(leg => [leg, { ...leg, home: false }]);
+
 describe('candidateTickets', () => {
   it('builds every subset up to the size limit', () => {
-    const tickets = candidateTickets(favourites, 2);
+    const tickets = candidateTickets(oneSide, 2);
     expect(tickets).toHaveLength(6);
     expect(tickets.every(t => t.length <= 2)).toBe(true);
+  });
+
+  it('takes at most one side per game when dogs are in', () => {
+    const tickets = candidateTickets(bothSides, 2);
+    expect(tickets).toHaveLength(6 + 3 * 4);
+    expect(tickets.every(t => new Set(t.map(l => l.gameId)).size === t.length)).toBe(true);
   });
 });
 
@@ -111,7 +120,7 @@ describe('rankTickets', () => {
     // Ahead by one, rival on the two safest games, season ends this week:
     // holding the same games means they can never pass me.
     const ranked = rankTickets(
-      1, [player(1, 5, []), player(2, 4, [home(1), home(2)])], favourites, probs, 0
+      1, [player(1, 5, []), player(2, 4, [home(1), home(2)])], candidateTickets(oneSide), probs, 0
     );
     close(ranked[0].odds, 1);
     expect(ranked[0].ticket.map(l => l.gameId)).toEqual([1, 2]);
@@ -121,14 +130,33 @@ describe('rankTickets', () => {
     // One behind with no weeks left: mirroring the rival can never catch
     // them, so the best play is the biggest ticket on the board.
     const ranked = rankTickets(
-      1, [player(1, 4, []), player(2, 5, [home(1), home(2)])], favourites, probs, 0
+      1, [player(1, 4, []), player(2, 5, [home(1), home(2)])], candidateTickets(oneSide), probs, 0
     );
     expect(ranked[0].ticket).toHaveLength(3);
     expect(ranked[0].odds).toBeGreaterThan(ranked[ranked.length - 1].odds);
   });
 
+  it('agrees with the exact week model', () => {
+    const field = [player(1, 3, []), player(2, 4, [home(1), home(2)]), player(3, 2, [away(2), home(3)])];
+    for (const row of rankTickets(1, field, candidateTickets(bothSides), probs, 4)) {
+      const exact = titleOddsAfterWeek([{ ...field[0], ticket: row.ticket }, field[1], field[2]], probs, 4)[0];
+      close(row.odds, exact, 1e-9);
+    }
+  });
+
+  it('finds the fade when mirroring cannot win', () => {
+    // One behind the rival, who is on the safest favourite, season over this
+    // week. Riding with them can never pass them; the dog can.
+    const ranked = rankTickets(
+      1, [player(1, 4, []), player(2, 5, [home(1)])], candidateTickets(bothSides.slice(0, 1)), probs, 0
+    );
+    expect(ranked[0].ticket).toEqual([away(1)]);
+    expect(ranked[0].odds).toBeGreaterThan(0);
+    expect(ranked[1].odds).toBe(0);
+  });
+
   it('returns nothing for a player not in the field', () => {
-    expect(rankTickets(9, [player(1, 0, [])], favourites, probs, 0)).toEqual([]);
+    expect(rankTickets(9, [player(1, 0, [])], candidateTickets(oneSide), probs, 0)).toEqual([]);
   });
 });
 

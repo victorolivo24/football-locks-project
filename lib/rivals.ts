@@ -134,35 +134,108 @@ export interface RankedTicket {
   odds: number;
 }
 
-/** Subsets of the safest favourites, up to maxSize locks, as candidate tickets. */
-export function candidateTickets(favourites: Leg[], maxSize = 6): Leg[][] {
+/**
+ * Every ticket of up to maxSize locks that takes at most one side per game.
+ * Pass one side per game to search favourites only, both to search dogs too.
+ */
+export function candidateTickets(sides: Leg[][], maxSize = 6): Leg[][] {
   const tickets: Leg[][] = [];
-  for (let mask = 1; mask < 1 << favourites.length; mask++) {
-    const ticket = favourites.filter((_, i) => mask & (1 << i));
-    if (ticket.length <= maxSize) tickets.push(ticket);
-  }
+  const walk = (i: number, ticket: Leg[]) => {
+    if (i === sides.length) {
+      if (ticket.length > 0) tickets.push(ticket);
+      return;
+    }
+    walk(i + 1, ticket);
+    if (ticket.length < maxSize) for (const side of sides[i]) walk(i + 1, [...ticket, side]);
+  };
+  walk(0, []);
   return tickets;
 }
 
 /**
  * Rank the viewer's candidate tickets by title chance, given everyone else's
  * assumed ticket. Best first.
+ *
+ * Thousands of candidates share one field, so the week is enumerated once and
+ * each outcome reduced to which rivals survived. A candidate then only needs
+ * its own hit or miss per outcome, and the season simulation runs once per
+ * (rivals' pattern, ticket size, hit) rather than once per candidate.
  */
 export function rankTickets(
   me: number,
   players: WeekPlayer[],
-  favourites: Leg[],
+  candidates: Leg[][],
   homeProb: HomeProbabilities,
   remainingWeeks: number
 ): RankedTicket[] {
   const index = players.findIndex(p => p.userId === me);
   if (index < 0) return [];
+  const rivals = players.filter((_, i) => i !== index);
+  // ponytail: one bit per rival; fine for a six-player league, rethink past ~12.
 
-  const cache = new Map<string, number[]>();
-  return candidateTickets(favourites)
+  const gameIds = Array.from(new Set([...candidates.flat(), ...rivals.flatMap(r => r.ticket)].map(l => l.gameId)));
+  const bit = new Map(gameIds.map((id, i) => [id, 1 << i]));
+  const masksOf = (ticket: Leg[]) => {
+    let required = 0;
+    let wanted = 0;
+    for (const leg of ticket) {
+      required |= bit.get(leg.gameId)!;
+      if (leg.home) wanted |= bit.get(leg.gameId)!;
+    }
+    return { required, wanted };
+  };
+
+  const rivalMasks = rivals.map(r => ({ ...masksOf(r.ticket), empty: r.ticket.length === 0 }));
+  const outcomes = 1 << gameIds.length;
+  const probability = new Float64Array(outcomes);
+  const pattern = new Int32Array(outcomes);
+  for (let mask = 0; mask < outcomes; mask++) {
+    let p = 1;
+    gameIds.forEach((id, i) => {
+      const home = homeProb.get(id) ?? 0.5;
+      p *= mask & (1 << i) ? home : 1 - home;
+    });
+    probability[mask] = p;
+    rivalMasks.forEach((m, j) => {
+      if (!m.empty && (mask & m.required) === m.wanted) pattern[mask] |= 1 << j;
+    });
+  }
+
+  const shares = new Map<string, number>();
+  const shareOf = (rivalPattern: number, size: number, hit: boolean) => {
+    const key = `${rivalPattern}:${size}:${hit}`;
+    let share = shares.get(key);
+    if (share === undefined) {
+      let j = 0;
+      const after = players.map((p, i) => {
+        if (i === index) return { ...p, points: p.points + (hit ? size : 0) };
+        const won = rivalPattern & (1 << j++);
+        return { ...p, points: p.points + (won ? p.ticket.length : 0) };
+      });
+      share = (simulateSeason(after, remainingWeeks, RUNS, makeRng(SEED)).get(me) ?? 0) / RUNS;
+      shares.set(key, share);
+    }
+    return share;
+  };
+
+  const patterns = 1 << rivals.length;
+  const hitProb = new Float64Array(patterns);
+  const missProb = new Float64Array(patterns);
+  return candidates
     .map(ticket => {
-      const field = players.map((p, i) => (i === index ? { ...p, ticket } : p));
-      return { ticket, odds: titleOddsAfterWeek(field, homeProb, remainingWeeks, cache)[index] };
+      const { required, wanted } = masksOf(ticket);
+      hitProb.fill(0);
+      missProb.fill(0);
+      for (let mask = 0; mask < outcomes; mask++) {
+        if ((mask & required) === wanted) hitProb[pattern[mask]] += probability[mask];
+        else missProb[pattern[mask]] += probability[mask];
+      }
+      let odds = 0;
+      for (let r = 0; r < patterns; r++) {
+        if (hitProb[r] > 0) odds += hitProb[r] * shareOf(r, ticket.length, true);
+        if (missProb[r] > 0) odds += missProb[r] * shareOf(r, ticket.length, false);
+      }
+      return { ticket, odds };
     })
     .sort((a, b) => b.odds - a.odds || a.ticket.length - b.ticket.length);
 }

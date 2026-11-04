@@ -8,7 +8,7 @@ import PickBoard, { Selection } from '@/components/PickBoard';
 import TeamLogo from '@/components/TeamLogo';
 import { rankedBoard, ticketProbability, expectedPoints } from '@/lib/luck';
 import { isSameTeam } from '@/lib/teams';
-import { predictRanks, rankTickets, titleOddsAfterWeek, explainLocks, ticketFacts, Leg, WeekPlayer } from '@/lib/rivals';
+import { predictRanks, rankTickets, candidateTickets, titleOddsAfterWeek, explainLocks, ticketFacts, Leg, WeekPlayer } from '@/lib/rivals';
 
 interface Game {
   id: number;
@@ -129,7 +129,11 @@ export default function FieldPage({ params }: { params: { season: string; week: 
     if (!field || meId === null || !field.players.some(p => p.userId === meId)) return null;
 
     const homeProb = new Map(board.map(e => [e.game.id, e.homeProbability]));
-    const favourites: Leg[] = board.slice(0, 8).map(e => ({ gameId: e.game.id, home: e.homeProbability >= 0.5 }));
+    // Either side of the safest eight games.
+    const sides: Leg[][] = board.slice(0, 8).map(e => [
+      { gameId: e.game.id, home: e.homeProbability >= 0.5 },
+      { gameId: e.game.id, home: e.homeProbability < 0.5 },
+    ]);
     const players: WeekPlayer[] = field.players.map(p => ({
       userId: p.userId,
       points: p.points,
@@ -142,10 +146,10 @@ export default function FieldPage({ params }: { params: { season: string; week: 
     const index = players.findIndex(p => p.userId === meId);
     return {
       mine: titleOddsAfterWeek(players, homeProb, field.remainingWeeks)[index],
-      ranked: rankTickets(meId, players, favourites, homeProb, field.remainingWeeks)
+      ranked: rankTickets(meId, players, candidateTickets(sides), homeProb, field.remainingWeeks)
         .slice(0, 8)
         .map(row => ({ ...row, facts: ticketFacts(meId, players, row.ticket, homeProb) })),
-      locks: explainLocks(meId, players, favourites, homeProb, field.remainingWeeks),
+      locks: explainLocks(meId, players, sides.flat(), homeProb, field.remainingWeeks),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field, board, mine, tickets, meId]);
@@ -315,8 +319,8 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                   ))}
                 </div>
                 <p className="text-[11px] text-muted">
-                  Subsets of the safest eight games, given the tickets you set for everyone else. Tap one to
-                  make it your ticket here.
+                  Either side of the safest eight games, up to six locks, given the tickets you set for
+                  everyone else. Tap one to make it your ticket here.
                 </p>
               </div>
             )}
@@ -328,17 +332,22 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                   <span className="text-[11px] text-muted">swing in your title odds</span>
                 </div>
                 <div className="divide-y divide-line">
-                  {against.locks.map(lock => {
+                  {against.locks.filter((lock, i) => {
+                    if (i % 2 === 0) return true;
+                    return lock.held || lock.delta > against.locks[i - 1].delta;
+                  }).map((lock, i, shown) => {
                     const game = gameById.get(lock.leg.gameId);
                     if (!game) return null;
+                    const dog = i > 0 && shown[i - 1].leg.gameId === lock.leg.gameId;
                     const team = lock.leg.home ? game.homeTeam : game.awayTeam;
                     const swing = lock.delta * 100;
                     return (
-                      <div key={lock.leg.gameId} className="flex items-center gap-2 py-2">
+                      <div key={`${lock.leg.gameId}-${lock.leg.home}`} className="flex items-center gap-2 py-2">
                         <TeamLogo team={team} size="sm" className="scale-75" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 text-sm">
                             <span className="truncate font-semibold">{team.split(' ').pop()}</span>
+                            {dog && <span className="tag-muted text-[10px]">dog</span>}
                             {lock.held && <span className="text-[10px] text-gold">🔒</span>}
                           </div>
                           <div className="text-[11px] text-muted">
@@ -361,9 +370,10 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                   })}
                 </div>
                 <p className="text-[11px] text-muted">
-                  Each line: what locking this game does to your title odds, added to your ticket as set (or
-                  what a 🔒 you already hold is worth). A game your rivals share can&apos;t hurt you much if it
-                  misses, since they bust with you. One only you hold can.
+                  Each line: what locking this side does to your title odds, added to your ticket as set (or
+                  what a 🔒 you already hold is worth). The underdog is listed when it is the better lock
+                  against the field. A game your rivals share can&apos;t hurt you much if it misses, since
+                  they bust with you. One only you hold can.
                 </p>
               </div>
             )}
@@ -388,7 +398,8 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                   often this season. Change it if you know better, or clear it if you think they will sit out.
                 </li>
                 <li>
-                  Plays are subsets of the safest eight games, one to six locks. Underdog sides are not searched.
+                  Plays take either side of the safest eight games, one to six locks. An underdog shows up when
+                  fading a rival is worth more than riding the favourite.
                 </li>
               </ul>
             </details>
