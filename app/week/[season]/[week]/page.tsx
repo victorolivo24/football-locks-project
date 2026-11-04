@@ -405,7 +405,14 @@ export default function WeekPage({ params }: { params: { season: string; week: s
               <h2 className="section-title">Ticket Simulator</h2>
               <button onClick={() => setCalcOpen(false)} className="btn-ghost px-3 py-1.5 text-xs">Close</button>
             </div>
-            <TicketBuilder games={games} week={week} myPicks={calcSeed} />
+            <TicketBuilder
+              games={games}
+              season={season}
+              week={week}
+              meId={user.userId}
+              myPicks={calcSeed}
+              leaguePicks={league?.picksByUser}
+            />
           </div>
         </div>
       )}
