@@ -1,5 +1,4 @@
 import { getSeasonInsights } from './insights';
-import { getWeekOdds } from './espnOdds';
 import { fairWinProbability, evCurve, bestLockCount } from './luck';
 import {
   makeRng,
@@ -10,9 +9,10 @@ import {
   FIELD_CORRELATION,
   SeasonPlayer,
 } from './simulate';
+import { rankShares } from './rivals';
 import { db } from './db';
-import { games, picks } from './db/schema';
-import { and, eq } from 'drizzle-orm';
+import { games, picks, gameOdds } from './db/schema';
+import { eq } from 'drizzle-orm';
 import { isSameTeam } from './teams';
 import { HISTORICAL_PAR } from './history';
 
@@ -30,73 +30,95 @@ export interface PlayerOddsResult {
   simulatedPace: number;
   projectedPoints: number;
   maxCeiling: number;
-  /** Pace actually used in the simulation, after regressing toward the field. */
   projectedFinish: number; // Median simulated final score
+  /** Chance a ticket of their simulated pace survives a week. */
+  winProb: number;
+  /** 0 to 1: how much their week moves with everyone else's. */
+  correlation: number;
+  /** Share of past weeks they took each board rank, safest first. */
+  rankShares: number[];
 }
 
 /**
- * Rank the week's board safest-first and record where each player sits on it.
+ * Rank every played week's board safest-first and record where each player
+ * sat on it.
  *
  * Ranks are what make correlation work: two players on the same ranks hold the
- * same games, so they can never finish a week apart.
+ * same games, so they can never finish a week apart. Past weeks' ranks are also
+ * a player's tendencies: how often they take the safest game, the second, and
+ * so on. Read in one pass for the whole season rather than week by week, so the
+ * database wakes once.
  */
-async function readBoard(season: number, week: number) {
-  const weekGames = await db.query.games.findMany({
-    where: and(eq(games.season, season), eq(games.week, week)),
+async function readBoards(season: number, currentWeek: number) {
+  const seasonGames = await db.query.games.findMany({
+    where: eq(games.season, season),
   }).catch(() => []);
 
-  const lines = await getWeekOdds(season, week).catch(() => []);
+  const lines = await db.query.gameOdds.findMany({
+    where: eq(gameOdds.season, season),
+  }).catch(() => []);
   const linesByGame = new Map(lines.map(l => [Number(l.gameId), l]));
 
-  const priced = weekGames
-    .map(game => {
-      const line = linesByGame.get(Number(game.id));
-      if (line?.homeMoneyline == null || line?.awayMoneyline == null) return null;
-      const home = fairWinProbability(line.homeMoneyline, line.awayMoneyline);
-      return {
-        gameId: Number(game.id),
-        favourite: home >= 0.5 ? game.homeTeam : game.awayTeam,
-        probability: Math.max(home, 1 - home),
-      };
-    })
-    .filter((g): g is NonNullable<typeof g> => g !== null)
-    .sort((a, b) => b.probability - a.probability);
-
-  const rankByGame = new Map<number, number>();
-  priced.forEach((game, index) => rankByGame.set(game.gameId, index));
-
   // Same rule as the stats: nobody's ticket counts until the week kicks off.
-  const started = weekGames.some(g => new Date(g.startTime as any).getTime() <= Date.now());
-  const weekPicks = started
-    ? await db.query.picks.findMany({
-        where: and(eq(picks.season, season), eq(picks.week, week)),
-      }).catch(() => [])
-    : [];
+  const now = Date.now();
+  const startedWeeks = new Set(
+    seasonGames.filter(g => new Date(g.startTime as any).getTime() <= now).map(g => g.week)
+  );
+  const seasonPicks = (await db.query.picks.findMany({
+    where: eq(picks.season, season),
+  }).catch(() => [])).filter(p => startedWeeks.has(p.week));
 
-  // Only count a pick as taking the board position if they backed the
-  // favourite; siding with a dog is a different bet than that rank represents.
-  const ranksByUser = new Map<number, number[]>();
-  for (const pick of weekPicks) {
-    const rank = rankByGame.get(Number(pick.gameId));
-    if (rank === undefined) continue;
-    const game = priced[rank];
-    if (!isSameTeam(game.favourite, pick.pickedTeam)) continue;
+  const boardFor = (week: number) => {
+    const priced = seasonGames
+      .filter(g => g.week === week)
+      .map(game => {
+        const line = linesByGame.get(Number(game.id));
+        if (line?.homeMoneyline == null || line?.awayMoneyline == null) return null;
+        const home = fairWinProbability(line.homeMoneyline, line.awayMoneyline);
+        return {
+          gameId: Number(game.id),
+          favourite: home >= 0.5 ? game.homeTeam : game.awayTeam,
+          probability: Math.max(home, 1 - home),
+        };
+      })
+      .filter((g): g is NonNullable<typeof g> => g !== null)
+      .sort((a, b) => b.probability - a.probability);
 
-    const existing = ranksByUser.get(pick.userId as number) ?? [];
-    existing.push(rank);
-    ranksByUser.set(pick.userId as number, existing);
+    const rankByGame = new Map<number, number>();
+    priced.forEach((game, index) => rankByGame.set(game.gameId, index));
+
+    // Only count a pick as taking the board position if they backed the
+    // favourite; siding with a dog is a different bet than that rank represents.
+    const ranksByUser = new Map<number, number[]>();
+    for (const pick of seasonPicks) {
+      if (pick.week !== week) continue;
+      const rank = rankByGame.get(Number(pick.gameId));
+      if (rank === undefined) continue;
+      if (!isSameTeam(priced[rank].favourite, pick.pickedTeam)) continue;
+
+      const existing = ranksByUser.get(pick.userId as number) ?? [];
+      existing.push(rank);
+      ranksByUser.set(pick.userId as number, existing);
+    }
+
+    return { probabilities: priced.map(g => g.probability), ranksByUser };
+  };
+
+  // Each player's ranks in every week they played before this one.
+  const history = new Map<number, number[][]>();
+  for (const week of Array.from(startedWeeks).filter(w => w < currentWeek).sort((a, b) => a - b)) {
+    boardFor(week).ranksByUser.forEach((ranks, userId) => {
+      history.set(userId, [...(history.get(userId) ?? []), ranks]);
+    });
   }
 
-  return {
-    probabilities: priced.map(g => g.probability),
-    ranksByUser,
-  };
+  return { ...boardFor(currentWeek), history };
 }
 
 export async function computeTitleOdds(season: number, currentWeek: number) {
   const insights = await getSeasonInsights(season, currentWeek);
   const remainingWeeks = Math.max(0, 18 - currentWeek);
-  const board = await readBoard(season, currentWeek);
+  const board = await readBoards(season, currentWeek);
 
   // No lines stored yet: fall back to a flat board so the card still renders.
   const probabilities = board.probabilities.length > 0
@@ -158,7 +180,7 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
   const odds = seasonTitleOdds(seasonPlayers, remainingWeeks, RUNS, makeRng(SEED));
   const finishes = seasonProjection(seasonPlayers, remainingWeeks, RUNS, makeRng(SEED));
 
-  const rows: PlayerOddsResult[] = insights.players.map((p) => {
+  const rows: PlayerOddsResult[] = insights.players.map((p, i) => {
     const bestOther = Math.max(
       0,
       ...insights.players.filter(r => r.userId !== p.userId).map(r => r.totalPoints)
@@ -175,6 +197,9 @@ export async function computeTitleOdds(season: number, currentWeek: number) {
       maxCeiling: p.maxCeiling,
       odds: odds.get(p.userId) ?? 0,
       projectedFinish: finishes.get(p.userId) ?? p.totalPoints,
+      winProb: seasonPlayers[i].winProb,
+      correlation: seasonPlayers[i].correlation,
+      rankShares: rankShares(board.history.get(p.userId) ?? []),
     };
   });
 
