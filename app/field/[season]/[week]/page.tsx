@@ -298,7 +298,7 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                         </div>
                         {row.facts && (
                           <p className="mt-1 text-[11px] leading-snug text-muted">
-                            Hits {Math.round(row.facts.hitChance * 100)}% of the time, for {row.facts.pointsIfHit} pts:{' '}
+                            Hits {Math.round(row.facts.hitChance * 100)}% of the time, +{row.ticket.length} to {row.facts.pointsIfHit} pts on the season:{' '}
                             {row.facts.notClearOf.length === 0
                               ? 'clear of the field even if everyone hits.'
                               : `not clear of ${names(row.facts.notClearOf)} if theirs hit too.`}
