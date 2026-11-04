@@ -225,3 +225,45 @@ export function explainLocks(
     };
   });
 }
+
+export interface TicketFacts {
+  /** Chance every leg hits. */
+  hitChance: number;
+  pointsIfHit: number;
+  /** Rivals still level or ahead if this ticket hits and theirs does too. */
+  notClearOf: number[];
+  /** Rivals whose whole ticket this one holds, so they can never gain on it. */
+  covers: number[];
+  /** Rivals sharing no game with it, so their bust is pure gain. */
+  clearOf: number[];
+}
+
+/** The reasons a ticket ranks where it does, as facts the UI can phrase. */
+export function ticketFacts(
+  me: number,
+  players: WeekPlayer[],
+  ticket: Leg[],
+  homeProb: HomeProbabilities
+): TicketFacts | null {
+  const mine = players.find(p => p.userId === me);
+  if (!mine) return null;
+
+  const hitChance = ticket.reduce((p, leg) => {
+    const home = homeProb.get(leg.gameId) ?? 0.5;
+    return p * (leg.home ? home : 1 - home);
+  }, ticket.length > 0 ? 1 : 0);
+  const pointsIfHit = mine.points + ticket.length;
+
+  const holds = (leg: Leg) => ticket.some(l => l.gameId === leg.gameId && l.home === leg.home);
+  const rivals = players.filter(p => p.userId !== me);
+
+  return {
+    hitChance,
+    pointsIfHit,
+    notClearOf: rivals.filter(r => r.points + r.ticket.length >= pointsIfHit).map(r => r.userId),
+    covers: rivals.filter(r => r.ticket.length > 0 && r.ticket.every(holds)).map(r => r.userId),
+    clearOf: rivals
+      .filter(r => r.ticket.length > 0 && !r.ticket.some(l => ticket.some(t => t.gameId === l.gameId)))
+      .map(r => r.userId),
+  };
+}

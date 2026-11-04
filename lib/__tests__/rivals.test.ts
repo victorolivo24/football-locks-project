@@ -7,6 +7,7 @@ import {
   candidateTickets,
   rankTickets,
   explainLocks,
+  ticketFacts,
   WeekPlayer,
   Leg,
 } from '../rivals';
@@ -156,5 +157,30 @@ describe('explainLocks', () => {
     expect(g2.ifHits).toBeGreaterThanOrEqual(g2.ifMisses);
     const withLock = titleOddsAfterWeek([{ ...field[0], ticket: [home(1), home(2)] }, field[1], field[2]], probs, 0)[0];
     close(0.75 * g2.ifHits + 0.25 * g2.ifMisses, withLock);
+  });
+});
+
+describe('ticketFacts', () => {
+  const field = [player(1, 5, []), player(2, 4, [home(1), home(2)]), player(3, 6, [home(3)])];
+
+  it('prices the ticket and projects the points', () => {
+    const facts = ticketFacts(1, field, [home(1), home(2)], probs)!;
+    close(facts.hitChance, 0.8 * 0.75);
+    expect(facts.pointsIfHit).toBe(7);
+  });
+
+  it('names who stays level or ahead if everyone hits', () => {
+    // Hitting two takes me to 7; rival 3 would be 7 too, rival 2 only 6.
+    expect(ticketFacts(1, field, [home(1), home(2)], probs)!.notClearOf).toEqual([3]);
+  });
+
+  it('knows whose ticket it covers and whose it avoids', () => {
+    const facts = ticketFacts(1, field, [home(1), home(2)], probs)!;
+    expect(facts.covers).toEqual([2]);
+    expect(facts.clearOf).toEqual([3]);
+  });
+
+  it('is zero chance for an empty ticket', () => {
+    expect(ticketFacts(1, field, [], probs)!.hitChance).toBe(0);
   });
 });

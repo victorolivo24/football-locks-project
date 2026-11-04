@@ -8,7 +8,7 @@ import PickBoard, { Selection } from '@/components/PickBoard';
 import TeamLogo from '@/components/TeamLogo';
 import { rankedBoard, ticketProbability, expectedPoints } from '@/lib/luck';
 import { isSameTeam } from '@/lib/teams';
-import { predictRanks, rankTickets, titleOddsAfterWeek, explainLocks, Leg, WeekPlayer } from '@/lib/rivals';
+import { predictRanks, rankTickets, titleOddsAfterWeek, explainLocks, ticketFacts, Leg, WeekPlayer } from '@/lib/rivals';
 
 interface Game {
   id: number;
@@ -142,7 +142,9 @@ export default function FieldPage({ params }: { params: { season: string; week: 
     const index = players.findIndex(p => p.userId === meId);
     return {
       mine: titleOddsAfterWeek(players, homeProb, field.remainingWeeks)[index],
-      ranked: rankTickets(meId, players, favourites, homeProb, field.remainingWeeks).slice(0, 8),
+      ranked: rankTickets(meId, players, favourites, homeProb, field.remainingWeeks)
+        .slice(0, 8)
+        .map(row => ({ ...row, facts: ticketFacts(meId, players, row.ticket, homeProb) })),
       locks: explainLocks(meId, players, favourites, homeProb, field.remainingWeeks),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,6 +184,9 @@ export default function FieldPage({ params }: { params: { season: string; week: 
       <div className="text-[10px] uppercase tracking-wide text-muted">{label}</div>
     </div>
   );
+
+  const names = (ids: number[]) =>
+    ids.map(id => rivals.find(r => r.userId === id)?.name.split(' ')[0]).filter(Boolean).join(', ');
 
   const logos = (ticket: Leg[]) => (
     <div className="flex -space-x-1">
@@ -286,11 +291,23 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                       onClick={() => load(row.ticket)}
                       className="flex w-full items-center justify-between gap-2 rounded-lg bg-raised px-3 py-2 text-left hover:bg-white/5"
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="num w-5 text-[10px] text-muted">{row.ticket.length}×</span>
-                        {logos(row.ticket)}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="num w-5 text-[10px] text-muted">{row.ticket.length}×</span>
+                          {logos(row.ticket)}
+                        </div>
+                        {row.facts && (
+                          <p className="mt-1 text-[11px] leading-snug text-muted">
+                            Hits {Math.round(row.facts.hitChance * 100)}% of the time, for {row.facts.pointsIfHit} pts:{' '}
+                            {row.facts.notClearOf.length === 0
+                              ? 'clear of the field even if everyone hits.'
+                              : `not clear of ${names(row.facts.notClearOf)} if theirs hit too.`}
+                            {row.facts.covers.length > 0 && ` Holds everything ${names(row.facts.covers)} has, so they can't gain on it.`}
+                            {row.facts.clearOf.length > 0 && ` Shares nothing with ${names(row.facts.clearOf)}, so their bust is pure gain.`}
+                          </p>
+                        )}
                       </div>
-                      <span className="num text-sm font-bold">{pct(row.odds)}</span>
+                      <span className="num shrink-0 text-sm font-bold">{pct(row.odds)}</span>
                     </button>
                   ))}
                 </div>
@@ -312,8 +329,6 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                     const game = gameById.get(lock.leg.gameId);
                     if (!game) return null;
                     const team = lock.leg.home ? game.homeTeam : game.awayTeam;
-                    const names = (ids: number[]) =>
-                      ids.map(id => rivals.find(r => r.userId === id)?.name.split(' ')[0]).filter(Boolean).join(', ');
                     const swing = lock.delta * 100;
                     return (
                       <div key={lock.leg.gameId} className="flex items-center gap-2 py-2">
