@@ -6,6 +6,7 @@ import {
   titleOddsAfterWeek,
   candidateTickets,
   rankTickets,
+  explainLocks,
   WeekPlayer,
   Leg,
 } from '../rivals';
@@ -127,5 +128,33 @@ describe('rankTickets', () => {
 
   it('returns nothing for a player not in the field', () => {
     expect(rankTickets(9, [player(1, 0, [])], favourites, probs, 0)).toEqual([]);
+  });
+});
+
+describe('explainLocks', () => {
+  const field = [player(1, 5, [home(1)]), player(2, 4, [home(1), home(2)]), player(3, 4, [away(2)])];
+
+  it('names who rides and who fades each game', () => {
+    const [g1, g2] = explainLocks(1, field, [home(1), home(2)], probs, 0);
+    expect(g1.with).toEqual([2]);
+    expect(g1.against).toEqual([]);
+    expect(g2.with).toEqual([2]);
+    expect(g2.against).toEqual([3]);
+  });
+
+  it('measures a held lock by what removing it would cost', () => {
+    const [g1] = explainLocks(1, field, [home(1)], probs, 0);
+    expect(g1.held).toBe(true);
+    const withIt = titleOddsAfterWeek(field, probs, 0)[0];
+    const withoutIt = titleOddsAfterWeek([{ ...field[0], ticket: [] }, field[1], field[2]], probs, 0)[0];
+    close(g1.delta, withIt - withoutIt);
+  });
+
+  it('splits into a hit future and a miss future around the unconditional odds', () => {
+    const [g2] = explainLocks(1, field, [home(2)], probs, 0);
+    expect(g2.held).toBe(false);
+    expect(g2.ifHits).toBeGreaterThanOrEqual(g2.ifMisses);
+    const withLock = titleOddsAfterWeek([{ ...field[0], ticket: [home(1), home(2)] }, field[1], field[2]], probs, 0)[0];
+    close(0.75 * g2.ifHits + 0.25 * g2.ifMisses, withLock);
   });
 });

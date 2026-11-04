@@ -8,7 +8,7 @@ import PickBoard, { Selection } from '@/components/PickBoard';
 import TeamLogo from '@/components/TeamLogo';
 import { rankedBoard, ticketProbability, expectedPoints } from '@/lib/luck';
 import { isSameTeam } from '@/lib/teams';
-import { predictRanks, rankTickets, titleOddsAfterWeek, Leg, WeekPlayer } from '@/lib/rivals';
+import { predictRanks, rankTickets, titleOddsAfterWeek, explainLocks, Leg, WeekPlayer } from '@/lib/rivals';
 
 interface Game {
   id: number;
@@ -143,6 +143,7 @@ export default function FieldPage({ params }: { params: { season: string; week: 
     return {
       mine: titleOddsAfterWeek(players, homeProb, field.remainingWeeks)[index],
       ranked: rankTickets(meId, players, favourites, homeProb, field.remainingWeeks).slice(0, 8),
+      locks: explainLocks(meId, players, favourites, homeProb, field.remainingWeeks),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field, board, mine, tickets, meId]);
@@ -296,6 +297,55 @@ export default function FieldPage({ params }: { params: { season: string; week: 
                 <p className="text-[11px] text-muted">
                   Subsets of the safest eight games, given the tickets you set for everyone else. Tap one to
                   make it your ticket here.
+                </p>
+              </div>
+            )}
+
+            {against && (
+              <div className="card space-y-2 p-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="section-title">Game by game</h2>
+                  <span className="text-[11px] text-muted">swing in your title odds</span>
+                </div>
+                <div className="divide-y divide-line">
+                  {against.locks.map(lock => {
+                    const game = gameById.get(lock.leg.gameId);
+                    if (!game) return null;
+                    const team = lock.leg.home ? game.homeTeam : game.awayTeam;
+                    const names = (ids: number[]) =>
+                      ids.map(id => rivals.find(r => r.userId === id)?.name.split(' ')[0]).filter(Boolean).join(', ');
+                    const swing = lock.delta * 100;
+                    return (
+                      <div key={lock.leg.gameId} className="flex items-center gap-2 py-2">
+                        <TeamLogo team={team} size="sm" className="scale-75" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <span className="truncate font-semibold">{team.split(' ').pop()}</span>
+                            {lock.held && <span className="text-[10px] text-gold">🔒</span>}
+                          </div>
+                          <div className="text-[11px] text-muted">
+                            hits → {pct(lock.ifHits)} · misses → {pct(lock.ifMisses)}
+                          </div>
+                          <div className="text-[11px] text-muted">
+                            {lock.with.length === 0 && lock.against.length === 0
+                              ? 'Nobody else on it: a miss is yours alone.'
+                              : [
+                                  lock.with.length > 0 && `With ${names(lock.with)}`,
+                                  lock.against.length > 0 && `fading ${names(lock.against)}`,
+                                ].filter(Boolean).join(' · ')}
+                          </div>
+                        </div>
+                        <span className={`num shrink-0 text-sm font-bold ${swing > 0.05 ? 'text-win' : swing < -0.05 ? 'text-loss' : 'text-muted'}`}>
+                          {swing > 0 ? '+' : ''}{swing.toFixed(1)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted">
+                  Each line: what locking this game does to your title odds, added to your ticket as set (or
+                  what a 🔒 you already hold is worth). A game your rivals share can&apos;t hurt you much if it
+                  misses, since they bust with you. One only you hold can.
                 </p>
               </div>
             )}

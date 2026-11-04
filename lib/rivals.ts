@@ -166,3 +166,62 @@ export function rankTickets(
     })
     .sort((a, b) => b.odds - a.odds || a.ticket.length - b.ticket.length);
 }
+
+export interface LockExplanation {
+  leg: Leg;
+  /** Whether the viewer's ticket already holds this lock. */
+  held: boolean;
+  /** Title chance with the lock minus without it, 0 to 1 scale. */
+  delta: number;
+  /** Title chance holding the lock, should the game hit or miss. */
+  ifHits: number;
+  ifMisses: number;
+  /** Rivals assumed on the same side, and on the other side. */
+  with: number[];
+  against: number[];
+}
+
+/**
+ * What each lock does for the viewer against the field: the swing in title
+ * chance from holding it, the two futures it splits into, and who else is on
+ * the game. The field is what makes a lock worth more or less than its line:
+ * a game every rival holds cannot hurt you much, and one nobody holds can.
+ */
+export function explainLocks(
+  me: number,
+  players: WeekPlayer[],
+  legs: Leg[],
+  homeProb: HomeProbabilities,
+  remainingWeeks: number
+): LockExplanation[] {
+  const index = players.findIndex(p => p.userId === me);
+  if (index < 0) return [];
+  const mine = players[index].ticket;
+  const cache = new Map<string, number[]>();
+
+  const oddsWith = (ticket: Leg[], probs: HomeProbabilities = homeProb) =>
+    titleOddsAfterWeek(players.map((p, i) => (i === index ? { ...p, ticket } : p)), probs, remainingWeeks, cache)[index];
+
+  const base = oddsWith(mine);
+
+  return legs.map(leg => {
+    const held = mine.some(l => l.gameId === leg.gameId && l.home === leg.home);
+    const without = mine.filter(l => l.gameId !== leg.gameId);
+    const withLock = [...without, leg];
+
+    const forced = (wins: boolean) => new Map(homeProb).set(leg.gameId, leg.home === wins ? 1 : 0);
+    const onGame = (same: boolean) => players
+      .filter((p, i) => i !== index && p.ticket.some(l => l.gameId === leg.gameId && (l.home === leg.home) === same))
+      .map(p => p.userId);
+
+    return {
+      leg,
+      held,
+      delta: held ? base - oddsWith(without) : oddsWith(withLock) - base,
+      ifHits: oddsWith(withLock, forced(true)),
+      ifMisses: oddsWith(withLock, forced(false)),
+      with: onGame(true),
+      against: onGame(false),
+    };
+  });
+}
