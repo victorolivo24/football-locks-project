@@ -202,9 +202,14 @@ export default function WeekPage({ params }: { params: { season: string; week: s
         eyebrow={`Season ${season}`}
         title={`Week ${week}`}
         right={
-          <button onClick={() => setCalcOpen(true)} className="btn-ghost px-3 py-2 text-xs">
-            🎛️ Ticket Simulator
-          </button>
+          <div className="flex gap-2">
+            <Link href={`/field/${season}/${week}`} className="btn-ghost px-3 py-2 text-xs">
+              🎯 Vs. the field
+            </Link>
+            <button onClick={() => setCalcOpen(true)} className="btn-ghost px-3 py-2 text-xs">
+              🎛️ Ticket Simulator
+            </button>
+          </div>
         }
       />
 
@@ -405,14 +410,7 @@ export default function WeekPage({ params }: { params: { season: string; week: s
               <h2 className="section-title">Ticket Simulator</h2>
               <button onClick={() => setCalcOpen(false)} className="btn-ghost px-3 py-1.5 text-xs">Close</button>
             </div>
-            <TicketBuilder
-              games={games}
-              season={season}
-              week={week}
-              meId={user.userId}
-              myPicks={calcSeed}
-              leaguePicks={league?.picksByUser}
-            />
+            <TicketBuilder games={games} week={week} myPicks={calcSeed} />
           </div>
         </div>
       )}
