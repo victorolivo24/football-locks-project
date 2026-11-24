@@ -61,8 +61,11 @@ export default function WeekPage({ params }: { params: { season: string; week: s
 
   const season = parseInt(params.season);
   const week = parseInt(params.week);
-  const isLocked = isPicksLocked(season, week);
-  const lockTime = getLockTime(season, week);
+  const firstKickoff = games.length
+    ? new Date(Math.min(...games.map(g => new Date(g.startTime).getTime())))
+    : undefined;
+  const isLocked = isPicksLocked(season, week, firstKickoff);
+  const lockTime = getLockTime(season, week, firstKickoff);
   const hasSubmitted = myPicks.length > 0;
 
   // Keep the countdown moving.

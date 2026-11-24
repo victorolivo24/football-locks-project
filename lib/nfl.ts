@@ -116,8 +116,23 @@ export async function getCurrentWeekFromSchedule(): Promise<{ season: number; we
   return resolved ? { season, ...resolved } : null;
 }
 
-// Get lock time for a given week (Wednesday for Week 1, Thursday for others)
-export function getLockTime(season: number, week: number): DateTime {
+/**
+ * When picks close for a week: Thursday 8 PM ET (Wednesday for week 1), or the
+ * week's first kickoff when that comes sooner.
+ *
+ * The weekday rule alone leaves picks open through games already played in a
+ * week that opens early — Thanksgiving week 2026 has a Wednesday night game
+ * and two Thursday afternoon games before Thursday 8 PM. Pass firstKickoff
+ * whenever the schedule is at hand; without it only the weekday rule applies.
+ */
+export function getLockTime(season: number, week: number, firstKickoff?: Date | null): DateTime {
+  const scheduled = weekdayLockTime(season, week);
+  if (!firstKickoff) return scheduled;
+  const kickoff = DateTime.fromJSDate(firstKickoff).setZone('America/New_York');
+  return kickoff < scheduled ? kickoff : scheduled;
+}
+
+function weekdayLockTime(season: number, week: number): DateTime {
   const baseDate = DateTime.fromObject({ year: season, month: 9, day: 1 }, { zone: 'America/New_York' });
   
   // Find the first Monday of September to establish a reliable week start
@@ -139,9 +154,9 @@ export function getLockTime(season: number, week: number): DateTime {
 }
 
 // Check if picks are locked for a given week
-export function isPicksLocked(season: number, week: number): boolean {
+export function isPicksLocked(season: number, week: number, firstKickoff?: Date | null): boolean {
   if (process.env.NEXT_PUBLIC_DISABLE_LOCKS === '1') return false; // dev override
-  const lockTime = getLockTime(season, week);
+  const lockTime = getLockTime(season, week, firstKickoff);
   const now = DateTime.now().setZone('America/New_York');
   return now >= lockTime;
 }

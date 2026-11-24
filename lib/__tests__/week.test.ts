@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DateTime } from 'luxon';
-import { resolveWeekFromKickoffs } from '../nfl';
+import { resolveWeekFromKickoffs, getLockTime } from '../nfl';
 
 const et = (iso: string) => DateTime.fromISO(iso, { zone: 'America/New_York' });
 
@@ -37,5 +37,33 @@ describe('resolveWeekFromKickoffs', () => {
 
   it('returns null with no schedule to read', () => {
     expect(resolveWeekFromKickoffs(new Map(), et('2026-09-09T18:00'))).toBe(null);
+  });
+});
+
+describe('getLockTime', () => {
+  const lock = (week: number, firstKickoff?: string) =>
+    getLockTime(2026, week, firstKickoff ? et(firstKickoff).toJSDate() : undefined).toFormat("ccc LLL d HH:mm");
+
+  it('locks Thursday 8 PM ahead of a normal Thursday night game', () => {
+    expect(lock(13, '2026-12-03T20:15')).toBe('Thu Dec 3 20:00');
+  });
+
+  it('locks at kickoff when the week opens before Thursday night', () => {
+    // Week 12 of 2026: Thanksgiving Eve game, then two Thanksgiving afternoon
+    // games, all over before a Thursday 8 PM lock would have closed anything.
+    expect(lock(12, '2026-11-25T20:00')).toBe('Wed Nov 25 20:00');
+  });
+
+  it('locks at a Thanksgiving afternoon kickoff', () => {
+    expect(lock(12, '2026-11-26T13:00')).toBe('Thu Nov 26 13:00');
+  });
+
+  it('keeps the Thursday lock when the first game is later in the week', () => {
+    expect(lock(13, '2026-12-05T16:30')).toBe('Thu Dec 3 20:00');
+  });
+
+  it('falls back to the weekday rule with no schedule', () => {
+    expect(lock(12)).toBe('Thu Nov 26 20:00');
+    expect(lock(1)).toBe('Wed Sep 9 20:00');
   });
 });

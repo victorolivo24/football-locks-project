@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { DateTime } from 'luxon';
-import { getCurrentNFLWeek, getCurrentWeekFromSchedule } from '@/lib/nfl';
+import { getCurrentNFLWeek, getCurrentWeekFromSchedule, getLockTime } from '@/lib/nfl';
 
 function isMissingGamesTable(error: unknown) {
   return error instanceof Error && error.message.includes('relation "games" does not exist');
@@ -26,7 +26,7 @@ export async function GET() {
         return NextResponse.json({
           season: current.season,
           week: current.week,
-          lockTime: thursday8pmOfWeek(current.firstKickoffET),
+          lockTime: getLockTime(current.season, current.week, current.firstKickoffET.toJSDate()).toISO(),
         });
       }
     } catch (error) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { isPicksLocked } from '@/lib/nfl';
+import { isPicksLocked, getGamesForWeek } from '@/lib/nfl';
 import { db } from '@/lib/db';
 import { picks } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if picks are locked
-    if (isPicksLocked(season, week)) {
+    const firstGame = (await getGamesForWeek(season, week))[0]; // ordered by kickoff
+    if (isPicksLocked(season, week, firstGame && new Date(firstGame.startTime as any))) {
       return NextResponse.json(
         { error: 'Picks are locked for this week' },
         { status: 403 }

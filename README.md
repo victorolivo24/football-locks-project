@@ -7,7 +7,7 @@ A free, friends-only NFL weekly pick'em application built with Next.js 14, TypeS
 - **6 Fixed Users**: Victor, Mihir, Dakota, Chris, Ryan, Jihoo
 - **Lightweight Authentication**: Name selection + shared league passcode
 - **Weekly Picks**: Submit picks for all NFL games in a week
-- **Time Lock**: Picks lock every Thursday 8:00 PM ET
+- **Time Lock**: Picks lock Thursday 8:00 PM ET, or at the week's first kickoff if that comes sooner
 - **All-or-Nothing Scoring**: Score one point per lock if every lock hits, 0 if any misses
 - **Automated Results & Odds**: Scores and betting lines pull from ESPN without manual entry
 - **Pick Visibility**: See others' picks only after submitting your own
@@ -253,7 +253,7 @@ gpg --decrypt backup.sql.gz.gpg | gunzip | psql "$DATABASE_URL"
 ## Time Management
 
 - **Picks Window**: Monday 9:00 AM ET → Thursday 8:00 PM ET
-- **Lock Time**: Thursday 8:00 PM ET (America/New_York timezone)
+- **Lock Time**: Thursday 8:00 PM ET (America/New_York timezone), or the week's first kickoff if earlier (e.g. a Wednesday or Thanksgiving afternoon game)
 - **Schedule Fetch**: Mondays 9:00 AM ET
 - **Results Update**: Daily 3:00 AM ET
 
